@@ -1,0 +1,11 @@
+#ifndef GUARD_ARENA_MOVE_FX_H
+#define GUARD_ARENA_MOVE_FX_H
+#include "arena_moves.h"
+void ArenaMoveFx_Init(void);
+u8 ArenaMoveFx_Palette(u8 material);
+void ArenaMoveFx_Action(u8 side, const struct ArenaMoveProfile *profile,
+                       s16 x, s16 y, u8 direction, u8 age, bool8 active, bool8 paused);
+u8 ArenaMoveFx_CreateBolt(const struct ArenaMoveProfile *profile, s16 x, s16 y, u8 direction);
+void ArenaMoveFx_Bolt(u8 sprite, const struct ArenaMoveProfile *profile,
+                     s16 x, s16 y, u8 direction, u8 age);
+#endif

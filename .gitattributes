@@ -1,0 +1,2 @@
+# Unified diff context deliberately prefixes empty lines and Makefile tabs.
+*.patch -whitespace

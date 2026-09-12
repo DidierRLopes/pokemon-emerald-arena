@@ -1,0 +1,14 @@
+[
+  {"dex":"0252","species":"TREECKO","level":11,"poses":{"Attack":"Double"}},
+  {"dex":"0261","species":"POOCHYENA","level":12,"poses":{"Attack":"RearUp"}},
+  {"dex":"0006","species":"CHARIZARD","level":36,"poses":{"Attack":"Charge"}},
+  {"dex":"0009","species":"BLASTOISE","level":36,"poses":{"Attack":"Charge"}},
+  {"dex":"0001","species":"BULBASAUR","level":12,"poses":{"Attack":"Charge"}},
+  {"dex":"0007","species":"SQUIRTLE","level":15,"poses":{"Attack":"Charge"}},
+  {"dex":"0133","species":"EEVEE","level":25,"poses":{"Attack":"Charge"}},
+  {"dex":"0149","species":"DRAGONITE","level":30,"poses":{"Attack":"Charge"}},
+  {"dex":"0212","species":"SCIZOR","level":15,"poses":{"Attack":"Charge"}},
+  {"dex":"0257","species":"BLAZIKEN","level":20,"poses":{"Attack":"Charge","Shoot":"Charge","SpAttack":"Charge"}},
+  {"dex":"0253","species":"GROVYLE","level":16,"poses":{"Attack":"Double"}},
+  {"dex":"0254","species":"SCEPTILE","level":43,"poses":{"Attack":"Double"}}
+]

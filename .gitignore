@@ -1,0 +1,14 @@
+.arena-public-export
+node_modules/
+dist/
+.env*
+*.gba
+*.gbc
+*.gb
+*.sav
+*.state
+*.ss1
+*.4bpp
+*.gbapal
+workspace/
+.DS_Store

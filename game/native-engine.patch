@@ -1,0 +1,629 @@
+diff --git a/Makefile b/Makefile
+index d25123a..a361fbf 100644
+--- a/Makefile
++++ b/Makefile
+@@ -112,7 +112,8 @@ INCLUDE_CPP_ARGS := $(INCLUDE_DIRS:%=-iquote %)
+ INCLUDE_SCANINC_ARGS := $(INCLUDE_DIRS:%=-I %)
+ 
+ O_LEVEL ?= 2
+-CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DMODERN=$(MODERN)
++ARENA_LAB ?= 0
++CPPFLAGS := $(INCLUDE_CPP_ARGS) -Wno-trigraphs -DMODERN=$(MODERN) -DARENA_LAB=$(ARENA_LAB)
+ ifeq ($(MODERN),0)
+   CPPFLAGS += -I tools/agbcc/include -I tools/agbcc -nostdinc -undef -std=gnu89
+   CC1 := tools/agbcc/bin/agbcc$(EXE)
+@@ -330,7 +331,7 @@ ifneq ($(NODEP),1)
+ endif
+ 
+ $(C_BUILDDIR)/%.o: $(C_SUBDIR)/%.s
+-	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
++	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) -DARENA_LAB=$(ARENA_LAB) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+ 
+ $(C_BUILDDIR)/%.d: $(C_SUBDIR)/%.s
+ 	$(SCANINC) -M $@ -g $(ASSETS_DIR_NAME) $(INCLUDE_SCANINC_ARGS) -I "" $<
+@@ -340,7 +341,7 @@ ifneq ($(NODEP),1)
+ endif
+ 
+ $(DATA_ASM_BUILDDIR)/%.o: $(DATA_ASM_SUBDIR)/%.s
+-	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
++	$(PREPROC) $< charmap.txt | $(CPP) $(INCLUDE_SCANINC_ARGS) -DARENA_LAB=$(ARENA_LAB) - | $(PREPROC) -ie $< charmap.txt | $(AS) $(ASFLAGS) -o $@
+ 
+ $(DATA_ASM_BUILDDIR)/%.d: $(DATA_ASM_SUBDIR)/%.s
+ 	$(SCANINC) -M $@ -g $(ASSETS_DIR_NAME) $(INCLUDE_SCANINC_ARGS) -I "" $<
+diff --git a/data/battle_scripts_1.s b/data/battle_scripts_1.s
+index d7733eb..1fb38b0 100644
+--- a/data/battle_scripts_1.s
++++ b/data/battle_scripts_1.s
+@@ -2806,6 +2806,10 @@ BattleScript_EffectCamouflage::
+ 	waitmessage B_WAIT_TIME_LONG
+ 	goto BattleScript_MoveEnd
+ 
++BattleScript_RealtimeArenaFaint::
++	tryfaintmon BS_TARGET
++	end
++
+ BattleScript_FaintAttacker::
+ 	playfaintcry BS_ATTACKER
+ 	pause B_WAIT_TIME_LONG
+diff --git a/data/event_scripts.s b/data/event_scripts.s
+index 6834c98..1a2fb4e 100644
+--- a/data/event_scripts.s
++++ b/data/event_scripts.s
+@@ -1056,3 +1056,8 @@ Common_EventScript_LegendaryFlewAway::
+ 	.include "data/text/frontier_brain.inc"
+ 	.include "data/text/save.inc"
+ 	.include "data/text/birch_speech.inc"
++	.include "data/scripts/arena_practice.inc"
++#if ARENA_LAB
++	@ Development-only native encounter entry, absent in the play build.
++	.include "data/scripts/arena_lab.inc"
++#endif
+diff --git a/include/constants/flags.h b/include/constants/flags.h
+index 74b10cd..67edf2d 100644
+--- a/include/constants/flags.h
++++ b/include/constants/flags.h
+@@ -43,7 +43,7 @@
+ #define TEMP_FLAGS_END   FLAG_TEMP_1F
+ #define NUM_TEMP_FLAGS   (TEMP_FLAGS_END - TEMP_FLAGS_START + 1)
+ 
+-#define FLAG_UNUSED_0x020    0x20 // Unused Flag
++#define FLAG_ARENA_PRACTICE  0x20 // Opt-in disposable practice save; formerly unused.
+ #define FLAG_UNUSED_0x021    0x21 // Unused Flag
+ #define FLAG_UNUSED_0x022    0x22 // Unused Flag
+ #define FLAG_UNUSED_0x023    0x23 // Unused Flag
+diff --git a/ld_script.ld b/ld_script.ld
+index aeaf082..76cd65f 100644
+--- a/ld_script.ld
++++ b/ld_script.ld
+@@ -13,8 +13,8 @@ MEMORY
+ /* Modify the following load addresses as needed to make more room. Alternately, delete both the
+    declarations below and their references further down to get rid of the gaps.                  */
+ 
+-__anim_mon_load_address = 0x8b00000;
+-__gfx_load_address = 0x8c00000;
++__anim_mon_load_address = 0x8c00000;
++__gfx_load_address = 0x8d00000;
+ 
+ SECTIONS {
+ 
+@@ -93,6 +93,10 @@ SECTIONS {
+         src/digit_obj_util.o(.text);
+         src/battle_bg.o(.text);
+         src/battle_main.o(.text);
++        src/realtime_arena.o(.text);
++        src/arena_navigation.o(.text);
++        src/arena_sprites.o(.text);
++        src/arena_lab.o(.text);
+         src/battle_util.o(.text);
+         src/battle_script_commands.o(.text);
+         src/battle_util2.o(.text);
+@@ -482,6 +486,9 @@ SECTIONS {
+         src/data.o(.rodata);
+         src/battle_bg.o(.rodata);
+         src/battle_main.o(.rodata);
++        src/realtime_arena.o(.rodata);
++        src/arena_navigation.o(.rodata);
++        src/arena_lab.o(.rodata);
+         src/battle_util.o(.rodata);
+         src/battle_script_commands.o(.rodata);
+         src/battle_controller_player.o(.rodata);
+@@ -1317,6 +1324,9 @@ SECTIONS {
+     extra :
+     ALIGN(4)
+     {
++        /* Private PMD catalog grows after native fixed graphic anchors.
++           Only the two active battlers stream into the existing OBJ slots. */
++        src/arena_sprites.o(.rodata);
+         src/*.o(.text);
+         src/*.o(.rodata);
+         data/*.o(.rodata);
+diff --git a/src/battle_controller_player.c b/src/battle_controller_player.c
+index 45bf1a1..3dda8ab 100644
+--- a/src/battle_controller_player.c
++++ b/src/battle_controller_player.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "realtime_arena.h"
+ #include "battle.h"
+ #include "battle_anim.h"
+ #include "battle_arena.h"
+@@ -1157,7 +1158,7 @@ static void Task_GiveExpToMon(u8 taskId)
+     u8 battler = gTasks[taskId].tExpTask_battler;
+     s16 gainedExp = gTasks[taskId].tExpTask_gainedExp;
+ 
+-    if (IsDoubleBattle() == TRUE || monId != gBattlerPartyIndexes[battler]) // Give exp without moving the expbar.
++    if (gRealtimeArenaQuietResult || IsDoubleBattle() == TRUE || monId != gBattlerPartyIndexes[battler]) // Give exp without moving the expbar.
+     {
+         struct Pokemon *mon = &gPlayerParty[monId];
+         u16 species = GetMonData(mon, MON_DATA_SPECIES);
+@@ -2736,7 +2737,8 @@ static void PlayerHandleExpUpdate(void)
+         s16 expPointsToGive;
+         u8 taskId;
+ 
+-        LoadBattleBarGfx(1);
++        if(!gRealtimeArenaQuietResult)LoadBattleBarGfx(1);
++        else gArenaResultTelemetry.expUpdates++;
+         GetMonData(&gPlayerParty[monId], MON_DATA_SPECIES);  // Unused return value.
+         expPointsToGive = T1_READ_16(&gBattleBufferA[gActiveBattler][2]);
+         taskId = CreateTask(Task_GiveExpToMon, 10);
+diff --git a/src/battle_main.c b/src/battle_main.c
+index 11fc168..68ae282 100644
+--- a/src/battle_main.c
++++ b/src/battle_main.c
+@@ -1,4 +1,6 @@
+ #include "global.h"
++#include "realtime_arena.h"
++#include "arena_render.h"
+ #include "battle.h"
+ #include "battle_anim.h"
+ #include "battle_ai_script_commands.h"
+@@ -36,6 +38,7 @@
+ #include "pokemon.h"
+ #include "random.h"
+ #include "recorded_battle.h"
++#include "reshow_battle_screen.h"
+ #include "roamer.h"
+ #include "safari_zone.h"
+ #include "scanline_effect.h"
+@@ -90,6 +93,7 @@ static void TurnValuesCleanUp(bool8 var0);
+ static void SpriteCB_BounceEffect(struct Sprite *sprite);
+ static void BattleStartClearSetData(void);
+ static void BattleIntroGetMonsData(void);
++static void BattleIntroLoadMonData(void);
+ static void BattleIntroPrepareBackgroundSlide(void);
+ static void BattleIntroDrawTrainersOrMonsSprites(void);
+ static void BattleIntroDrawPartySummaryScreens(void);
+@@ -3018,6 +3022,7 @@ void BeginBattleIntroDummy(void)
+ 
+ void BeginBattleIntro(void)
+ {
++    RealtimeArena_ResetBattle();
+     BattleStartClearSetData();
+     gBattleCommunication[1] = 0;
+     gBattleMainFunc = BattleIntroGetMonsData;
+@@ -3025,10 +3030,16 @@ void BeginBattleIntro(void)
+ 
+ static void BattleMainCB1(void)
+ {
+-    gBattleMainFunc();
+-
+-    for (gActiveBattler = 0; gActiveBattler < gBattlersCount; gActiveBattler++)
+-        gBattlerControllerFuncs[gActiveBattler]();
++    u32 steps=0;
++    do
++    {
++        gBattleMainFunc();
++        for (gActiveBattler = 0; gActiveBattler < gBattlersCount; gActiveBattler++)
++            gBattlerControllerFuncs[gActiveBattler]();
++        // Bounded fast settlement only: tasks/controllers still synchronize,
++        // and any interactive UI or fade immediately returns to normal cadence.
++    } while(gRealtimeArenaQuietResult && gMain.callback2==BattleMainCB2
++        && !gPaletteFade.active && !gBattleControllerExecFlags && ++steps<4);
+ }
+ 
+ static void BattleStartClearSetData(void)
+@@ -3369,7 +3380,29 @@ static void BattleIntroGetMonsData(void)
+         {
+             gBattleCommunication[1]++;
+             if (gBattleCommunication[1] == gBattlersCount)
++            {
+                 gBattleMainFunc = BattleIntroPrepareBackgroundSlide;
++                if(gBattlersCount==2&&!(gBattleTypeFlags&~(BATTLE_TYPE_FIRST_BATTLE|BATTLE_TYPE_IS_MASTER)))
++                {
++                    for(gActiveBattler=0;gActiveBattler<gBattlersCount;gActiveBattler++)BattleIntroLoadMonData();
++                    if(RealtimeArena_CanSkipIntro())
++                    {
++                        for(gActiveBattler=0;gActiveBattler<gBattlersCount;gActiveBattler++)
++                            if(GetBattlerSide(gActiveBattler)==B_SIDE_OPPONENT)
++                            {
++                                HandleSetPokedexFlag(SpeciesToNationalPokedexNum(gBattleMons[gActiveBattler].species),FLAG_SET_SEEN,gBattleMons[gActiveBattler].personality);
++                                gBattleResults.lastOpponentSpecies=gBattleMons[gActiveBattler].species;
++                            }
++                        gBattleStruct->switchInAbilitiesCounter=0;
++                        gBattleStruct->switchInItemsCounter=0;
++                        gBattleStruct->overworldWeatherDone=FALSE;
++                        gArenaIntroTelemetry.skipped=1;
++                        // Keep native first-turn setup (XP participation, RNG,
++                        // abilities, choices); omit only the presentation chain.
++                        gBattleMainFunc=TryDoEventsBeforeFirstTurn;
++                    }
++                }
++            }
+             else
+                 gBattleCommunication[MULTIUSE_STATE] = 0;
+         }
+@@ -3390,6 +3423,19 @@ static void BattleIntroPrepareBackgroundSlide(void)
+     }
+ }
+ 
++static void BattleIntroLoadMonData(void)
++{
++    u8 *ptr=(u8*)&gBattleMons[gActiveBattler];
++    s32 i;
++    for(i=0;i<sizeof(struct BattlePokemon);i++)ptr[i]=gBattleBufferB[gActiveBattler][4+i];
++    gBattleMons[gActiveBattler].types[0]=gSpeciesInfo[gBattleMons[gActiveBattler].species].types[0];
++    gBattleMons[gActiveBattler].types[1]=gSpeciesInfo[gBattleMons[gActiveBattler].species].types[1];
++    gBattleMons[gActiveBattler].ability=GetAbilityBySpecies(gBattleMons[gActiveBattler].species,gBattleMons[gActiveBattler].abilityNum);
++    gBattleStruct->hpOnSwitchout[GetBattlerSide(gActiveBattler)]=gBattleMons[gActiveBattler].hp;
++    for(i=0;i<NUM_BATTLE_STATS;i++)gBattleMons[gActiveBattler].statStages[i]=DEFAULT_STAT_STAGE;
++    gBattleMons[gActiveBattler].status2=0;
++}
++
+ static void BattleIntroDrawTrainersOrMonsSprites(void)
+ {
+     u8 *ptr;
+@@ -3409,20 +3455,7 @@ static void BattleIntroDrawTrainersOrMonsSprites(void)
+         }
+         else
+         {
+-            u16 *hpOnSwitchout;
+-
+-            ptr = (u8 *)&gBattleMons[gActiveBattler];
+-            for (i = 0; i < sizeof(struct BattlePokemon); i++)
+-                ptr[i] = gBattleBufferB[gActiveBattler][4 + i];
+-
+-            gBattleMons[gActiveBattler].types[0] = gSpeciesInfo[gBattleMons[gActiveBattler].species].types[0];
+-            gBattleMons[gActiveBattler].types[1] = gSpeciesInfo[gBattleMons[gActiveBattler].species].types[1];
+-            gBattleMons[gActiveBattler].ability = GetAbilityBySpecies(gBattleMons[gActiveBattler].species, gBattleMons[gActiveBattler].abilityNum);
+-            hpOnSwitchout = &gBattleStruct->hpOnSwitchout[GetBattlerSide(gActiveBattler)];
+-            *hpOnSwitchout = gBattleMons[gActiveBattler].hp;
+-            for (i = 0; i < NUM_BATTLE_STATS; i++)
+-                gBattleMons[gActiveBattler].statStages[i] = DEFAULT_STAT_STAGE;
+-            gBattleMons[gActiveBattler].status2 = 0;
++            BattleIntroLoadMonData();
+         }
+ 
+         if (GetBattlerPosition(gActiveBattler) == B_POSITION_PLAYER_LEFT)
+@@ -4130,6 +4163,9 @@ static void HandleTurnActionSelectionState(void)
+ {
+     s32 i;
+ 
++    if (RealtimeArena_TryStart())
++        return;
++
+     gBattleCommunication[ACTIONS_CONFIRMED_COUNT] = 0;
+     for (gActiveBattler = 0; gActiveBattler < gBattlersCount; gActiveBattler++)
+     {
+@@ -4957,6 +4993,65 @@ static void RunTurnActionsFunctions(void)
+     }
+ }
+ 
++static void WaitForRealtimeArenaReturn(void)
++{
++    extern const u8 BattleScript_RealtimeArenaFaint[];
++    if (gMain.callback2 != BattleMainCB2 || gPaletteFade.active)
++        return;
++    if (gRealtimeArenaRestoringFaint)
++    {
++        gRealtimeArenaRestoringFaint = FALSE;
++        gCurrentTurnActionNumber = 0;
++        gBattlerByTurnOrder[0] = gBattlerAttacker;
++        gBattlerByTurnOrder[1] = gBattlerTarget;
++        gActionsByTurnOrder[0] = B_ACTION_EXEC_SCRIPT;
++        gActionsByTurnOrder[1] = B_ACTION_NOTHING_FAINTED;
++        gActionsByTurnOrder[2] = B_ACTION_FINISHED;
++        gCurrentActionFuncId = B_ACTION_EXEC_SCRIPT;
++        gBattleResources->battleScriptsStack->size = 0;
++        gBattleStruct->faintedActionsState = 0;
++        gBattlescriptCurrInstr = BattleScript_RealtimeArenaFaint;
++        gBattleMainFunc = RunTurnActionsFunctions;
++    }
++    else
++        gBattleMainFunc = HandleTurnActionSelectionState;
++}
++
++void RealtimeArena_ResumeBattle(bool8 fainted)
++{
++    gBattleMainFunc = WaitForRealtimeArenaReturn;
++}
++
++static EWRAM_DATA void (*sArenaResultResume)(void) = NULL;
++static void WaitForArenaResultUi(void)
++{
++    u32 i;
++    if(gMain.callback2!=BattleMainCB2||gPaletteFade.active)return;
++    // Reshow creates valid native handles, including the fainted battler.
++    // Remove that image exactly as the omitted faint animation normally would.
++    for(i=0;i<gBattlersCount;i++)if(!gBattleMons[i].hp)
++    {
++        FreeOamMatrix(gSprites[gBattlerSpriteIds[i]].oam.matrixNum);
++        DestroySprite(&gSprites[gBattlerSpriteIds[i]]);
++        SetHealthboxSpriteInvisible(gHealthboxSpriteIds[i]);
++    }
++    gRealtimeArenaRestoringFaint=FALSE;
++    gBattleMainFunc=sArenaResultResume;
++    sArenaResultResume=NULL;
++}
++
++void RealtimeArena_ShowResultUi(void)
++{
++    if(!gRealtimeArenaQuietResult)return;
++    gRealtimeArenaQuietResult=FALSE;
++    gArenaResultTelemetry.uiFallbacks++;
++    sArenaResultResume=gBattleMainFunc;
++    gBattleMainFunc=WaitForArenaResultUi;
++    gRealtimeArenaRestoringFaint=TRUE;
++    SetVBlankCallback(NULL);ArenaRender_Reset();FreeAllWindowBuffers();
++    ReshowBattleScreenAfterMenu();
++}
++
+ static void HandleEndTurn_BattleWon(void)
+ {
+     gCurrentActionFuncId = 0;
+@@ -5216,6 +5311,9 @@ static void WaitForEvoSceneToFinish(void)
+ 
+ static void ReturnFromBattleToOverworld(void)
+ {
++    if(gArenaResultTelemetry.started)
++        gArenaResultTelemetry.elapsed=gMain.vblankCounter1-gArenaResultTelemetry.started;
++    gRealtimeArenaQuietResult=FALSE;
+     if (!(gBattleTypeFlags & BATTLE_TYPE_LINK))
+     {
+         RandomlyGivePartyPokerus(gPlayerParty);
+diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
+index 3af09ec..5c8bcf0 100644
+--- a/src/battle_script_commands.c
++++ b/src/battle_script_commands.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "realtime_arena.h"
+ #include "battle.h"
+ #include "battle_message.h"
+ #include "battle_anim.h"
+@@ -1303,6 +1304,89 @@ static void Cmd_damagecalc(void)
+     gBattlescriptCurrInstr++;
+ }
+ 
++// Synchronous adapter for the arena's physical collision. These are the SAME
++// accuracy/critical/damage/STAB/type/variance commands used by normal moves.
++// Eligibility excludes effects needing a script, status, weather or item tick.
++s32 RealtimeArena_ResolveDamage(u8 attacker, u8 target, u16 move)
++{
++    const u8 *savedScript = gBattlescriptCurrInstr;
++    u8 scratch[16] = {0};
++    u32 failure = (u32)(scratch + 7);
++    s32 result;
++    gBattlerAttacker = attacker;
++    gBattlerTarget = target;
++    gCurrentMove = move;
++    gDynamicBasePower = 0;
++    gBattleStruct->dynamicMoveType = 0;
++    gBattleScripting.dmgMultiplier = 1;
++    gCritMultiplier = 1;
++    gMoveResultFlags = 0;
++    gBattleMoveDamage = 0;
++    gCurrentTurnActionNumber = 0;
++    gBattlerByTurnOrder[0] = attacker;
++    gBattlerByTurnOrder[1] = target;
++    scratch[1] = failure;
++    scratch[2] = failure >> 8;
++    scratch[3] = failure >> 16;
++    scratch[4] = failure >> 24;
++    // ACC_CURR_MOVE is zero. Both accuracy branches end inside scratch.
++    gBattlescriptCurrInstr = scratch;
++    Cmd_accuracycheck();
++    if (!(gMoveResultFlags & MOVE_RESULT_NO_EFFECT))
++    {
++        Cmd_critcalc();
++        Cmd_damagecalc();
++        Cmd_typecalc();
++        Cmd_adjustnormaldamage();
++    }
++    result = (gMoveResultFlags & MOVE_RESULT_NO_EFFECT) ? 0 : gBattleMoveDamage;
++    if (attacker == 0) gBattleResults.lastUsedMovePlayer = move;
++    else gBattleResults.lastUsedMoveOpponent = move;
++    gBattlescriptCurrInstr = savedScript;
++    return result;
++}
++
++// A bounded synchronous adapter for a PRIMARY Defense-down action. Eligible
++// arena battlers have no Protect, Mist, Substitute, Clear Body or White Smoke;
++// keep those encounters on the original battle script until separately tested.
++// Shield Dust must not block a primary stat move: use the same flag as Leer.
++bool8 RealtimeArena_ResolveLeer(u8 attacker, u8 target)
++{
++    const u8 *savedScript = gBattlescriptCurrInstr;
++    u8 scratch[16] = {0};
++    u32 failure = (u32)(scratch + 7);
++    u8 before = gBattleMons[target].statStages[STAT_DEF];
++    gBattlerAttacker = attacker;
++    gBattlerTarget = target;
++    gCurrentMove = MOVE_LEER;
++    gMoveResultFlags = 0;
++    scratch[1] = failure; scratch[2] = failure >> 8;
++    scratch[3] = failure >> 16; scratch[4] = failure >> 24;
++    gBattlescriptCurrInstr = scratch;
++    Cmd_accuracycheck();
++    if (!(gMoveResultFlags & MOVE_RESULT_NO_EFFECT))
++        ChangeStatBuffs(SET_STAT_BUFF_VALUE(1) | STAT_BUFF_NEGATIVE,
++                       STAT_DEF, STAT_CHANGE_ALLOW_PTR, scratch + 7);
++    if (attacker == 0) gBattleResults.lastUsedMovePlayer = MOVE_LEER;
++    else gBattleResults.lastUsedMoveOpponent = MOVE_LEER;
++    gBattlescriptCurrInstr = savedScript;
++    return gBattleMons[target].statStages[STAT_DEF] < before;
++}
++
++u16 RealtimeArena_DrainAmount(u16 hpDealt)
++{
++    const u8 *savedScript = gBattlescriptCurrInstr;
++    u8 scratch[2] = {0};
++    u16 result;
++    if (!hpDealt) return 0;
++    gHpDealt = hpDealt;
++    gBattlescriptCurrInstr = scratch;
++    Cmd_negativedamage();
++    result = -gBattleMoveDamage;
++    gBattlescriptCurrInstr = savedScript;
++    return result;
++}
++
+ void AI_CalcDmg(u8 attacker, u8 defender)
+ {
+     u16 sideStatus = gSideStatuses[GET_BATTLER_SIDE(defender)];
+@@ -2139,6 +2223,24 @@ static void Cmd_printstring(void)
+     if (gBattleControllerExecFlags == 0)
+     {
+         u16 var = T2_READ_16(gBattlescriptCurrInstr + 1);
++        if(gRealtimeArenaQuietResult)
++        {
++            switch(var)
++            {
++            case STRINGID_ATTACKERFAINTED: case STRINGID_TARGETFAINTED:
++            case STRINGID_PKMNGREWTOLV: case STRINGID_PKMNLEARNEDMOVE:
++            case STRINGID_PLAYERWHITEOUT: case STRINGID_PLAYERWHITEOUT2:
++                gArenaResultTelemetry.textsSkipped++;
++                gBattleCommunication[MSG_DISPLAY]=0;
++                gBattlescriptCurrInstr+=3;
++                return;
++            default:
++                // A real decision (learn/replace a move, send another mon, ...)
++                // keeps its original UI. Retry this same instruction afterward.
++                RealtimeArena_ShowResultUi();
++                return;
++            }
++        }
+         PrepareStringBattle(var, gBattlerAttacker);
+         gBattlescriptCurrInstr += 3;
+         gBattleCommunication[MSG_DISPLAY] = 1;
+@@ -3051,6 +3153,8 @@ static void Cmd_tryfaintmon(void)
+ 
+ static void Cmd_dofaintanimation(void)
+ {
++    if(gRealtimeArenaQuietResult)
++    {gArenaResultTelemetry.animationsSkipped++;gBattlescriptCurrInstr+=2;return;}
+     if (gBattleControllerExecFlags == 0)
+     {
+         gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
+@@ -3360,7 +3464,7 @@ static void Cmd_getexp(void)
+                 if (!(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && gBattleMons[0].hp != 0 && !gBattleStruct->wildVictorySong)
+                 {
+                     BattleStopLowHpSound();
+-                    PlayBGM(MUS_VICTORY_WILD);
++                    if(!gRealtimeArenaQuietResult)PlayBGM(MUS_VICTORY_WILD);
+                     gBattleStruct->wildVictorySong++;
+                 }
+ 
+@@ -3416,7 +3520,8 @@ static void Cmd_getexp(void)
+                     PREPARE_STRING_BUFFER(gBattleTextBuff2, i);
+                     PREPARE_WORD_NUMBER_BUFFER(gBattleTextBuff3, 5, gBattleMoveDamage);
+ 
+-                    PrepareStringBattle(STRINGID_PKMNGAINEDEXP, gBattleStruct->expGetterBattlerId);
++                    if(!gRealtimeArenaQuietResult)PrepareStringBattle(STRINGID_PKMNGAINEDEXP, gBattleStruct->expGetterBattlerId);
++                    else gArenaResultTelemetry.textsSkipped++;
+                     MonGainEVs(&gPlayerParty[gBattleStruct->expGetterMonId], gBattleMons[gBattlerFainted].species);
+                 }
+                 gBattleStruct->sentInPokes >>= 1;
+@@ -3913,6 +4018,7 @@ static void Cmd_bicword(void)
+ 
+ static void Cmd_pause(void)
+ {
++    if(gRealtimeArenaQuietResult){gPauseCounterBattle=0;gBattlescriptCurrInstr+=3;return;}
+     if (gBattleControllerExecFlags == 0)
+     {
+         u16 value = T2_READ_16(gBattlescriptCurrInstr + 1);
+@@ -5318,6 +5424,7 @@ static void Cmd_playse(void)
+ 
+ static void Cmd_fanfare(void)
+ {
++    if(gRealtimeArenaQuietResult){gBattlescriptCurrInstr+=3;return;}
+     gActiveBattler = gBattlerAttacker;
+     BtlController_EmitPlayFanfareOrBGM(B_COMM_TO_CONTROLLER, T2_READ_16(gBattlescriptCurrInstr + 1), FALSE);
+     MarkBattlerForControllerExec(gActiveBattler);
+@@ -5327,6 +5434,7 @@ static void Cmd_fanfare(void)
+ 
+ static void Cmd_playfaintcry(void)
+ {
++    if(gRealtimeArenaQuietResult){gBattlescriptCurrInstr+=2;return;}
+     gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
+     BtlController_EmitFaintingCry(B_COMM_TO_CONTROLLER);
+     MarkBattlerForControllerExec(gActiveBattler);
+@@ -5923,6 +6031,7 @@ static void Cmd_atknameinbuff1(void)
+ 
+ static void Cmd_drawlvlupbox(void)
+ {
++    if(gRealtimeArenaQuietResult){gBattlescriptCurrInstr++;return;}
+     if (gBattleScripting.drawlvlupboxState == 0)
+     {
+         // If the Pokémon getting exp is not in-battle then
+diff --git a/src/main_menu.c b/src/main_menu.c
+index 45fa12c..b07a0a0 100644
+--- a/src/main_menu.c
++++ b/src/main_menu.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "realtime_arena.h"
+ #include "trainer_pokemon_sprites.h"
+ #include "bg.h"
+ #include "constants/rgb.h"
+@@ -929,6 +930,12 @@ static bool8 HandleMainMenuInput(u8 taskId)
+ 
+ static void Task_HandleMainMenuInput(u8 taskId)
+ {
++    if (JOY_NEW(SELECT_BUTTON) && RealtimeArena_RequestDemo())
++    {
++        DestroyTask(taskId);
++        SetMainCallback2(CB2_NewGame);
++        return;
++    }
+     if (HandleMainMenuInput(taskId))
+         gTasks[taskId].func = Task_HighlightSelectedMainMenuItem;
+ }
+diff --git a/src/overworld.c b/src/overworld.c
+index 1d6b81c..4bce103 100644
+--- a/src/overworld.c
++++ b/src/overworld.c
+@@ -1,4 +1,6 @@
+ #include "global.h"
++#include "realtime_arena.h"
++#include "arena_lab.h"
+ #include "overworld.h"
+ #include "battle_pyramid.h"
+ #include "battle_setup.h"
+@@ -1489,6 +1491,10 @@ void CB2_Overworld(void)
+     OverworldBasic();
+     if (fading)
+         SetFieldVBlankCallback();
++    RealtimeArena_PracticeTick();
++#if ARENA_LAB
++    ArenaLab_Tick();
++#endif
+ }
+ 
+ void SetMainCallback1(MainCallback cb)
+@@ -1540,6 +1546,8 @@ void CB2_NewGame(void)
+     ScriptContext_Init();
+     UnlockPlayerFieldControls();
+     gFieldCallback = ExecuteTruckSequence;
++    if (RealtimeArena_SetupDemo())
++        gFieldCallback = RealtimeArena_DemoFieldCallback;
+     gFieldCallback2 = NULL;
+     DoMapLoadLoop(&gMain.state);
+     SetFieldVBlankCallback();
+diff --git a/src/reshow_battle_screen.c b/src/reshow_battle_screen.c
+index 17a5d3b..1753336 100644
+--- a/src/reshow_battle_screen.c
++++ b/src/reshow_battle_screen.c
+@@ -1,4 +1,5 @@
+ #include "global.h"
++#include "realtime_arena.h"
+ #include "reshow_battle_screen.h"
+ #include "battle.h"
+ #include "palette.h"
+@@ -218,7 +219,7 @@ static void CreateBattlerSprite(u8 battler)
+ 
+         if (GetBattlerSide(battler) != B_SIDE_PLAYER)
+         {
+-            if (GetMonData(&gEnemyParty[gBattlerPartyIndexes[battler]], MON_DATA_HP) == 0)
++            if (GetMonData(&gEnemyParty[gBattlerPartyIndexes[battler]], MON_DATA_HP) == 0 && !gRealtimeArenaRestoringFaint)
+                 return;
+ 
+             SetMultiuseSpriteTemplateToPokemon(GetMonData(&gEnemyParty[gBattlerPartyIndexes[battler]], MON_DATA_SPECIES), GetBattlerPosition(battler));
+@@ -254,7 +255,7 @@ static void CreateBattlerSprite(u8 battler)
+         }
+         else
+         {
+-            if (GetMonData(&gPlayerParty[gBattlerPartyIndexes[battler]], MON_DATA_HP) == 0)
++            if (GetMonData(&gPlayerParty[gBattlerPartyIndexes[battler]], MON_DATA_HP) == 0 && !gRealtimeArenaRestoringFaint)
+                 return;
+ 
+             SetMultiuseSpriteTemplateToPokemon(GetMonData(&gPlayerParty[gBattlerPartyIndexes[battler]], MON_DATA_SPECIES), GetBattlerPosition(battler));

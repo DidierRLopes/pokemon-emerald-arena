@@ -1,0 +1,18 @@
+name: Public release checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/installer.test.mjs
+      - name: No ROMs, saves or extracted sprite binaries
+        run: |
+          if git ls-files | grep -Ei '\.(gba|gbc|gb|sav|state|ss[0-9]+|4bpp|gbapal)$'; then
+            exit 1
+          fi
