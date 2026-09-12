@@ -5,9 +5,9 @@ Pokémon Emerald with real-time battles.
 Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
 The arena runs inside the GBA game, with Emerald's own damage and save system.
 
-[![Watch 15 seconds of real gameplay](media/arena-poster.png)](https://emerald-arena.ardent-cat-8523.chatgpt.site/arena)
+[![Watch 15 seconds of real gameplay](media/arena-poster.png)](https://emerald-arena.germanandresburgardt.chatgpt.site/arena)
 
-[Play & watch](https://emerald-arena.ardent-cat-8523.chatgpt.site/arena) ·
+[Play & watch](https://emerald-arena.germanandresburgardt.chatgpt.site/arena) ·
 [MP4 with sound](media/emerald-arena-15s.mp4) · [GIF](media/emerald-arena-15s.gif)
 
 ## Play

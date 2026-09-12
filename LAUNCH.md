@@ -10,7 +10,7 @@ Move, dodge, break the arena. Your team keeps its experience.
 This runs inside the GBA game.
 
 Playable demo + source:
-https://emerald-arena.ardent-cat-8523.chatgpt.site/arena
+https://emerald-arena.germanandresburgardt.chatgpt.site/arena
 ```
 
 Attach [emerald-arena-15s.gif](media/emerald-arena-15s.gif) through the media
