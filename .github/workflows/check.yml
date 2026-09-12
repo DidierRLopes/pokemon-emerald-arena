@@ -16,3 +16,18 @@ jobs:
           if git ls-files | grep -Ei '\.(gba|gbc|gb|sav|state|ss[0-9]+|4bpp|gbapal)$'; then
             exit 1
           fi
+  landing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: node --test tests/rendered-html.test.mjs

@@ -5,6 +5,11 @@ Pokémon Emerald with real-time battles.
 Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
 The arena runs inside the GBA game, with Emerald's own damage and save system.
 
+[![Watch 15 seconds of real gameplay](media/arena-poster.png)](https://emerald-arena.ardent-cat-8523.chatgpt.site/arena)
+
+[Play & watch](https://emerald-arena.ardent-cat-8523.chatgpt.site/arena) ·
+[MP4 with sound](media/emerald-arena-15s.mp4) · [GIF](media/emerald-arena-15s.gif)
+
 ## Play
 
 [**Download the demo**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/latest)
@@ -46,6 +51,8 @@ example: Charizard's arena move is Wing Attack.
 ## Build and adapt
 
 [Build instructions](BUILD.md) · [Credits](CREDITS.md) · [Release notes](RELEASE.md)
+
+The [landing source](site/) and [capture tools](media/capture-source/) are included.
 
 The source is an overlay and patch for
 [pret/pokeemerald](https://github.com/pret/pokeemerald), pinned to
