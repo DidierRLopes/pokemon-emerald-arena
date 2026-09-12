@@ -4,7 +4,8 @@ A small English landing page for the playable GBA demo.
 
 - `/` and `/arena`: download, real gameplay and controls.
 - `/prepare.html`: local-only ROM preparation. No files are uploaded.
-- `public/emerald-arena-15s.mp4`: real emulator capture with native audio.
+- `public/emerald-arena-17s.mp4`: two-second Emerald intro + the original fight, with native audio.
+- `public/emerald-arena-15s.mp4`: preserved original battle-only clip.
 - `public/og.png`: generated social card, not gameplay.
 
 ```sh

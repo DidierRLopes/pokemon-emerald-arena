@@ -1,0 +1,6 @@
+# Route 103 walking and the public L+R practice encounter. GBA inputs only.
+16 0
+48 16
+16 0
+3 768
+240 0

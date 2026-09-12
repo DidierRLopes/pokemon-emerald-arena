@@ -22,7 +22,8 @@ for (const path of ["/", "/arena"]) {
     assert.match(html, /Download the demo/);
     assert.match(html, /releases\/download\/v0\.3\.1\/Emerald-Arena-0\.3\.1\.zip/);
     assert.match(html, /href="\/prepare\.html"/);
-    assert.match(html, /<video[^>]*src="\/emerald-arena-15s\.mp4"/);
+    assert.match(html, /<video[^>]*src="\/emerald-arena-17s\.mp4"/);
+    assert.match(html, /17 seconds: walking through Emerald/);
     for (const attribute of ["autoPlay", "muted", "loop", "playsInline", "controls"]) {
       assert.match(html, new RegExp("<video[^>]*" + attribute, "i"));
     }
@@ -34,7 +35,7 @@ for (const path of ["/", "/arena"]) {
 }
 
 test("release assets are present and the installer stays local-only", async () => {
-  for (const name of ["emerald-arena-15s.mp4", "arena-poster.png", "og.png", "prepare.html"]) {
+  for (const name of ["emerald-arena-17s.mp4", "emerald-arena-15s.mp4", "arena-poster.png", "og.png", "prepare.html"]) {
     assert.ok((await stat(new URL("../public/" + name, import.meta.url))).size > 1000);
   }
   const installer = await readFile(new URL("../public/prepare.html", import.meta.url), "utf8");
