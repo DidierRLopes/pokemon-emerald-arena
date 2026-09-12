@@ -1,11 +1,17 @@
-# Reconstruir
+# Build
 
-La descarga del release ya está compilada: un usuario no necesita toolchain GBA.
-Para crear la ROM localmente sin navegador: Node 22+ y
-`node release/install.mjs original.gba Emerald-Arena.gba`.
-No reemplaza archivos existentes ni acepta una ROM distinta del hash de origen.
+The release is already compiled. Players do not need a GBA toolchain.
+For local setup without a browser, use Node 22+:
 
-## Fuente de la arena
+```sh
+node release/install.mjs original.gba Emerald-Arena.gba
+```
+
+The installer rejects the wrong source ROM and never overwrites an existing file.
+
+## Game source
+
+Run these commands from this repository:
 
 ```sh
 git clone https://github.com/pret/pokeemerald.git workspace
@@ -14,10 +20,10 @@ git -C workspace apply ../game/native-engine.patch
 cp -R game/overlay/. workspace/
 ```
 
-Preparar el toolchain siguiendo el `INSTALL.md` de esa revisión. Build validado
-en macOS arm64 con agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9`, binutils ARM
-2.47, cpp-15, Python 3, libpng y compilador C del host. El wrapper actual usa
-prefijos Homebrew `/opt/homebrew`; adaptar esos prefijos en otra plataforma.
+Set up the toolchain using that revision's `INSTALL.md`. The verified build
+uses macOS arm64, agbcc `da598c1d918402c42c0c0d7128ba14567f3175e9`,
+ARM binutils 2.47, cpp-15, Python 3, libpng and the host C compiler.
+The wrapper uses Homebrew's `/opt/homebrew` prefix; adapt it on other platforms.
 
 ```sh
 cd workspace
@@ -26,17 +32,22 @@ cd workspace
 ./tools/arena/dev.sh release
 ```
 
-`assets` descarga las fuentes fijadas y las transforma sin recorte; no las subas
-a Git. El build guarda lab y release por separado. El archivo público de
-preparación comprueba cada PNG, cada bloque convertido y el SHA-256 final.
+`assets` downloads pinned sources and converts them without cropping.
+Keep generated sprite assets out of Git. Lab and release builds are separate.
 
-Las pruebas públicas de instalador no requieren ROM:
+## Checks
+
+Public installer tests do not need a ROM:
 
 ```sh
 node --test tests/installer.test.mjs
 ```
 
-La batería de 211 comprobaciones de juego se ejecutó en el laboratorio privado
-sobre mGBA real, no sobre mocks. Los snapshots/SAV y las evidencias completas
-permanecen privados. Los tests C de navegación, física, geometría y números
-están en el overlay y pueden compilarse con sus macros `*_HOST` y sanitizers.
+The private game acceptance suite runs 211 checks against real ARM code in mGBA,
+not a mock engine. Saves, snapshots and full test evidence remain private.
+Host C tests for navigation, physics, geometry and numbers are included in the
+overlay; compile them with their `*_HOST` macros and sanitizers.
+
+The public installer verifies every source PNG, every converted graphics block
+and the final ROM hash. Release boot and local reconstruction are tested
+separately. Physical GBA hardware has not been validated.

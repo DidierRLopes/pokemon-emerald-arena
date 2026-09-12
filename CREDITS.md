@@ -1,25 +1,24 @@
-# Créditos
+# Credits
 
-- **pret/pokeemerald**: descompilación y reconstrucción de Pokémon Emerald.
-  https://github.com/pret/pokeemerald
-- **PMDCollab/SpriteCollab**: fuentes, metadatos y créditos individuales de los
-  doce Pokémon. Pin `d25607ff4746957df10bdb78db090887cd94f1f8`.
-  https://github.com/PMDCollab/SpriteCollab
-  El manifest del preparador conserva el archivo de créditos de cada especie.
-  Los originales correspondientes acreditan a CHUNSOFT. No se redistribuyen
-  aquí las láminas ni las paletas/tiles compilados.
-- **Nintendo / Game Freak / Creatures / The Pokémon Company / Chunsoft**:
-  Pokémon y material original asociado pertenecen a sus titulares.
-- **mGBA**: motor del laboratorio y de las pruebas, MPL-2.0.
-  https://github.com/mgba-emu/mgba
-- **Floating IPS**: creación del delta BPS durante la preparación del release.
-  https://github.com/Sir-Walrus/Flips
-  No se redistribuye el binario ni su código dentro del preparador.
-- Fondo y objetos del escenario: imágenes generadas para este proyecto;
-  objetos preparados con el fondo real como referencia y conversión a GBA.
-- Arena, IA, físicas, integración, herramientas y preparador: German Burgardt,
-  con asistencia de programación de IA.
+- [pret/pokeemerald](https://github.com/pret/pokeemerald):
+  Pokémon Emerald decompilation and reconstruction.
+- [PMDCollab/SpriteCollab](https://github.com/PMDCollab/SpriteCollab):
+  animation sources, metadata and individual credits for the 12 Pokémon.
+  Pin: `d25607ff4746957df10bdb78db090887cd94f1f8`.
+  The installer manifest preserves each species' credit file. The original
+  sheets credit CHUNSOFT. Sprite sheets and compiled sprite pixels are not
+  redistributed here.
+- Nintendo, Game Freak, Creatures, The Pokémon Company and Chunsoft:
+  Pokémon and the associated original material belong to their owners.
+- [mGBA](https://github.com/mgba-emu/mgba): lab and test emulator, MPL-2.0.
+- [Floating IPS](https://github.com/Sir-Walrus/Flips):
+  BPS delta creation during release preparation. Its binary and source are
+  not bundled with the installer.
+- Arena background and props: images generated for this project, with the
+  actual background used as a reference for props before GBA conversion.
+- Arena code, AI, physics, integration, tools and installer: German Burgardt,
+  with AI coding assistance.
 
-Proyecto experimental independiente, no oficial. Requiere tu propia ROM.
-La licencia del código nuevo no concede derechos sobre Pokémon ni los recursos
-de terceros. Consultar las condiciones y créditos de cada proyecto citado.
+Independent, unofficial experiment. Requires your own ROM.
+The new code's license does not grant rights to Pokémon or third-party assets.
+See the terms and credits of each linked project.

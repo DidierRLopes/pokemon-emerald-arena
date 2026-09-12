@@ -1,61 +1,58 @@
 # Emerald Arena
 
-Pokémon Emerald, pero las peleas se juegan en tiempo real.
-Movimiento en ocho direcciones, esquivas, poderes distintos y un escenario que se rompe.
-HP, PP, experiencia y equipo siguen siendo parte de la partida de Esmeralda.
+Pokémon Emerald with real-time battles.
 
-## Probar
+Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
+The arena runs inside the GBA game, with Emerald's own damage and save system.
 
-[**Descargar la demo 0.3**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/latest)
+## Play
 
-Abrí `Preparar-Emerald-Arena.html`, elegí tu ROM limpia de Emerald (USA/Europe)
-y descargá el resultado. Tu archivo se procesa localmente, no se sube.
-La preparación necesita Internet; después, el juego funciona sin conexión.
+[**Download the demo**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/latest)
 
-Abrí el resultado en un emulador GBA. En NUEVA PARTIDA, sin guardado previo,
-pulsá **SELECT** para el equipo de práctica. En el mapa, **L+R** inicia combate.
+Open `Prepare-Emerald-Arena.html`, choose your unmodified Emerald ROM
+(USA/Europe), and download the result. Your file stays on your device.
+Setup needs Internet; the game then works offline.
 
-| Control GBA | Acción |
+Open the result in a GBA emulator. With no existing save, press **SELECT** on
+**NEW GAME** for the practice team. Press **L+R** in the field to fight.
+
+| GBA control | Action |
 |---|---|
-| Cruceta | Moverse en ocho direcciones |
-| A | Usar poder; cruceta + A dirige el ataque |
-| B + cruceta | Esquiva corta |
-| L / R | Poder anterior / siguiente |
-| START | Pausa y ayuda |
-| SELECT | Volver al combate clásico |
-| L + R en el mapa | Otro rival de práctica |
+| D-pad | Move in eight directions |
+| A | Attack; D-pad + A aims |
+| B + D-pad | Dodge |
+| L / R | Previous / next move |
+| START | Pause and help |
+| SELECT | Switch to classic battle |
+| L + R in the field | Next practice opponent |
 
-Guardá desde el menú del mapa. El atajo de práctica no cura ni reinicia tu equipo.
-Las partidas normales conservan sus encuentros y no reciben el equipo de demo.
+Save from the field menu. Practice encounters do not heal or reset your team.
+Regular saves keep their encounters and do not receive the demo party.
 
-## Qué incluye
+## In this demo
 
-- Doce Pokémon con animación en ocho direcciones: Charizard, Blastoise, Eevee,
-  Dragonite, Scizor, Blaziken, Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle y Sceptile.
-- Diez perfiles: Destructor, Placaje, Ataque Rápido, Malicioso, Absorber,
-  Pistola Agua, Ataque Ala, Atizar, Picotazo y Arañazo.
-- Rocas, madera, hojas, cristal y vainas explosivas; colisión, esquirlas y cadenas.
-- IA que navega alrededor de obstáculos, apunta, esquiva y varía con el nivel.
-- Entrada y resultado rápidos. Se mantienen las decisiones de aprendizaje,
-  cambios de equipo y evolución. El daño y las recompensas son nativos.
+- 12 animated Pokémon: Charizard, Blastoise, Eevee, Dragonite, Scizor, Blaziken,
+  Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle and Sceptile.
+- 10 move profiles: Pound, Tackle, Quick Attack, Leer, Absorb, Water Gun,
+  Wing Attack, Slam, Peck and Scratch.
+- Breakable rocks, wood, foliage, crystals and explosive pods.
+- Enemies that navigate obstacles, aim and dodge, with level-based reactions.
+- Native HP, PP, experience, leveling and saves. Classic battles remain available.
 
-Es una **demo jugable**, no una aventura completa rebalanceada. Los movimientos,
-habilidades y situaciones aún no compatibles conservan el combate clásico.
-Lanzallamas, por ejemplo, todavía no tiene su versión de arena. No incluye Tyranitar.
+This is a playable experiment, not a fully rebalanced adventure.
+Moves and situations not yet adapted use classic battles. Flamethrower is one
+example: Charizard's arena move is Wing Attack.
 
-## Para desarrollar
+## Build and adapt
 
-Este repositorio publica nuestro código como overlay y parche sobre
-[pret/pokeemerald](https://github.com/pret/pokeemerald), pin
-`5eff78649e7170a877b961ef0b3da13b81a16038`. No contiene la ROM, guardados ni sprites
-extraídos. [Cómo reconstruir](BUILD.md). [Créditos](CREDITS.md).
+[Build instructions](BUILD.md) · [Credits](CREDITS.md) · [Release notes](RELEASE.md)
 
-`release/installer.mjs` prepara la ROM en el navegador o Node. El payload
-contiene un delta BPS compilado con las zonas PMD vacías y un manifest fijado.
-El preparador obtiene los recursos de su fuente, reconstruye esos bloques en
-tu equipo y exige SHA-256 idéntico a la ROM de release validada.
+The source is an overlay and patch for
+[pret/pokeemerald](https://github.com/pret/pokeemerald), pinned to
+`5eff78649e7170a877b961ef0b3da13b81a16038`.
 
-La lógica del juego corre dentro de la GBA: no es una recreación web ni una
-película que simula gameplay. El laboratorio privado verificó 211 comprobaciones
-sobre su hash de aceptación; el inicio rápido de release y el ensamblado público
-se verifican aparte. No se afirma haber validado esta release en hardware GBA físico.
+The download includes a compiled delta and a local installer, not a ROM, save
+or sprite sheets. The installer fetches pinned animation sources, prepares them
+locally and verifies the final ROM against the tested release.
+
+New project code is [MIT](LICENSE). This is an independent, unofficial project.

@@ -196,12 +196,12 @@ static const struct SpriteTemplate sAimTemplate =
     .anims = gDummySpriteAnimTable, .images = NULL,
     .affineAnims = gDummySpriteAffineAnimTable, .callback = SpriteCallbackDummy
 };
-static const u8 sTextControls[] = _("A ATAQUE  B ESQUIVA  L/R MOV.");
-static const u8 sTextMenu[] = _("SELECT: MENU   START: PAUSA");
-static const u8 sTextPaused[] = _("PAUSA - START PARA SEGUIR");
-static const u8 sTextNoPP[] = _("SIN PP - SELECT: COMBATE CLASICO");
+static const u8 sTextControls[] = _("A ATTACK  B DODGE  L/R MOVE");
+static const u8 sTextMenu[] = _("SELECT: CLASSIC   START: PAUSE");
+static const u8 sTextPaused[] = _("PAUSED - START TO RESUME");
+static const u8 sTextNoPP[] = _("NO PP - SELECT: CLASSIC BATTLE");
 static const u8 sTextPP[] = _(" PP ");
-static const u8 sTextDirections[] = _("FLECHAS: MOVER / MIRA ROJA: ROCA");
+static const u8 sTextDirections[] = _("D-PAD: MOVE / RED AIM: BLOCKED");
 static const u8 sTextShortPP[] = _("P");
 #if ARENA_LAB
 static const u8 sDemoName[] = _("GERMAN");

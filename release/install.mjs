@@ -8,5 +8,5 @@ try{
   const result=await prepareRom(new Uint8Array(await readFile(input)),payload.manifest,
     new Uint8Array(Buffer.from(payload.patch,'base64')),console.log);
   await writeFile(output,result,{flag:'wx'}); // Never replace the original or an existing output.
-  console.log('Preparada y verificada: '+output);
+  console.log('Ready and verified: '+output);
 }catch(error){console.error(error.message);process.exit(1);}
