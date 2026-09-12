@@ -7,13 +7,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = request.get("x-forwarded-host") || request.get("host") || "localhost:3000";
   const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
   const origin = new URL(`${protocol}://${host}`);
-  const title = "Emerald Arena — Pokémon Emerald. In real time.";
-  const description = "Move. Dodge. Attack. Break the arena. Real-time battles inside Pokémon Emerald. Download the playable GBA demo.";
+  const title = "Emerald Arena — Real-time Pokémon Emerald";
+  const description = "The original Pokémon Emerald, modified for real-time battles.";
   const image = new URL("/og.png", origin).href;
   return {
     title, description, metadataBase: origin,
     openGraph: { title, description, type: "website", url: new URL("/arena", origin).href,
-      images: [{ url: image, width: 1730, height: 909, alt: "Pokémon Emerald. In real time. Move. Dodge. Attack." }] },
+      images: [{ url: image, alt: "Emerald Arena. Pokémon Emerald, modified for real-time battles." }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };
 }
@@ -25,6 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preload" href="/fonts/tiny5-regular.ttf" as="font" type="font/ttf" crossOrigin="anonymous" />
+      </head>
       <body>
         {children}
       </body>

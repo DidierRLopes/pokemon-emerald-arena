@@ -32,7 +32,7 @@ export default function Gameplay() {
     </div>
     <div className="playback-controls">
       <button onClick={toggleSound} aria-pressed={!muted}>{muted ? "Sound on" : "Mute"}</button>
-      <a href="/emerald-arena-17s.mp4" download>Save the clip ↓</a>
+      <a href="/prepare.html">Patch your Emerald ROM <span aria-hidden="true">↗</span></a>
     </div>
   </>;
 }
