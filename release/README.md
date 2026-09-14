@@ -1,18 +1,26 @@
-# Emerald Arena 0.3.1
+# Emerald Arena — setup 0.3.2
 
 Pokémon Emerald with real-time battles. Move, dodge, attack and break the arena.
 Requires your own unmodified Emerald ROM (USA/Europe).
 
-1. Open **Prepare-Emerald-Arena.html** in a current Chrome, Safari or Firefox.
-2. Choose your `.gba` and download the result. Your ROM stays on your device.
-3. Open it in a GBA emulator. With no existing save, press SELECT on NEW GAME.
-4. Press L+R in the field to fight. Charizard leads; reorder the party to try others.
+1. Extract this ZIP on a computer.
+2. Open **Prepare-Emerald-Arena.html** in a current Chrome, Safari or Firefox.
+3. Choose your original `.gba`, not a ZIP. Wait for verification and click **Download game**.
+4. Open **Emerald-Arena-0.3.1.gba** in your GBA emulator.
+5. With a separate fresh save, highlight **NEW GAME** and press **SELECT**, not A.
+6. Press **L and R together** in the field to fight. Charizard leads; reorder the party to try others.
+
+Your ROM stays on your device and is never overwritten. No account or compiler required.
+Setup 0.3.2 produces the SAME game as 0.3.1, byte for byte. Existing players do not
+need to update. The output filename stays unchanged for save compatibility.
 
 Setup needs Internet for the animations. The game then works offline.
 Terminal option, Node 22+: `node install.mjs original.gba arena.gba`.
 
-GBA controls: D-pad to move, A to attack, B to dodge, L/R to change move,
+GBA controls: direction buttons to move, A to attack, B + direction to dodge, L/R to change move,
 START to pause, SELECT for classic battles. Save from the field menu.
+These are GBA button names, not literal keyboard keys: check the emulator's input
+settings. Visit a Pokémon Center to restore HP and PP. Back up existing saves.
 
 Party: Charizard, Blastoise, Eevee, Dragonite, Scizor and Blaziken.
 Box 1: Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle and Sceptile.
@@ -24,3 +32,9 @@ save or sprite sheets. The installer verifies pinned SpriteCollab assets and
 checks that the result matches the tested release, byte for byte.
 
 Source and credits: https://github.com/GBurgardt/pokemon-emerald-arena
+
+Full instructions and troubleshooting:
+https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md
+
+Report a problem (no ROM or save attachments):
+https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml

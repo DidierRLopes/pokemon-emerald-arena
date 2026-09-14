@@ -1,4 +1,34 @@
-# Emerald Arena 0.3.1
+# Emerald Arena 0.3.2 — easier setup
+
+[**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip)
+· [Installation guide](https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md)
+· [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+
+**Setup update only. The game is identical to 0.3.1. Existing players do not need to update.**
+
+- Extract the ZIP, open `Prepare-Emerald-Arena.html`, choose your original Emerald
+  ROM, then click **Download game**. Open the resulting `.gba` in your emulator.
+- Clear next steps for starting the practice team and first fight.
+- Browser compatibility checks, visible preparation status and recoverable errors.
+- A short player guide, troubleshooting and a structured bug report form.
+- `SHA256SUMS.txt` checks the downloaded ZIP. The installer also checks your source
+  ROM, every downloaded animation and the final game automatically.
+
+The output remains `Emerald-Arena-0.3.1.gba` to preserve the existing save filename.
+Keep backups of your saves. No original ROM, save or sprite sheets are included.
+
+## Game release 0.3.1
+
+### Setup 0.3.2 checks — September 14, 2026
+
+- Ten public installer and player-journey tests pass.
+- Real browser preparation with the original ROM: final SHA-256 matches below.
+- Fresh release boot: SELECT creates the six-member practice party with Charizard.
+- L+R starts a native practice encounter; movement and an attack verified in mGBA.
+- No game binary changes. The 211-check acceptance result below belongs to the
+  original 0.3.1 game release; it is not a newly claimed full-suite run.
+
+### Original game release notes
 
 Pokémon Emerald with real-time battles. Twelve animated Pokémon, ten move
 profiles and breakable objects. Game UI, installer and documentation in English.

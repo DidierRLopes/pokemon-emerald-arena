@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import './player-journey.checks.mjs';
 import assert from 'node:assert/strict';
 import {deflateSync} from 'node:zlib';
 import {readFile} from 'node:fs/promises';

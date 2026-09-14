@@ -5,27 +5,41 @@ Pokémon Emerald with real-time battles.
 Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
 The arena runs inside the GBA game, with Emerald's own damage and save system.
 
-[![Watch Emerald's grass become a real-time battle](media/arena-poster.png)](https://emerald-arena.germanandresburgardt.chatgpt.site/arena)
+[**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) ·
+[Installation guide](PLAY.md) · [Release notes](RELEASE.md)
 
-[Play & watch](https://emerald-arena.germanandresburgardt.chatgpt.site/arena) ·
-[MP4 with sound](media/emerald-arena-17s.mp4) · [GIF](media/emerald-arena-17s.gif)
+You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA
+emulator. No account, payment or compiling required. Prepare it on a computer;
+then play on your computer or transfer the finished `.gba` to your handheld or phone.
 
-## Play
+## Start playing
 
-[**Download the demo**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/latest)
+1. **Download and extract the ZIP.** Open `Prepare-Emerald-Arena.html` in your browser.
+2. **Choose your Emerald `.gba`.** Wait for verification, then click **Download game**.
+   Your ROM stays on your device. Internet is needed once for the animations.
+3. **Open the downloaded `.gba` in your GBA emulator.** On a fresh save, highlight
+   **NEW GAME** and press **SELECT** for the practice team. In the field, press
+   **L + R together** to start a battle.
 
-Open `Prepare-Emerald-Arena.html`, choose your unmodified Emerald ROM
-(USA/Europe), and download the result. Your file stays on your device.
-Setup needs Internet; the game then works offline.
+The browser prepares the file; **the emulator plays the game**. After setup,
+the game works offline. [Need help or the keyboard controls?](PLAY.md)
 
-Open the result in a GBA emulator. With no existing save, press **SELECT** on
-**NEW GAME** for the practice team. Press **L+R** in the field to fight.
+## Watch gameplay
+
+[![Watch Emerald's grass become a real-time battle](media/arena-poster.png)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+
+[**Watch gameplay — MP4 with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+· [GIF](media/emerald-arena-17s.gif)
+
+17 seconds of actual gameplay: walking through the grass, then an arena battle.
+
+## Controls
 
 | GBA control | Action |
 |---|---|
-| D-pad | Move in eight directions |
-| A | Attack; D-pad + A aims |
-| B + D-pad | Dodge |
+| Direction buttons | Move in eight directions |
+| A | Attack; hold a direction to aim |
+| B + a direction | Dodge |
 | L / R | Previous / next move |
 | START | Pause and help |
 | SELECT | Switch to classic battle |
@@ -34,7 +48,7 @@ Open the result in a GBA emulator. With no existing save, press **SELECT** on
 Save from the field menu. Practice encounters do not heal or reset your team.
 Regular saves keep their encounters and do not receive the demo party.
 
-## In this demo
+## What's included
 
 - 12 animated Pokémon: Charizard, Blastoise, Eevee, Dragonite, Scizor, Blaziken,
   Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle and Sceptile.
@@ -51,6 +65,7 @@ example: Charizard's arena move is Wing Attack.
 ## Build and adapt
 
 [Build instructions](BUILD.md) · [Credits](CREDITS.md) · [Release notes](RELEASE.md)
+· [How the battles work](HOW-IT-WORKS.md) · [Report a problem](https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml)
 
 The [landing source](site/) and [capture tools](media/capture-source/) are included.
 

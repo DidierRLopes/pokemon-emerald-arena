@@ -40,7 +40,8 @@ Keep generated sprite assets out of Git. Lab and release builds are separate.
 Public installer tests do not need a ROM:
 
 ```sh
-node --test tests/installer.test.mjs
+node tools/build-installer.mjs --check
+node --test tests/*.test.mjs
 ```
 
 The private game acceptance suite runs 211 checks against real ARM code in mGBA,
@@ -51,3 +52,17 @@ overlay; compile them with their `*_HOST` macros and sanitizers.
 The public installer verifies every source PNG, every converted graphics block
 and the final ROM hash. Release boot and local reconstruction are tested
 separately. Physical GBA hardware has not been validated.
+
+## Maintain the player package
+
+Edit `tools/installer.html`, not the generated single-file HTML. Then run:
+
+```sh
+node tools/build-installer.mjs
+node --test tests/*.test.mjs
+node tools/package-release.mjs /path/outside/this/repo/new-release-directory
+```
+
+Packaging uses an explicit five-file allowlist. It refuses to overwrite an
+existing archive and emits `SHA256SUMS.txt`. The original ROM is never an input
+to packaging. Version 0.3.2 changes setup only; the game output remains 0.3.1.

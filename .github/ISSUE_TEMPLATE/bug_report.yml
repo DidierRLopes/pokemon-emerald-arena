@@ -1,0 +1,26 @@
+name: Report a problem
+description: Installation, controls or gameplay trouble
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Please do not attach ROMs or saves. Check the [player guide](https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md) first."
+  - type: input
+    id: setup
+    attributes:
+      label: Device, emulator and version
+      placeholder: "macOS, mGBA 0.10.x; or Android, emulator name/version"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Emerald Arena package version
+      placeholder: "0.3.2"
+  - type: textarea
+    id: steps
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, what you expected, and the exact error. Screenshots are welcome.
+    validations:
+      required: true

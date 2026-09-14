@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prepare Emerald Arena</title>
+<style>
+[hidden]{display:none!important}
+*{box-sizing:border-box}body{margin:0;background:#f4f2e9;color:#17181c;font:16px/1.6 system-ui,sans-serif}
+main{max-width:660px;margin:0 auto;padding:40px 24px}h1{font-size:38px;line-height:1.1;margin:18px 0}h2{font-size:20px;margin-top:30px}
+small,.muted{color:#606168}a{color:#2948df}button,.download{display:inline-block;background:#2948df;color:white;border:0;padding:15px 22px;font:700 16px system-ui;cursor:pointer;text-decoration:none;min-height:48px}
+button:disabled{opacity:.55;cursor:wait}:focus-visible{outline:3px solid #17181c;outline-offset:4px}
+#status{min-height:52px}#status[data-error=true]{color:#a32020}li{margin:8px 0}progress{display:block;width:100%;height:12px;margin:14px 0}
+details{border-top:1px solid #c6c4bc;padding-top:15px;margin-top:26px}summary{cursor:pointer;font-weight:600}code{overflow-wrap:anywhere}footer{margin-top:36px;font-size:14px}
+</style>
+<main>
+<small>EMERALD ARENA · SETUP 0.3.2</small>
+<h1>Prepare your game.</h1>
+<p>Choose your unmodified <strong>Pokémon Emerald (USA/Europe)</strong> <code>.gba</code>.
+Your file is never uploaded or overwritten. Internet is needed once for the animations.</p>
+<p class="muted">Choose ROM → Download game → Open in your emulator</p>
+<button id="choose">Choose Emerald ROM</button>
+<input id="file" type="file" accept=".gba" hidden aria-label="Choose your Emerald ROM">
+<progress id="progress" hidden aria-label="Preparing game"></progress>
+<p id="status" role="status" aria-live="polite">This page prepares the file. Your GBA emulator plays it.</p>
+<noscript><p>Enable JavaScript in your browser to prepare the game.</p></noscript>
+<a id="download" class="download" hidden>Download game</a>
+<section id="ready" hidden aria-labelledby="next-title">
+<h2 id="next-title">Next: start your first fight</h2>
+<ol>
+<li>Save <strong>Emerald-Arena-0.3.1.gba</strong>, then open it in your GBA emulator.</li>
+<li>On a fresh save, highlight <strong>NEW GAME</strong> and press <strong>SELECT</strong>, not A.</li>
+<li>In the field, press <strong>L + R together</strong> to start a practice battle.</li>
+</ol>
+<p>Direction buttons: move · <strong>A</strong>: attack · <strong>B + direction</strong>: dodge.<br>
+These are GBA button names. Check your emulator's keyboard bindings.</p>
+<p>Save from the game's field menu. Visit a Pokémon Center to restore HP and PP.</p>
+</section>
+<details><summary>Help and compatibility</summary>
+<p>Extract both ZIPs first: the installation package and your original ROM, if zipped.
+Open this HTML in a current desktop browser, not a phone's file preview.</p>
+<p>A wrong-ROM error means the file is modified, another language or another game.
+Download failures can be retried with the same original file.</p>
+<p>Use a separate fresh save for the practice team. Back up existing saves; do not delete them.
+Setup 0.3.2 produces the same game as 0.3.1. Existing players do not need to update.</p>
+<p>Twelve Pokémon and ten move profiles are adapted. Unsupported encounters and moves use classic battles.</p>
+<p><a href="https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md">Full installation guide</a>
+· <a href="https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml">Report a problem</a></p>
+</details>
+<footer><a href="https://github.com/GBurgardt/pokemon-emerald-arena">GitHub repo</a> ·
+<a href="https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/CREDITS.md">Credits</a></footer>
+</main>
+<script type="module">
+/* ARENA_RUNTIME */
+const payload=/* ARENA_PAYLOAD */;
+const choose=document.querySelector('#choose'),file=document.querySelector('#file'),status=document.querySelector('#status'),download=document.querySelector('#download'),ready=document.querySelector('#ready'),progress=document.querySelector('#progress');
+let objectUrl;
+choose.onclick=()=>file.click();
+if(!globalThis.crypto?.subtle||!globalThis.DecompressionStream){
+  choose.disabled=true;status.dataset.error='true';
+  status.textContent='This browser cannot prepare the game. Open this file in an updated Chrome, Firefox or Safari on a computer.';
+}
+file.onchange=async()=>{
+  if(!file.files[0]||choose.disabled)return;
+  choose.disabled=true;download.hidden=true;ready.hidden=true;progress.hidden=false;status.dataset.error='false';
+  if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=undefined;download.removeAttribute('href');}
+  try{
+    if(file.files[0].size!==payload.manifest.source_size)throw new Error('Choose an unmodified Emerald (USA/Europe) .gba file, not a ZIP.');
+    const source=new Uint8Array(await file.files[0].arrayBuffer());
+    const patch=Uint8Array.from(atob(payload.patch),c=>c.charCodeAt(0));
+    const result=await prepareRom(source,payload.manifest,patch,text=>status.textContent=text);
+    objectUrl=URL.createObjectURL(new Blob([result],{type:'application/octet-stream'}));
+    download.href=objectUrl;download.download='Emerald-Arena-0.3.1.gba';download.hidden=false;ready.hidden=false;
+    status.textContent='Verified. Download your game below, then open it in your emulator.';
+    download.focus();
+  }catch(error){
+    status.dataset.error='true';
+    status.textContent=error instanceof TypeError?'Could not download the animations. Check your connection, then choose your original ROM again.':error.message;
+  }finally{choose.disabled=false;file.value='';progress.hidden=true;}
+};
+</script>
+</html>
