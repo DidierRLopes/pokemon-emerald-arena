@@ -8,6 +8,9 @@ The arena runs inside the GBA game, with Emerald's own damage and save system.
 [**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) ·
 [Installation guide](PLAY.md) · [Watch gameplay](#watch-gameplay) · [Release notes](RELEASE.md)
 
+[**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
+Download, prepare your game, play a battle and save. Includes restarting with CONTINUE.
+
 You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA
 emulator. No account, payment or compiling required. Prepare it on a computer;
 then play on your computer or transfer the finished `.gba` to your handheld or phone.

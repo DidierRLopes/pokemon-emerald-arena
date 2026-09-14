@@ -2,6 +2,10 @@
 
 [Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
+[**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
+From download to your first fight, saving and continuing. GBA button names are
+shown in the video; your emulator's keyboard bindings may differ.
+
 ## 1. Prepare the game on a computer
 
 You need your own **unmodified Pokémon Emerald (USA/Europe) `.gba`** and Internet
