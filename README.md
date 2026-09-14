@@ -6,7 +6,7 @@ Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
 The arena runs inside the GBA game, with Emerald's own damage and save system.
 
 [**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) ·
-[Installation guide](PLAY.md) · [Release notes](RELEASE.md)
+[Installation guide](PLAY.md) · [Watch gameplay](#watch-gameplay) · [Release notes](RELEASE.md)
 
 You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA
 emulator. No account, payment or compiling required. Prepare it on a computer;
@@ -26,9 +26,9 @@ the game works offline. [Need help or the keyboard controls?](PLAY.md)
 
 ## Watch gameplay
 
-[![Watch Emerald's grass become a real-time battle](media/arena-poster.png)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+![17 seconds of actual gameplay: Emerald's grass becomes a real-time battle](media/emerald-arena-17s.gif)
 
-[**Watch gameplay — MP4 with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+[**Download video — MP4 with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
 · [GIF](media/emerald-arena-17s.gif)
 
 17 seconds of actual gameplay: walking through the grass, then an arena battle.

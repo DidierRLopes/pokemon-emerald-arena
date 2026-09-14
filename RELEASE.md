@@ -2,7 +2,7 @@
 
 [**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip)
 · [Installation guide](https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md)
-· [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
+· [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
 **Setup update only. The game is identical to 0.3.1. Existing players do not need to update.**
 
