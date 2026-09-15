@@ -54,6 +54,20 @@ Save using the game's field menu. Practice encounters consume real HP and PP;
 visit a Pokémon Center between fights. Reorder your party to try another lead.
 Six additional Pokémon are in Box 1 at the PC.
 
+## Controls
+
+| GBA control | Action |
+|---|---|
+| Direction buttons | Move in eight directions |
+| A | Attack; hold a direction to aim |
+| B + a direction | Dodge |
+| L / R | Previous / next move |
+| START | Pause and help |
+| SELECT | Switch to classic battle |
+| L + R in the field | Next practice opponent |
+
+Regular saves keep their encounters and do not receive the practice party.
+
 ## Something went wrong?
 
 | What you see | What to do |
@@ -76,4 +90,18 @@ Twelve animated Pokémon and ten adapted move profiles. Wild 1v1 arena encounter
 trainer, double and link battles remain classic. Unsupported effects also fall
 back to classic battles. This is not a fully rebalanced adventure.
 
-[Full controls and Pokémon](README.md#controls) · [Release verification](RELEASE.md) · [Source architecture](HOW-IT-WORKS.md)
+### Pokémon
+
+Charizard, Blastoise, Eevee, Dragonite, Scizor, Blaziken, Treecko, Poochyena,
+Bulbasaur, Squirtle, Grovyle and Sceptile.
+
+### Moves and objects
+
+Ten move profiles: Pound, Tackle, Quick Attack, Leer, Absorb, Water Gun,
+Wing Attack, Slam, Peck and Scratch. Unsupported moves use classic battles;
+for example, Charizard uses Wing Attack in the arena, not Flamethrower.
+
+Rocks, wood, foliage, crystals and explosive pods can break. Enemies navigate
+obstacles, aim and dodge, with level-based reactions.
+
+[Release verification](RELEASE.md) · [Source architecture](HOW-IT-WORKS.md)

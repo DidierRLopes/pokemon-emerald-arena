@@ -37,6 +37,19 @@ test('README puts a direct ZIP before gameplay and never calls a video Play',asy
   assert.match(md,/releases\/download\/v0\.3\.2\/Emerald-Arena-0\.3\.2\.zip/);
   assert.doesNotMatch(md,/Play & watch|chatgpt\.site/);
 });
+test('README shows one gameplay image before setup and labels development footage',async()=>{
+  const md=await readFile(new URL('README.md',root),'utf8');
+  assert.equal((md.match(/!\[/g)||[]).length,1);
+  assert.ok(md.indexOf('media/emerald-arena-17s.gif')<md.indexOf('## Start playing'));
+  assert.match(md,/Full gameplay · 2:26 with sound/);
+  assert.match(md,/development build with more Pokémon than the current download/);
+  assert.match(md,/PLAY.md#controls/);
+  assert.match(md,/PLAY.md#current-scope/);
+  const guide=await readFile(new URL('PLAY.md',root),'utf8');
+  assert.match(guide,/## Controls/);
+  assert.match(guide,/## Current scope/);
+  assert.match(guide,/### Pokémon/);
+});
 test('local documentation links resolve and instructions ship in English',async()=>{
   for(const name of ['README.md','PLAY.md','HOW-IT-WORKS.md','RELEASE.md']){
     const md=await readFile(new URL(name,root),'utf8');

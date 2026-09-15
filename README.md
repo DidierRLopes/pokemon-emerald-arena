@@ -1,94 +1,48 @@
 # Emerald Arena
 
-Pokémon Emerald with real-time battles.
+Pokémon Emerald with real time battles. Inside the original GBA game.
 
-Move freely. Dodge attacks. Break rocks. Your team keeps its experience.
-The arena runs inside the GBA game, with Emerald's own damage and save system.
-
-[**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) ·
-[Installation guide](PLAY.md) · [Watch gameplay](#watch-gameplay) · [Release notes](RELEASE.md)
-
-[**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
-Download, prepare your game, play a battle and save. Includes restarting with CONTINUE.
-
-You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA
-emulator. No account, payment or compiling required. Prepare it on a computer;
-then play on your computer or transfer the finished `.gba` to your handheld or phone.
-
-## Start playing
-
-1. **Download and extract the ZIP.** Open `Prepare-Emerald-Arena.html` in your browser.
-2. **Choose your Emerald `.gba`.** Wait for verification, then click **Download game**.
-   Your ROM stays on your device. Internet is needed once for the animations.
-3. **Open the downloaded `.gba` in your GBA emulator.** On a fresh save, highlight
-   **NEW GAME** and press **SELECT** for the practice team. In the field, press
-   **L + R together** to start a battle.
-
-The browser prepares the file; **the emulator plays the game**. After setup,
-the game works offline. [Need help or the keyboard controls?](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) · [Installation guide](PLAY.md)
 
 ## Watch gameplay
 
-[![Watch the full gameplay](media/full-gameplay.jpg)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
+![17 seconds of gameplay: walking through the grass, then an arena battle](media/emerald-arena-17s.gif)
 
-[**Watch full gameplay · 2:26, with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
+[17-second clip with sound](media/emerald-arena-17s.mp4) · [Full gameplay · 2:26 with sound](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
 
-Wild battles, switching Pokémon, healing and saving. All inside the original GBA game.
+The full video shows a development build with more Pokémon than the current download.
+[Recording details](media/README.md#full-gameplay).
 
-Recorded on a development build with more Pokémon than the current download.
-Normal speed, original audio. The return trip to the Pokémon Center is shortened.
+## Start playing
 
-### Quick look
+You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA emulator.
 
-![17 seconds of actual gameplay: Emerald's grass becomes a real-time battle](media/emerald-arena-17s.gif)
+1. **Extract the ZIP.** Open `Prepare-Emerald-Arena.html` on your computer.
+2. **Choose your Emerald ROM.** Wait for preparation, then click **Download game**.
+3. **Open the finished game in your emulator.** With a fresh save, highlight
+   **NEW GAME** and press **SELECT**. In the field, press **L + R together** to fight.
 
-[**Download video — MP4 with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)
-· [GIF](media/emerald-arena-17s.gif)
-
-17 seconds of actual gameplay: walking through the grass, then an arena battle.
-
-## Controls
-
-| GBA control | Action |
-|---|---|
-| Direction buttons | Move in eight directions |
-| A | Attack; hold a direction to aim |
-| B + a direction | Dodge |
-| L / R | Previous / next move |
-| START | Pause and help |
-| SELECT | Switch to classic battle |
-| L + R in the field | Next practice opponent |
-
-Save from the field menu. Practice encounters do not heal or reset your team.
-Regular saves keep their encounters and do not receive the demo party.
+[Setup, keyboard controls and help](PLAY.md) · [1-minute setup video](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
 
 ## What's included
 
-- 12 animated Pokémon: Charizard, Blastoise, Eevee, Dragonite, Scizor, Blaziken,
-  Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle and Sceptile.
-- 10 move profiles: Pound, Tackle, Quick Attack, Leer, Absorb, Water Gun,
-  Wing Attack, Slam, Peck and Scratch.
-- Breakable rocks, wood, foliage, crystals and explosive pods.
-- Enemies that navigate obstacles, aim and dodge, with level-based reactions.
-- Native HP, PP, experience, leveling and saves. Classic battles remain available.
+- Move, aim and dodge in real time battles.
+- Break rocks and other objects with your attacks.
+- Keep your team's HP, PP, experience and saves.
 
-This is a playable experiment, not a fully rebalanced adventure.
-Moves and situations not yet adapted use classic battles. Flamethrower is one
-example: Charizard's arena move is Wing Attack.
+Still an experiment. Unsupported encounters use classic battles.
+[Supported Pokémon, moves and limits](PLAY.md#current-scope).
 
-## Build and adapt
+## Controls
 
-[Build instructions](BUILD.md) · [Credits](CREDITS.md) · [Release notes](RELEASE.md)
-· [How the battles work](HOW-IT-WORKS.md) · [Report a problem](https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml)
+Direction buttons to move. **A** to attack. **B + a direction** to dodge.
+[All controls](PLAY.md#controls).
 
-The [landing source](site/) and [capture tools](media/capture-source/) are included.
+## Source
 
-The source is an overlay and patch for
-[pret/pokeemerald](https://github.com/pret/pokeemerald), pinned to
-`5eff78649e7170a877b961ef0b3da13b81a16038`.
+Built on [pret/pokeemerald](https://github.com/pret/pokeemerald).
+The download is a patch and installer, not a ROM.
 
-The download includes a compiled delta and a local installer, not a ROM, save
-or sprite sheets. The installer fetches pinned animation sources, prepares them
-locally and verifies the final ROM against the tested release.
+[Build](BUILD.md) · [How it works](HOW-IT-WORKS.md) · [Release notes](RELEASE.md) · [Credits](CREDITS.md) · [Report a problem](https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml)
 
-New project code is [MIT](LICENSE). This is an independent, unofficial project.
+New project code is [MIT](LICENSE). Independent, unofficial project.

@@ -11,6 +11,9 @@ The installer rejects the wrong source ROM and never overwrites an existing file
 
 ## Game source
 
+This repository contains an overlay and patch for pret/pokeemerald.
+The [landing source](site/) and [capture tools](media/capture-source/) are also included.
+
 Run these commands from this repository:
 
 ```sh
