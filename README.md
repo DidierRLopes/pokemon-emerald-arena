@@ -29,6 +29,17 @@ the game works offline. [Need help or the keyboard controls?](PLAY.md)
 
 ## Watch gameplay
 
+[![Watch the full gameplay](media/full-gameplay.jpg)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
+
+[**Watch full gameplay · 2:26, with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
+
+Wild battles, switching Pokémon, healing and saving. All inside the original GBA game.
+
+Recorded on a development build with more Pokémon than the current download.
+Normal speed, original audio. The return trip to the Pokémon Center is shortened.
+
+### Quick look
+
 ![17 seconds of actual gameplay: Emerald's grass becomes a real-time battle](media/emerald-arena-17s.gif)
 
 [**Download video — MP4 with sound**](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-17s.mp4)

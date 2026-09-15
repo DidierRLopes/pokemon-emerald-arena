@@ -1,5 +1,19 @@
 # Real gameplay
 
+## Full gameplay
+
+[Watch / download the full video with sound](emerald-arena-full-gameplay.mp4)
+
+2:26 around Lilycove and Route 121. Wild battles, switching Pokémon, healing
+and saving. Recorded on a development build, not the current public release.
+
+The team was prepared on a copy of an advanced save. Normal speed, original
+game audio. Only the return trip to the Pokémon Center is shortened.
+
+MP4 SHA-256: `1432488bc580d7cf98614d5393d033dd67dcb6db2a2d26042ee34a6823a0df6c`.
+
+## Quick look
+
 [Watch / download the 17-second video](emerald-arena-17s.mp4) ·
 [Download the looping GIF](emerald-arena-17s.gif)
 
