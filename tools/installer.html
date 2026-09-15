@@ -13,15 +13,16 @@ button:disabled{opacity:.55;cursor:wait}:focus-visible{outline:3px solid #17181c
 details{border-top:1px solid #c6c4bc;padding-top:15px;margin-top:26px}summary{cursor:pointer;font-weight:600}code{overflow-wrap:anywhere}footer{margin-top:36px;font-size:14px}
 </style>
 <main>
-<small>EMERALD ARENA · SETUP 0.3.2</small>
+<small>EMERALD ARENA · SETUP 0.3.3</small>
 <h1>Prepare your game.</h1>
 <p>Choose your unmodified <strong>Pokémon Emerald (USA/Europe)</strong> <code>.gba</code>.
 Your file is never uploaded or overwritten. Internet is needed once for the animations.</p>
 <p class="muted">Choose ROM → Download game → Open in your emulator</p>
-<button id="choose">Choose Emerald ROM</button>
+<button id="choose" disabled>Choose Emerald ROM</button>
 <input id="file" type="file" accept=".gba" hidden aria-label="Choose your Emerald ROM">
 <progress id="progress" hidden aria-label="Preparing game"></progress>
-<p id="status" role="status" aria-live="polite">This page prepares the file. Your GBA emulator plays it.</p>
+<p id="status" role="status" aria-live="polite">Loading setup. If this message stays here, open this page in Chrome, Firefox or Safari, not a file preview.</p>
+<p class="muted">Button not working? Open this page in your browser, or <a href="https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip">download the setup ZIP</a> and extract it on a computer.</p>
 <noscript><p>Enable JavaScript in your browser to prepare the game.</p></noscript>
 <a id="download" class="download" hidden>Download game</a>
 <section id="ready" hidden aria-labelledby="next-title">
@@ -41,7 +42,7 @@ Open this HTML in a current desktop browser, not a phone's file preview.</p>
 <p>A wrong-ROM error means the file is modified, another language or another game.
 Download failures can be retried with the same original file.</p>
 <p>Use a separate fresh save for the practice team. Back up existing saves; do not delete them.
-Setup 0.3.2 produces the same game as 0.3.1. Existing players do not need to update.</p>
+Setup 0.3.3 produces the same game as 0.3.1. Existing players do not need to update.</p>
 <p>Twelve Pokémon and ten move profiles are adapted. Unsupported encounters and moves use classic battles.</p>
 <p><a href="https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md">Full installation guide</a>
 · <a href="https://github.com/GBurgardt/pokemon-emerald-arena/issues/new?template=bug_report.yml">Report a problem</a></p>
@@ -49,19 +50,20 @@ Setup 0.3.2 produces the same game as 0.3.1. Existing players do not need to upd
 <footer><a href="https://github.com/GBurgardt/pokemon-emerald-arena">GitHub repo</a> ·
 <a href="https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/CREDITS.md">Credits</a></footer>
 </main>
-<script type="module">
+<script>
 /* ARENA_RUNTIME */
 const payload=/* ARENA_PAYLOAD */;
 const choose=document.querySelector('#choose'),file=document.querySelector('#file'),status=document.querySelector('#status'),download=document.querySelector('#download'),ready=document.querySelector('#ready'),progress=document.querySelector('#progress');
 let objectUrl;
-choose.onclick=()=>file.click();
+choose.onclick=()=>{status.textContent='Choose your original .gba file in the file picker. If it does not open, use a full browser instead of a file preview.';file.click();};
 if(!globalThis.crypto?.subtle||!globalThis.DecompressionStream){
   choose.disabled=true;status.dataset.error='true';
   status.textContent='This browser cannot prepare the game. Open this file in an updated Chrome, Firefox or Safari on a computer.';
-}
+}else{choose.disabled=false;status.textContent='Ready. Choose your original .gba file. Nothing is uploaded.';}
 file.onchange=async()=>{
   if(!file.files[0]||choose.disabled)return;
   choose.disabled=true;download.hidden=true;ready.hidden=true;progress.hidden=false;status.dataset.error='false';
+  status.textContent='Reading your ROM…';
   if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl=undefined;download.removeAttribute('href');}
   try{
     if(file.files[0].size!==payload.manifest.source_size)throw new Error('Choose an unmodified Emerald (USA/Europe) .gba file, not a ZIP.');
@@ -74,7 +76,7 @@ file.onchange=async()=>{
     download.focus();
   }catch(error){
     status.dataset.error='true';
-    status.textContent=error instanceof TypeError?'Could not download the animations. Check your connection, then choose your original ROM again.':error.message;
+    status.textContent=error instanceof TypeError?'Could not read the file or download animations. Open this page in a full browser, check your connection and try again.':error.message;
   }finally{choose.disabled=false;file.value='';progress.hidden=true;}
 };
 </script>

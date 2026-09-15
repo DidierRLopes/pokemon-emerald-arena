@@ -141,11 +141,18 @@ export function packSpriteSet(species, sheets) {
 }
 
 export async function prepareRom(source, manifest, patch, report=()=>{}, fetchResource=async url=>{
-  const response=await fetch(url,{credentials:'omit'});
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),30000);
+  try{
+  const response=await fetch(url,{credentials:'omit',signal:controller.signal});
   if(!response.ok)fail('Could not download an asset. Please try again.');
   const bytes=new Uint8Array(await response.arrayBuffer());
   if(bytes.length>4000000)fail('Asset is too large.');
   return bytes;
+  }catch(error){
+    if(controller.signal.aborted)fail('Animation download timed out. Check your connection and choose your ROM again.');
+    throw error;
+  }finally{clearTimeout(timer);}
 }) {
   report('Checking your Emerald ROM…');
   if(source.length!==manifest.source_size||await digest(source)!==manifest.source_sha256)fail('Choose an unmodified Pokémon Emerald ROM (USA/Europe).');

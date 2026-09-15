@@ -20,10 +20,10 @@ for (const path of ["/", "/arena"]) {
     const html = await response.text();
     assert.match(html, /<html lang="en"/);
     assert.match(html, /Pokémon/);
-    assert.match(html, /Download demo/);
+    assert.match(html, /Download game/);
     assert.match(html, /<a class="repo" href="https:\/\/github\.com\/GBurgardt\/pokemon-emerald-arena">GitHub repo/);
     assert.match(html, /The original Pokémon Emerald, modified for real-time battles\./);
-    assert.match(html, /releases\/download\/v0\.3\.1\/Emerald-Arena-0\.3\.1\.zip/);
+    assert.match(html, /releases\/download\/v0\.3\.3\/Emerald-Arena-0\.3\.3\.zip/);
     assert.match(html, /href="\/prepare\.html"/);
     assert.match(html, /<video[^>]*src="\/emerald-arena-17s\.mp4"/);
     assert.match(html, /17 seconds: walking through Emerald/);

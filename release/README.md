@@ -1,4 +1,4 @@
-# Emerald Arena — setup 0.3.2
+# Emerald Arena — setup 0.3.3
 
 Pokémon Emerald with real-time battles. Move, dodge, attack and break the arena.
 Requires your own unmodified Emerald ROM (USA/Europe).
@@ -11,7 +11,7 @@ Requires your own unmodified Emerald ROM (USA/Europe).
 6. Press **L and R together** in the field to fight. Charizard leads; reorder the party to try others.
 
 Your ROM stays on your device and is never overwritten. No account or compiler required.
-Setup 0.3.2 produces the SAME game as 0.3.1, byte for byte. Existing players do not
+Setup 0.3.3 produces the SAME game as 0.3.1, byte for byte. Existing players do not
 need to update. The output filename stays unchanged for save compatibility.
 
 Setup needs Internet for the animations. The game then works offline.

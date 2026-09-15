@@ -6,7 +6,9 @@ const runtime=(await readFile(new URL('release/installer.mjs',root),'utf8')).rep
 const payload=await readFile(new URL('release/payload.json',root),'utf8');
 JSON.parse(payload);
 const html=template.replace('/* ARENA_RUNTIME */',()=>runtime).replace('/* ARENA_PAYLOAD */',()=>payload.trim());
-const destination=new URL('release/Prepare-Emerald-Arena.html',root);
+for(const name of ['release/Prepare-Emerald-Arena.html','site/public/prepare.html']){
+const destination=new URL(name,root);
 if(process.argv.includes('--check')){
   if(await readFile(destination,'utf8')!==html)throw new Error('Installer is stale. Run node tools/build-installer.mjs.');
 }else await writeFile(destination,html);
+}

@@ -1,4 +1,13 @@
-# Emerald Arena 0.3.2 — easier setup
+# Emerald Arena 0.3.3 — web setup fixes
+
+[Download setup 0.3.3](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip).
+
+The hosted and downloaded preparers now use the same source. Setup shows a
+visible loading message, browser guidance and a ZIP alternative even if scripts
+cannot start. Animation downloads time out with a retry message instead of
+waiting indefinitely. The game and save filename are unchanged from 0.3.1.
+
+## Previous setup 0.3.2
 
 [**Download Emerald Arena — ZIP**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip)
 · [Installation guide](https://github.com/GBurgardt/pokemon-emerald-arena/blob/main/PLAY.md)

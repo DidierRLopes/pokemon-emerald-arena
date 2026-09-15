@@ -9,6 +9,15 @@ const template=await readFile(new URL('tools/installer.html',root),'utf8');
 test('single-file installer matches its source template and runtime',()=>{
   execFileSync(process.execPath,['tools/build-installer.mjs','--check'],{cwd:root});
 });
+test('hosted installer and ZIP installer are identical',async()=>{
+ assert.equal(await readFile(new URL('site/public/prepare.html',root),'utf8'),await readFile(new URL('release/Prepare-Emerald-Arena.html',root),'utf8'));
+});
+test('setup cannot show a working button before its script starts',()=>{
+ assert.match(template,/<button id="choose" disabled>/);
+ assert.match(template,/Loading setup/);
+ assert.doesNotMatch(template,/<script type="module">/);
+ assert.match(template,/download the setup ZIP/);
+});
 const handler=template.split('const choose=')[1].split('</script>')[0];
 function setup(prepareRom=async()=>new Uint8Array([1,2,3]),supported=true){
   const nodes=Object.fromEntries(['choose','file','status','download','ready','progress'].map(id=>[id,{hidden:['download','ready','progress'].includes(id),disabled:false,dataset:{},removeAttribute(k){delete this[k];},focus(){this.focused=true;}}]));
@@ -34,7 +43,7 @@ test('unsupported browser gets an actionable message',()=>{
 test('README puts a direct ZIP before gameplay and never calls a video Play',async()=>{
   const md=await readFile(new URL('README.md',root),'utf8');
   assert.ok(md.indexOf('Download Emerald Arena')<md.indexOf('## Watch gameplay'));
-  assert.match(md,/releases\/download\/v0\.3\.2\/Emerald-Arena-0\.3\.2\.zip/);
+  assert.match(md,/releases\/download\/v0\.3\.3\/Emerald-Arena-0\.3\.3\.zip/);
   assert.doesNotMatch(md,/Play & watch|chatgpt\.site/);
 });
 test('README shows one gameplay image before setup and labels development footage',async()=>{

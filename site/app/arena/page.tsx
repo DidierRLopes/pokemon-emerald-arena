@@ -1,6 +1,6 @@
 import Gameplay from './Gameplay';
 
-const release = 'https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.1/Emerald-Arena-0.3.1.zip';
+const release = 'https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip';
 const repository = 'https://github.com/GBurgardt/pokemon-emerald-arena';
 
 export default function Arena() {
@@ -9,7 +9,7 @@ export default function Arena() {
       <header className="masthead">
         <h1>Emerald Arena</h1>
         <nav className="actions" aria-label="Get Emerald Arena">
-          <a className="download" href={release}>Download demo <span aria-hidden="true">↓</span></a>
+          <a className="download" href={release}>Download game <span aria-hidden="true">↓</span></a>
           <a className="repo" href={repository}>GitHub repo <span aria-hidden="true">↗</span></a>
         </nav>
       </header>

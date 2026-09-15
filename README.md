@@ -2,7 +2,7 @@
 
 Pokémon Emerald with real time battles. Inside the original GBA game.
 
-[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) · [Installation guide](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip) · [Installation guide](PLAY.md)
 
 ## Watch gameplay
 
@@ -25,7 +25,7 @@ You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA emu
 
 For a quick try on a fresh save, press **SELECT** on **NEW GAME** to skip the intro and start with Charizard and five teammates; press **L + R together** in the field to fight.
 
-[Setup, keyboard controls and help](PLAY.md) · [1-minute setup video](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
+[Setup, keyboard controls and help](PLAY.md) · [1-minute setup video](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/emerald-arena-walkthrough.mp4)
 
 ## What's included
 

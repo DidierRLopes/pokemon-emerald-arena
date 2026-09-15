@@ -1,8 +1,8 @@
 # Play Emerald Arena
 
-[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/Emerald-Arena-0.3.2.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
+[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
-[**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
+[**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/emerald-arena-walkthrough.mp4)
 From download to your first fight, saving and continuing. GBA button names are
 shown in the video; your emulator's keyboard bindings may differ.
 
@@ -11,14 +11,14 @@ shown in the video; your emulator's keyboard bindings may differ.
 You need your own **unmodified Pokémon Emerald (USA/Europe) `.gba`** and Internet
 access. Other languages, other Pokémon games and already-patched ROMs will not work.
 
-1. Download **Emerald-Arena-0.3.2.zip** above. Extract/unzip it first.
+1. Download **Emerald-Arena-0.3.3.zip** above. Extract/unzip it first.
 2. Open **Prepare-Emerald-Arena.html** in a current Chrome, Firefox or Safari.
    It is a local web page, not an app to install. Do not open `install.mjs`.
 3. Click **Choose Emerald ROM** and select your original `.gba` file, not a ZIP.
 4. Wait while it checks the ROM and prepares the animations. Keep the page open.
 5. Click **Download game**. You will get **Emerald-Arena-0.3.1.gba** in your downloads.
 
-Package 0.3.2 improves setup only. It produces the exact same verified game as
+Package 0.3.3 improves setup only. It produces the exact same verified game as
 0.3.1, so the game filename stays unchanged. Existing players do not need to update.
 
 Your ROM is read locally, never uploaded or overwritten. The setup downloads
