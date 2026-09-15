@@ -10,6 +10,8 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [17-second clip with sound](media/emerald-arena-17s.mp4) · [Full gameplay · 2:26 with sound](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
 
+[Playing on an AYN Thor · 16 seconds](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-ayn-thor.mp4)
+
 The full video shows a development build with more Pokémon than the current download.
 [Recording details](media/README.md#full-gameplay).
 

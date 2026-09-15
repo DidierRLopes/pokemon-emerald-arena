@@ -1,5 +1,13 @@
 # Real gameplay
 
+## AYN Thor
+
+[Watch / download the handheld video](emerald-arena-ayn-thor.mp4)
+
+16 seconds recorded by Germán, playing on an AYN Thor with physical controls.
+The GBA ROM runs in an emulator on the handheld, not on original GBA hardware.
+Full recording with sound, converted to MP4 for playback. No cuts or added effects.
+
 ## Full gameplay
 
 [Watch / download the full video with sound](emerald-arena-full-gameplay.mp4)
