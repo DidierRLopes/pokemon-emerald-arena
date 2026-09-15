@@ -19,8 +19,9 @@ You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA emu
 
 1. **Extract the ZIP.** Open `Prepare-Emerald-Arena.html` on your computer.
 2. **Choose your Emerald ROM.** Wait for preparation, then click **Download game**.
-3. **Open the finished game in your emulator.** With a fresh save, highlight
-   **NEW GAME** and press **SELECT**. In the field, press **L + R together** to fight.
+3. **Open the finished game in your emulator.** Start or continue your adventure normally.
+
+For a quick try on a fresh save, press **SELECT** on **NEW GAME** to skip the intro and start with Charizard and five teammates; press **L + R together** in the field to fight.
 
 [Setup, keyboard controls and help](PLAY.md) · [1-minute setup video](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.2/emerald-arena-walkthrough.mp4)
 
@@ -30,7 +31,7 @@ You need your own unmodified **Pokémon Emerald (USA/Europe)** ROM and a GBA emu
 - Break rocks and other objects with your attacks.
 - Keep your team's HP, PP, experience and saves.
 
-Still an experiment. Unsupported encounters use classic battles.
+Supported wild battles use the arena automatically; trainer, double, link and unsupported battles stay classic.
 [Supported Pokémon, moves and limits](PLAY.md#current-scope).
 
 ## Controls
