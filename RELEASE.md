@@ -1,5 +1,13 @@
 # Emerald Arena 0.3.3 — web setup fixes
 
+## Optional full patch
+
+[Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.1-full.bps): apply directly to your unmodified Emerald (USA/Europe) ROM with a BPS patcher. The converted PMD animations are included, with attribution in [CREDITS.md](CREDITS.md). No separate animation download is needed. No original ROM is distributed.
+
+The output is byte-for-byte identical to game 0.3.1. Packaging was checked with Floating IPS and an independent JavaScript BPS reader; both reproduce the release SHA-256 below. This is not a new game build or a new full gameplay test run. The existing web installer is unchanged.
+
+Maintainers can reproduce this artifact with `tools/package-full-patch.mjs`, using the private original ROM and verified game release. Never upload either ROM or the private verification output.
+
 [Download setup 0.3.3](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip).
 
 The hosted and downloaded preparers now use the same source. Setup shows a

@@ -1,5 +1,7 @@
 # Play Emerald Arena
 
+Already use a ROM patcher? [Download the full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.1-full.bps) and apply it to your unmodified Emerald (USA/Europe) ROM. It includes the animations and produces the same 0.3.1 game, without extra downloads. Keep your game filename unchanged to reuse your save.
+
 [Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
 [**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/emerald-arena-walkthrough.mp4)
