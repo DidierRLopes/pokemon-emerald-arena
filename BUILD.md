@@ -47,8 +47,8 @@ node tools/build-installer.mjs --check
 node --test tests/*.test.mjs
 ```
 
-The private game acceptance suite runs 211 checks against real ARM code in mGBA,
-not a mock engine. Saves, snapshots and full test evidence remain private.
+The 0.4.0 private acceptance run passed 16 suites against real ARM code in mGBA,
+including combat, saves, move selection and performance. Saves, snapshots and full test evidence remain private.
 Host C tests for navigation, physics, geometry and numbers are included in the
 overlay; compile them with their `*_HOST` macros and sanitizers.
 
@@ -68,4 +68,4 @@ node tools/package-release.mjs /path/outside/this/repo/new-release-directory
 
 Packaging uses an explicit five-file allowlist. It refuses to overwrite an
 existing archive and emits `SHA256SUMS.txt`. The original ROM is never an input
-to packaging. Version 0.3.2 changes setup only; the game output remains 0.3.1.
+to packaging. Version 0.4.0 includes the new combat build.

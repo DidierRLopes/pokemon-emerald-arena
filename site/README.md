@@ -1,10 +1,11 @@
 # Emerald Arena landing
 
-A small English landing page for the playable GBA demo.
+A small English landing page for the modified GBA game.
 
 - `/` and `/arena`: title, one sentence, real gameplay, download and GitHub repo.
 - `/prepare.html`: local-only ROM preparation. No files are uploaded.
-- `public/emerald-arena-17s.mp4`: two-second Emerald intro + the original fight, with native audio.
+- `public/emerald-arena-combat-update.mp4`: current release gameplay, with native audio.
+- `public/emerald-arena-17s.mp4`: preserved original intro and fight.
 - `public/emerald-arena-15s.mp4`: preserved original battle-only clip.
 - `public/og.png`: generated social card, not gameplay.
 - `public/fonts/tiny5-regular.ttf`: locally hosted Tiny5; SIL Open Font License beside the font.
@@ -25,4 +26,4 @@ available. Reduced-motion preferences pause automatic playback.
 Design reference: [Downwell](https://downwellgame.com/) — pixel typography,
 strong contrast and flat geometry. This page uses its own ivory/ink/cobalt palette,
 not Downwell's artwork or code. No feature cards, counters or rounded containers.
-The original gameplay clip and local-only ROM preparer are unchanged.
+The local-only ROM preparer matches the downloaded version.

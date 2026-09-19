@@ -1,5 +1,16 @@
 # Real gameplay
 
+## Combat update 0.4.0
+
+[Watch / download with sound](emerald-arena-combat-update.mp4) · [GIF](emerald-arena-combat-update.gif)
+
+16 seconds from release 0.4.0: Blastoise versus Eevee, the move picker,
+Water Gun, Bite, dodges and breakable objects. A continuous battle ending
+back in the field, at normal speed with the game's own audio.
+Recorded in mGBA with timed button inputs. No added combat effects.
+
+MP4 SHA-256: `88f80afe6b6d7daa09363bc01c9b03ba0437db234067b1ceffb80018e3dc542b`.
+
 ## AYN Thor
 
 [Watch / download the handheld video](emerald-arena-ayn-thor.mp4)
@@ -13,7 +24,7 @@ Full recording with sound, converted to MP4 for playback. No cuts or added effec
 [Watch / download the full video with sound](emerald-arena-full-gameplay.mp4)
 
 2:26 around Lilycove and Route 121. Wild battles, switching Pokémon, healing
-and saving. Recorded on a development build, not the current public release.
+and saving. Recorded before the 0.4.0 combat update; kept here as a longer look at the adventure.
 
 The team was prepared on a copy of an advanced save. Normal speed, original
 game audio. Only the return trip to the Pokémon Center is shortened.

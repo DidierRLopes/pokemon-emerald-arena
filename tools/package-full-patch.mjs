@@ -7,10 +7,10 @@ const [base, game, out, flips = 'flips'] = process.argv.slice(2);
 if (!base || !game || !out) throw Error('Usage: node tools/package-full-patch.mjs original.gba verified-game.gba private-output-directory [flips]');
 const hash = (data, algo = 'sha256') => createHash(algo).update(data).digest('hex');
 if (hash(await readFile(base), 'sha1') !== 'f3ae088181bf583e55daf962a92bb46f4f1d07b7') throw Error('Wrong original ROM');
-const expected = 'd357b8648b955529cc60e127164dfa75491508be61f87a7e747a14c53b024890';
+const expected = 'c312ada6abc53e16474c54171235f8d7fff94c81d936fe39295834fd58e6d0c2';
 if (hash(await readFile(game)) !== expected) throw Error('Wrong game release');
 await mkdir(out, {recursive:true});
-const patch = path.resolve(out, 'Emerald-Arena-0.3.1-full.bps');
+const patch = path.resolve(out, 'Emerald-Arena-0.4.0-full.bps');
 const reconstructed = path.resolve(out, 'verification-private.gba');
 for (const p of [patch,reconstructed]) {
   try { await access(p); } catch (e) { if (e.code === 'ENOENT') continue; throw e; }

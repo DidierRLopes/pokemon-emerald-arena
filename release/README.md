@@ -1,4 +1,4 @@
-# Emerald Arena — setup 0.3.3
+# Emerald Arena 0.4.0
 
 Pokémon Emerald with real-time battles. Move, dodge, attack and break the arena.
 Requires your own unmodified Emerald ROM (USA/Europe).
@@ -6,26 +6,27 @@ Requires your own unmodified Emerald ROM (USA/Europe).
 1. Extract this ZIP on a computer.
 2. Open **Prepare-Emerald-Arena.html** in a current Chrome, Safari or Firefox.
 3. Choose your original `.gba`, not a ZIP. Wait for verification and click **Download game**.
-4. Open **Emerald-Arena-0.3.1.gba** in your GBA emulator.
+4. Open **Emerald-Arena-0.4.0.gba** in your GBA emulator.
 5. With a separate fresh save, highlight **NEW GAME** and press **SELECT**, not A.
 6. Press **L and R together** in the field to fight. Charizard leads; reorder the party to try others.
 
 Your ROM stays on your device and is never overwritten. No account or compiler required.
-Setup 0.3.3 produces the SAME game as 0.3.1, byte for byte. Existing players do not
-need to update. The output filename stays unchanged for save compatibility.
+Updating? Back up your in-game save and import a copy for the new ROM. Match the
+ROM/save basenames if required. Do not carry emulator save states across versions.
 
 Setup needs Internet for the animations. The game then works offline.
 Terminal option, Node 22+: `node install.mjs original.gba arena.gba`.
 
 GBA controls: direction buttons to move, A to attack, B + direction to dodge, L/R to change move,
-START to pause, SELECT for classic battles. Save from the field menu.
+START to pause and choose moves with up/right/down/left; START to resume.
+SELECT for classic battles. Save from the field menu.
 These are GBA button names, not literal keyboard keys: check the emulator's input
 settings. Visit a Pokémon Center to restore HP and PP. Back up existing saves.
 
 Party: Charizard, Blastoise, Eevee, Dragonite, Scizor and Blaziken.
 Box 1: Treecko, Poochyena, Bulbasaur, Squirtle, Grovyle and Sceptile.
-Ten move profiles are adapted. Other effects still use classic battles.
-This is a playable demo, not a fully rebalanced adventure.
+22 Pokémon and 17 move profiles are adapted. Other effects still use classic battles.
+This is not a fully rebalanced adventure.
 
 This package contains a compiled code delta and a local installer, not a ROM,
 save or sprite sheets. The installer verifies pinned SpriteCollab assets and

@@ -3,7 +3,7 @@
 - [pret/pokeemerald](https://github.com/pret/pokeemerald):
   Pokémon Emerald decompilation and reconstruction.
 - [PMDCollab/SpriteCollab](https://github.com/PMDCollab/SpriteCollab):
-  animation sources, metadata and individual credits for the 12 Pokémon.
+  animation sources, metadata and individual credits for the 22 Pokémon.
   Pin: `d25607ff4746957df10bdb78db090887cd94f1f8`.
   The installer manifest preserves each species' credit file. The original
   sheets credit CHUNSOFT. The web installer downloads and converts these locally.
@@ -18,6 +18,8 @@
 - [Floating IPS](https://github.com/Sir-Walrus/Flips):
   BPS delta creation during release preparation. Its binary and source are
   not bundled with the installer.
+- [Kenney Particle Pack 1.1](https://kenney.nl/assets/particle-pack): CC0 trace
+  used for Leaf Blade. [License and conversion notes](game/overlay/graphics/arena/cc0/README.md).
 - Arena background and props: images generated for this project, with the
   actual background used as a reference for props before GBA conversion.
 - Arena code, AI, physics, integration, tools and installer: German Burgardt,

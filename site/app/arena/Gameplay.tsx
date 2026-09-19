@@ -23,11 +23,11 @@ export default function Gameplay() {
 
   return <>
     <div className="game-frame">
-      <video ref={video} src="/emerald-arena-17s.mp4" poster="/arena-poster.png"
+      <video ref={video} src="/emerald-arena-combat-update.mp4" poster="/combat-poster.png"
         width="960" height="640" autoPlay muted loop playsInline controls preload="metadata"
-        aria-label="17 seconds: walking through Emerald's grass, then Charizard versus Blastoise, with native game music and sound"
+        aria-label="16 seconds: Blastoise versus Eevee, new attack effects and the move picker, with native game music and sound"
         onVolumeChange={() => setMuted(video.current?.muted ?? true)}>
-        <a href="/emerald-arena-17s.mp4">Watch the gameplay clip</a>
+        <a href="/emerald-arena-combat-update.mp4">Watch the gameplay clip</a>
       </video>
     </div>
     <div className="playback-controls">

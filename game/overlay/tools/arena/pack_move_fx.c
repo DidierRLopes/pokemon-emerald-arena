@@ -1,10 +1,21 @@
-// Original code-native effect artwork. Built offline: no trig, allocation or
+// Code-native effects plus Kenney's CC0 trace (graphics/arena/cc0).
+// Built offline: no trig, allocation or
 // rasterization runs on the GBA. 8 facings, 4 phases, transparent 4bpp tiles.
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <png.h>
+static unsigned char trace[512*512*4];
+static unsigned sampleTrace(double x,double y)
+{
+    int ix=(int)(x*511),iy=(int)(y*511);
+    unsigned alpha;
+    if(ix<0||iy<0||ix>511||iy>511)return 0;
+    alpha=trace[(iy*512+ix)*4+3];
+    return alpha>180?1:alpha>55?2:0;
+}
 static const double directions[8][2] = {
     {0,1},{.7071,.7071},{1,0},{.7071,-.7071},
     {0,-1},{-.7071,-.7071},{-1,0},{-.7071,.7071}
@@ -63,18 +74,43 @@ static void frame(FILE *f, int visual, int direction, int phase, int size)
             if(a>4 && a<30 && fabs(b)<15 &&
                 (fabs(slash)<1.2 || fabs(slash-7)<1.2 || fabs(slash+7)<1.2))color=fabs(b)<10?1:2;
         }
-        else if (visual==7) // revolving leaf/seed, not a recolored bullet
+        else if (visual==7) // opposing jaws close on the target, not claw scratches
+        {
+            double gap=11-phase*3, forward=a-19;
+            if(fabs(forward)<12 && fabs(fabs(b)-gap)<1.6)color=2;
+            if(fabs(forward)<11 && fabs(b)<gap && fabs(b)>gap-4
+                && fmod(forward+12,6)<3)color=1;
+        }
+        else if (visual==8) // Kenney CC0 trace, baked into a sharp green blade
+        {
+            double slash=a+b*.45-(12+phase*4);
+            color=sampleTrace(.5+slash/14,.5+b/48);
+            if(a>4 && fabs(b)<16 && fabs(slash+7)<.7)color=2;
+        }
+        else if (visual==9) // revolving leaf/seed, not a recolored bullet
         {
             double turn=phase*1.5707963, xx=dx*cos(turn)-dy*sin(turn), yy=dx*sin(turn)+dy*cos(turn);
             if (fabs(xx+yy*.65)<2.8 && fabs(yy)<6) color=2;
             if (r<2.7) color=1;
             if (fabs(xx+yy*.65)<.6 && fabs(yy)<5) color=1;
         }
-        else // water head and separated trailing droplets
+        else if (visual==10) // elongated water jet with bright core
         {
-            if ((a-2)*(a-2)+b*b<15 || (a+4)*(a+4)*2+b*b<4) color=2;
-            if ((a-2)*(a-2)+(b+1)*(b+1)<5) color=1;
-            if (phase&1 && a<-5 && fabs(b)<1.5) color=1;
+            if(a>-7 && a<6 && fabs(b)<2.8-((a+7)/15))color=2;
+            if(a>-6 && a<5 && fabs(b)<.9)color=1;
+            if(a<-3 && fabs(b-(phase&1?4:-4))<1)color=2;
+        }
+        else if (visual==11) // hollow ghostly ring and drifting wisps
+        {
+            if (fabs(r-(4+phase%2))<1.4) color=2;
+            if (fabs(r-4)<.7 && a>0) color=1;
+            if (a<-3 && fabs(b-(phase-1.5))<.8) color=2;
+        }
+        else if (visual==12) // irregular acid glob, bright rim and small bubbles
+        {
+            if ((a-1)*(a-1)*.7+b*b<20) color=2;
+            if ((a-2)*(a-2)+(b+2)*(b+2)<4) color=1;
+            if ((a+5)*(a+5)+(b-(phase-1)*2)*(b-(phase-1)*2)<2) color=1;
         }
         if (color)
         {
@@ -87,12 +123,18 @@ static void frame(FILE *f, int visual, int direction, int phase, int size)
 int main(int argc,char **argv)
 {
     FILE *f;int v,d,p;
+    png_image image;
     if(argc!=3) return 1;
+    memset(&image,0,sizeof(image));image.version=PNG_IMAGE_VERSION;
+    if(!png_image_begin_read_from_file(&image,"graphics/arena/cc0/trace_01.png"))return 3;
+    image.format=PNG_FORMAT_RGBA;
+    if(image.width!=512||image.height!=512||!png_image_finish_read(&image,0,trace,0,0))return 3;
+    png_image_free(&image);
     f=fopen(argv[1],"wb");if(!f)return 2;
-    for(v=0;v<7;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,64);
+    for(v=0;v<9;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,64);
     fclose(f);
     f=fopen(argv[2],"wb");if(!f)return 2;
-    for(v=7;v<9;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,16);
+    for(v=9;v<13;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,16);
     fclose(f);
     return 0;
 }

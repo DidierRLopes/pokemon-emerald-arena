@@ -4,6 +4,8 @@
 #include "battle_setup.h"
 #include "event_data.h"
 #include "fieldmap.h"
+#include "field_screen_effect.h"
+#include "overworld.h"
 #include "palette.h"
 #include "pokemon.h"
 #include "pokemon_storage_system.h"
@@ -11,6 +13,9 @@
 #include "script.h"
 #include "script_pokemon_util.h"
 #include "constants/items.h"
+#include "constants/moves.h"
+#include "constants/species.h"
+#include "constants/heal_locations.h"
 
 // Only included in the separate arena_lab.gba development build.
 // Commands are consumed in the real overworld, never halfway through a menu.
@@ -93,6 +98,39 @@ void ArenaLab_Tick(void)
         for (i = 0; i < gPlayerPartyCount; i++)
             CreateMon(&gPlayerParty[i], gArenaLabMailbox.teamSpecies[i], gArenaLabMailbox.teamLevels[i],
                 20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
+        break;
+    }
+    case 7:
+    {
+        // Explicit preparation of a PRIVATE advanced-save COPY, never a
+        // release feature or earned-progress assertion. Keep all story/PC
+        // progress. The original imported save is retained byte-for-byte.
+        static const u16 species[6] = {SPECIES_GROVYLE,SPECIES_SWELLOW,SPECIES_MANECTRIC,
+            SPECIES_BRELOOM,SPECIES_PELIPPER,SPECIES_MIGHTYENA};
+        static const u8 levels[6] = {33,32,32,31,32,30};
+        static const u16 moves[6][4] = {
+            {MOVE_LEAF_BLADE,MOVE_ABSORB,MOVE_QUICK_ATTACK,MOVE_PURSUIT},
+            {MOVE_WING_ATTACK,MOVE_QUICK_ATTACK,MOVE_PECK,MOVE_DOUBLE_TEAM},
+            {MOVE_QUICK_ATTACK,MOVE_SPARK,MOVE_THUNDER_WAVE,MOVE_HOWL},
+            {MOVE_MEGA_DRAIN,MOVE_MACH_PUNCH,MOVE_HEADBUTT,MOVE_LEECH_SEED},
+            {MOVE_WATER_GUN,MOVE_WING_ATTACK,MOVE_PROTECT,MOVE_MIST},
+            {MOVE_BITE,MOVE_TACKLE,MOVE_ODOR_SLEUTH,MOVE_ROAR}
+        };
+        u32 i,j;
+        u8 ability = 1; // Manectric's native Lightning Rod, not disabled Static.
+        ZeroPlayerPartyMons();
+        gPlayerPartyCount = PARTY_SIZE;
+        for(i=0;i<PARTY_SIZE;i++)
+        {
+            CreateMon(&gPlayerParty[i],species[i],levels[i],20,TRUE,i*2,OT_ID_PLAYER_ID,0);
+            for(j=0;j<MAX_MON_MOVES;j++)SetMonMoveSlot(&gPlayerParty[i],moves[i][j],j);
+        }
+        SetMonData(&gPlayerParty[2],MON_DATA_ABILITY_NUM,&ability);
+        FlagClear(FLAG_ARENA_PRACTICE);
+        gSaveBlock2Ptr->optionsTextSpeed=OPTIONS_TEXT_SPEED_FAST;
+        SetLastHealLocationWarp(HEAL_LOCATION_LILYCOVE_CITY);
+        SetWarpDestination(MAP_GROUP(MAP_LILYCOVE_CITY),MAP_NUM(MAP_LILYCOVE_CITY),-1,24,15);
+        DoWarp();
         break;
     }
     default:

@@ -2,18 +2,19 @@
 
 Pokémon Emerald with real time battles. Inside the original GBA game.
 
-[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/Emerald-Arena-0.3.3.zip) · [Installation guide](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0.zip) · [Installation guide](PLAY.md)
 
 ## Watch gameplay
 
-![17 seconds of gameplay: walking through the grass, then an arena battle](media/emerald-arena-17s.gif)
+[![New battle gameplay: Blastoise versus Eevee, attacks, dodges and the move picker](media/emerald-arena-combat-update.gif)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-combat-update.mp4)
 
-[17-second clip with sound](media/emerald-arena-17s.mp4) · [Full gameplay · 2:26 with sound](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
+[New battles · 16 seconds with sound](media/emerald-arena-combat-update.mp4) · [Full gameplay · 2:26 with sound](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-full-gameplay.mp4)
 
 [Playing on an AYN Thor · 16 seconds](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-ayn-thor.mp4)
 
-The full video shows a development build with more Pokémon than the current download.
-[Recording details](media/README.md#full-gameplay).
+New in 0.4.0: different attack effects, smarter enemies and a move picker.
+Press **START** to pause, choose your move and jump back in.
+[Changes](RELEASE.md) · [Recording details](media/README.md).
 
 ## Start playing
 
@@ -38,7 +39,7 @@ Supported wild battles use the arena automatically; trainer, double, link and un
 
 ## Controls
 
-Direction buttons to move. **A** to attack. **B + a direction** to dodge.
+Direction buttons to move. **A** to attack. **B + a direction** to dodge. **START** to pick a move.
 [All controls](PLAY.md#controls).
 
 ## Source

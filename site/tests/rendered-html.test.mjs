@@ -23,10 +23,10 @@ for (const path of ["/", "/arena"]) {
     assert.match(html, /Download game/);
     assert.match(html, /<a class="repo" href="https:\/\/github\.com\/GBurgardt\/pokemon-emerald-arena">GitHub repo/);
     assert.match(html, /The original Pokémon Emerald, modified for real-time battles\./);
-    assert.match(html, /releases\/download\/v0\.3\.3\/Emerald-Arena-0\.3\.3\.zip/);
+    assert.match(html, /releases\/download\/v0\.4\.0\/Emerald-Arena-0\.4\.0\.zip/);
     assert.match(html, /href="\/prepare\.html"/);
-    assert.match(html, /<video[^>]*src="\/emerald-arena-17s\.mp4"/);
-    assert.match(html, /17 seconds: walking through Emerald/);
+    assert.match(html, /<video[^>]*src="\/emerald-arena-combat-update\.mp4"/);
+    assert.match(html, /16 seconds: Blastoise versus Eevee/);
     for (const attribute of ["autoPlay", "muted", "loop", "playsInline", "controls"]) {
       assert.match(html, new RegExp("<video[^>]*" + attribute, "i"));
     }
@@ -51,11 +51,11 @@ test("release assets are present and the installer stays local-only", async () =
   assert.match(installer, /lang="en"/);
   assert.match(installer, /Your file is never uploaded/);
   assert.match(installer, /crypto\.subtle\.digest/);
-  assert.match(installer, /download\.download='Emerald-Arena-0\.3\.1\.gba'/);
+  assert.match(installer, /download\.download='Emerald-Arena-0\.4\.0\.gba'/);
   assert.match(installer, /\[hidden\]\{display:none!important\}/);
   assert.doesNotMatch(installer, /XMLHttpRequest|FormData|method:[ ]*['"]POST/);
-  const video = await readFile(new URL("../public/emerald-arena-17s.mp4", import.meta.url));
-  assert.equal(createHash("sha256").update(video).digest("hex"), "45d81fca963066195a14018ace9e94687154f231ae9f7286f868f761cf0cbfd4");
+  const video = await readFile(new URL("../public/emerald-arena-combat-update.mp4", import.meta.url));
+  assert.equal(createHash("sha256").update(video).digest("hex"), "88f80afe6b6d7daa09363bc01c9b03ba0437db234067b1ceffb80018e3dc542b");
 });
 
 test("sharp, locally hosted typography and accessible contrast", async () => {

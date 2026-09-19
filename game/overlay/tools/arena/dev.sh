@@ -11,8 +11,8 @@ build_background() {
     cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_props.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-props
     .arena-dev/art/pack-props graphics/arena/forest-props-sunburst-v1.png .arena-dev/art/props.4bpp .arena-dev/art/pieces.4bpp .arena-dev/art/blast.4bpp .arena-dev/art/prop-palettes.gbapal
   fi
-  if [[ ! -f .arena-dev/art/actions.4bpp || tools/arena/pack_move_fx.c -nt .arena-dev/art/actions.4bpp ]]; then
-    cc -std=c11 -O2 -Wall -Wextra -Werror tools/arena/pack_move_fx.c -o .arena-dev/art/pack-move-fx
+  if [[ ! -f .arena-dev/art/actions.4bpp || tools/arena/pack_move_fx.c -nt .arena-dev/art/actions.4bpp || graphics/arena/cc0/trace_01.png -nt .arena-dev/art/actions.4bpp ]]; then
+    cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_move_fx.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-move-fx
     .arena-dev/art/pack-move-fx .arena-dev/art/actions.4bpp .arena-dev/art/bolts.4bpp
   fi
   if [[ ! -f .arena-dev/art/forest.8bpp || graphics/arena/forest-clearing-v2-clean.png -nt .arena-dev/art/forest.8bpp || tools/arena/pack_background.c -nt .arena-dev/art/forest.8bpp ]]; then

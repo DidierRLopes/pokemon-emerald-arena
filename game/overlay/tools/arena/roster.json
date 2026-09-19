@@ -10,5 +10,15 @@
   {"dex":"0212","species":"SCIZOR","level":15,"poses":{"Attack":"Charge"}},
   {"dex":"0257","species":"BLAZIKEN","level":20,"poses":{"Attack":"Charge","Shoot":"Charge","SpAttack":"Charge"}},
   {"dex":"0253","species":"GROVYLE","level":16,"poses":{"Attack":"Double"}},
-  {"dex":"0254","species":"SCEPTILE","level":43,"poses":{"Attack":"Double"}}
+  {"dex":"0254","species":"SCEPTILE","level":43,"poses":{"Attack":"Double"}},
+  {"dex":"0262","species":"MIGHTYENA","level":30,"poses":{"Attack":"RearUp"}},
+  {"dex":"0353","species":"SHUPPET","level":26,"poses":{"Attack":"Double"}},
+  {"dex":"0043","species":"ODDISH","level":26,"poses":{"Attack":"Double"}},
+  {"dex":"0044","species":"GLOOM","level":28,"poses":{"Attack":"Double"}},
+  {"dex":"0278","species":"WINGULL","level":26,"poses":{"Attack":"Charge"}},
+  {"dex":"0352","species":"KECLEON","level":26,"poses":{"Attack":"Double"}},
+  {"dex":"0277","species":"SWELLOW","level":30,"poses":{"Attack":"Charge"}},
+  {"dex":"0310","species":"MANECTRIC","level":30,"poses":{"Attack":"Charge"}},
+  {"dex":"0286","species":"BRELOOM","level":30,"poses":{"Attack":"Double"}},
+  {"dex":"0279","species":"PELIPPER","level":30,"poses":{"Attack":"Charge"}}
 ]

@@ -1,4 +1,34 @@
-# Emerald Arena 0.3.3 — web setup fixes
+# Emerald Arena 0.4.0
+
+[Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0-full.bps) · [Watch the update](media/emerald-arena-combat-update.mp4)
+
+- New Water Gun, Bite and Leaf Blade effects, with distinct attack sounds.
+- Speed-based movement, readable enemy wind-ups and smarter move choices.
+- Shared attack recovery, shown on the HUD. Switching moves cannot skip it.
+- START opens a paused move picker with all four moves, PP and move roles.
+- 22 animated Pokémon, 17 move profiles and trainers at the arena sidelines.
+
+Native damage, PP, experience and saves remain in use. Trainer, double, link
+and unsupported battles stay classic. This is not a full adventure rebalance.
+
+Back up your in-game save before updating. Import a copy for the new ROM;
+do not carry emulator save states between releases. [Setup and controls](PLAY.md).
+
+### Verification
+
+The private mGBA acceptance run passed 16 suites, covering combat, effects,
+objects, result flow, adventure integration, trainers, tactics, move selection
+and performance. Host geometry, navigation, physics and numeric checks also passed.
+The new video was captured from the release build, including the return to the field.
+Original GBA hardware has not been tested.
+
+The public source overlay was rebuilt from a clean pinned pret checkout.
+That build, the local installer and both BPS readers all reproduced the same
+release hash. Public installer checks and landing checks passed too.
+
+Release ROM SHA-256: `c312ada6abc53e16474c54171235f8d7fff94c81d936fe39295834fd58e6d0c2`.
+
+## Previous: 0.3.3 web setup fixes
 
 ## Optional full patch
 

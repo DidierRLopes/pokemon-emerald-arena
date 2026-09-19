@@ -361,7 +361,7 @@ index 11fc168..68ae282 100644
      {
          RandomlyGivePartyPokerus(gPlayerParty);
 diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
-index 3af09ec..5c8bcf0 100644
+index 3af09ec..83b3127 100644
 --- a/src/battle_script_commands.c
 +++ b/src/battle_script_commands.c
 @@ -1,4 +1,5 @@
@@ -370,7 +370,7 @@ index 3af09ec..5c8bcf0 100644
  #include "battle.h"
  #include "battle_message.h"
  #include "battle_anim.h"
-@@ -1303,6 +1304,89 @@ static void Cmd_damagecalc(void)
+@@ -1303,6 +1304,135 @@ static void Cmd_damagecalc(void)
      gBattlescriptCurrInstr++;
  }
  
@@ -404,14 +404,60 @@ index 3af09ec..5c8bcf0 100644
 +    Cmd_accuracycheck();
 +    if (!(gMoveResultFlags & MOVE_RESULT_NO_EFFECT))
 +    {
-+        Cmd_critcalc();
-+        Cmd_damagecalc();
-+        Cmd_typecalc();
-+        Cmd_adjustnormaldamage();
++        if (move == MOVE_NIGHT_SHADE)
++        {
++            // The original LevelDamage script: immunity first, fixed level
++            // damage, no STAB/critical/random variance or effectiveness bonus.
++            Cmd_typecalc();
++            gMoveResultFlags &= ~(MOVE_RESULT_SUPER_EFFECTIVE | MOVE_RESULT_NOT_VERY_EFFECTIVE);
++            Cmd_dmgtolevel();
++            Cmd_adjustsetdamage();
++        }
++        else
++        {
++            Cmd_critcalc();
++            Cmd_damagecalc();
++            Cmd_typecalc();
++            Cmd_adjustnormaldamage();
++        }
 +    }
 +    result = (gMoveResultFlags & MOVE_RESULT_NO_EFFECT) ? 0 : gBattleMoveDamage;
 +    if (attacker == 0) gBattleResults.lastUsedMovePlayer = move;
 +    else gBattleResults.lastUsedMoveOpponent = move;
++    gBattlescriptCurrInstr = savedScript;
++    return result;
++}
++
++// Bounded, non-script secondary effects. No statuses/items/weather are admitted
++// by the arena gate. Acid uses the native stat mutation and Shield Dust rule.
++// Bite's turn flinch becomes a brief interrupt in the real-time action layer.
++u8 RealtimeArena_ResolveSecondary(u8 attacker, u8 target, u16 move)
++{
++    const u8 *savedScript = gBattlescriptCurrInstr;
++    u8 result = 0;
++    u8 before = gBattleMons[target].statStages[STAT_DEF];
++    if (!gBattleMons[target].hp) return 0;
++    if (gBattleMons[target].ability != ABILITY_SHIELD_DUST
++        && (move == MOVE_ACID || move == MOVE_BITE)
++        && Random() % 100 < gBattleMoves[move].secondaryEffectChance)
++    {
++        if (move == MOVE_ACID)
++        {
++            ChangeStatBuffs(SET_STAT_BUFF_VALUE(1) | STAT_BUFF_NEGATIVE, STAT_DEF, 0, NULL);
++            if (gBattleMons[target].statStages[STAT_DEF] < before) result |= 1;
++        }
++        else if (gBattleMons[target].ability != ABILITY_INNER_FOCUS)
++            result |= 2;
++    }
++    // Same conditions/type mutation as native Color Change. Battle-only types
++    // remain in gBattleMons for a classic handoff, never in the saved Pokemon.
++    if (gBattleMons[target].ability == ABILITY_COLOR_CHANGE
++        && move != MOVE_STRUGGLE && gBattleMoves[move].power
++        && !IS_BATTLER_OF_TYPE(target, gBattleMoves[move].type))
++    {
++        SET_BATTLER_TYPE(target, gBattleMoves[move].type);
++        result |= 4;
++    }
 +    gBattlescriptCurrInstr = savedScript;
 +    return result;
 +}
@@ -460,7 +506,7 @@ index 3af09ec..5c8bcf0 100644
  void AI_CalcDmg(u8 attacker, u8 defender)
  {
      u16 sideStatus = gSideStatuses[GET_BATTLER_SIDE(defender)];
-@@ -2139,6 +2223,24 @@ static void Cmd_printstring(void)
+@@ -2139,6 +2269,24 @@ static void Cmd_printstring(void)
      if (gBattleControllerExecFlags == 0)
      {
          u16 var = T2_READ_16(gBattlescriptCurrInstr + 1);
@@ -485,7 +531,7 @@ index 3af09ec..5c8bcf0 100644
          PrepareStringBattle(var, gBattlerAttacker);
          gBattlescriptCurrInstr += 3;
          gBattleCommunication[MSG_DISPLAY] = 1;
-@@ -3051,6 +3153,8 @@ static void Cmd_tryfaintmon(void)
+@@ -3051,6 +3199,8 @@ static void Cmd_tryfaintmon(void)
  
  static void Cmd_dofaintanimation(void)
  {
@@ -494,7 +540,7 @@ index 3af09ec..5c8bcf0 100644
      if (gBattleControllerExecFlags == 0)
      {
          gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
-@@ -3360,7 +3464,7 @@ static void Cmd_getexp(void)
+@@ -3360,7 +3510,7 @@ static void Cmd_getexp(void)
                  if (!(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && gBattleMons[0].hp != 0 && !gBattleStruct->wildVictorySong)
                  {
                      BattleStopLowHpSound();
@@ -503,7 +549,7 @@ index 3af09ec..5c8bcf0 100644
                      gBattleStruct->wildVictorySong++;
                  }
  
-@@ -3416,7 +3520,8 @@ static void Cmd_getexp(void)
+@@ -3416,7 +3566,8 @@ static void Cmd_getexp(void)
                      PREPARE_STRING_BUFFER(gBattleTextBuff2, i);
                      PREPARE_WORD_NUMBER_BUFFER(gBattleTextBuff3, 5, gBattleMoveDamage);
  
@@ -513,7 +559,7 @@ index 3af09ec..5c8bcf0 100644
                      MonGainEVs(&gPlayerParty[gBattleStruct->expGetterMonId], gBattleMons[gBattlerFainted].species);
                  }
                  gBattleStruct->sentInPokes >>= 1;
-@@ -3913,6 +4018,7 @@ static void Cmd_bicword(void)
+@@ -3913,6 +4064,7 @@ static void Cmd_bicword(void)
  
  static void Cmd_pause(void)
  {
@@ -521,7 +567,7 @@ index 3af09ec..5c8bcf0 100644
      if (gBattleControllerExecFlags == 0)
      {
          u16 value = T2_READ_16(gBattlescriptCurrInstr + 1);
-@@ -5318,6 +5424,7 @@ static void Cmd_playse(void)
+@@ -5318,6 +5470,7 @@ static void Cmd_playse(void)
  
  static void Cmd_fanfare(void)
  {
@@ -529,7 +575,7 @@ index 3af09ec..5c8bcf0 100644
      gActiveBattler = gBattlerAttacker;
      BtlController_EmitPlayFanfareOrBGM(B_COMM_TO_CONTROLLER, T2_READ_16(gBattlescriptCurrInstr + 1), FALSE);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5327,6 +5434,7 @@ static void Cmd_fanfare(void)
+@@ -5327,6 +5480,7 @@ static void Cmd_fanfare(void)
  
  static void Cmd_playfaintcry(void)
  {
@@ -537,7 +583,7 @@ index 3af09ec..5c8bcf0 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      BtlController_EmitFaintingCry(B_COMM_TO_CONTROLLER);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5923,6 +6031,7 @@ static void Cmd_atknameinbuff1(void)
+@@ -5923,6 +6077,7 @@ static void Cmd_atknameinbuff1(void)
  
  static void Cmd_drawlvlupbox(void)
  {

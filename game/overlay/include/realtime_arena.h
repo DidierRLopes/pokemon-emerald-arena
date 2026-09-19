@@ -6,6 +6,7 @@ void RealtimeArena_ResetBattle(void);
 bool8 RealtimeArena_TryStart(void);
 bool8 RealtimeArena_CanSkipIntro(void);
 s32 RealtimeArena_ResolveDamage(u8 attacker, u8 target, u16 move);
+u8 RealtimeArena_ResolveSecondary(u8 attacker, u8 target, u16 move);
 bool8 RealtimeArena_ResolveLeer(u8 attacker, u8 target);
 u16 RealtimeArena_DrainAmount(u16 hpDealt);
 void RealtimeArena_ResumeBattle(bool8 fainted);
