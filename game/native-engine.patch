@@ -147,7 +147,7 @@ index 45bf1a1..3dda8ab 100644
          expPointsToGive = T1_READ_16(&gBattleBufferA[gActiveBattler][2]);
          taskId = CreateTask(Task_GiveExpToMon, 10);
 diff --git a/src/battle_main.c b/src/battle_main.c
-index 11fc168..68ae282 100644
+index 11fc168..cc81fa8 100644
 --- a/src/battle_main.c
 +++ b/src/battle_main.c
 @@ -1,4 +1,6 @@
@@ -284,7 +284,7 @@ index 11fc168..68ae282 100644
      gBattleCommunication[ACTIONS_CONFIRMED_COUNT] = 0;
      for (gActiveBattler = 0; gActiveBattler < gBattlersCount; gActiveBattler++)
      {
-@@ -4957,6 +4993,65 @@ static void RunTurnActionsFunctions(void)
+@@ -4957,6 +4993,74 @@ static void RunTurnActionsFunctions(void)
      }
  }
  
@@ -315,6 +315,15 @@ index 11fc168..68ae282 100644
 +void RealtimeArena_ResumeBattle(bool8 fainted)
 +{
 +    gBattleMainFunc = WaitForRealtimeArenaReturn;
++}
++
++void RealtimeArena_FinishCapture(void)
++{
++    // The arena already presented the catch and used the native party/PC API.
++    // Let Emerald own field callbacks, roaming flags and resource cleanup.
++    gBattleOutcome = B_OUTCOME_CAUGHT;
++    gCurrentActionFuncId = B_ACTION_FINISHED;
++    gBattleMainFunc = HandleEndTurn_FinishBattle;
 +}
 +
 +static EWRAM_DATA void (*sArenaResultResume)(void) = NULL;
@@ -350,7 +359,7 @@ index 11fc168..68ae282 100644
  static void HandleEndTurn_BattleWon(void)
  {
      gCurrentActionFuncId = 0;
-@@ -5216,6 +5311,9 @@ static void WaitForEvoSceneToFinish(void)
+@@ -5216,6 +5320,9 @@ static void WaitForEvoSceneToFinish(void)
  
  static void ReturnFromBattleToOverworld(void)
  {
@@ -361,16 +370,17 @@ index 11fc168..68ae282 100644
      {
          RandomlyGivePartyPokerus(gPlayerParty);
 diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
-index 3af09ec..83b3127 100644
+index 3af09ec..fff8b9c 100644
 --- a/src/battle_script_commands.c
 +++ b/src/battle_script_commands.c
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,6 @@
  #include "global.h"
 +#include "realtime_arena.h"
++#include "arena_capture.h"
  #include "battle.h"
  #include "battle_message.h"
  #include "battle_anim.h"
-@@ -1303,6 +1304,135 @@ static void Cmd_damagecalc(void)
+@@ -1303,6 +1305,135 @@ static void Cmd_damagecalc(void)
      gBattlescriptCurrInstr++;
  }
  
@@ -506,7 +516,7 @@ index 3af09ec..83b3127 100644
  void AI_CalcDmg(u8 attacker, u8 defender)
  {
      u16 sideStatus = gSideStatuses[GET_BATTLER_SIDE(defender)];
-@@ -2139,6 +2269,24 @@ static void Cmd_printstring(void)
+@@ -2139,6 +2270,24 @@ static void Cmd_printstring(void)
      if (gBattleControllerExecFlags == 0)
      {
          u16 var = T2_READ_16(gBattlescriptCurrInstr + 1);
@@ -531,7 +541,7 @@ index 3af09ec..83b3127 100644
          PrepareStringBattle(var, gBattlerAttacker);
          gBattlescriptCurrInstr += 3;
          gBattleCommunication[MSG_DISPLAY] = 1;
-@@ -3051,6 +3199,8 @@ static void Cmd_tryfaintmon(void)
+@@ -3051,6 +3200,8 @@ static void Cmd_tryfaintmon(void)
  
  static void Cmd_dofaintanimation(void)
  {
@@ -540,7 +550,7 @@ index 3af09ec..83b3127 100644
      if (gBattleControllerExecFlags == 0)
      {
          gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
-@@ -3360,7 +3510,7 @@ static void Cmd_getexp(void)
+@@ -3360,7 +3511,7 @@ static void Cmd_getexp(void)
                  if (!(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && gBattleMons[0].hp != 0 && !gBattleStruct->wildVictorySong)
                  {
                      BattleStopLowHpSound();
@@ -549,7 +559,7 @@ index 3af09ec..83b3127 100644
                      gBattleStruct->wildVictorySong++;
                  }
  
-@@ -3416,7 +3566,8 @@ static void Cmd_getexp(void)
+@@ -3416,7 +3567,8 @@ static void Cmd_getexp(void)
                      PREPARE_STRING_BUFFER(gBattleTextBuff2, i);
                      PREPARE_WORD_NUMBER_BUFFER(gBattleTextBuff3, 5, gBattleMoveDamage);
  
@@ -559,7 +569,7 @@ index 3af09ec..83b3127 100644
                      MonGainEVs(&gPlayerParty[gBattleStruct->expGetterMonId], gBattleMons[gBattlerFainted].species);
                  }
                  gBattleStruct->sentInPokes >>= 1;
-@@ -3913,6 +4064,7 @@ static void Cmd_bicword(void)
+@@ -3913,6 +4065,7 @@ static void Cmd_bicword(void)
  
  static void Cmd_pause(void)
  {
@@ -567,7 +577,7 @@ index 3af09ec..83b3127 100644
      if (gBattleControllerExecFlags == 0)
      {
          u16 value = T2_READ_16(gBattlescriptCurrInstr + 1);
-@@ -5318,6 +5470,7 @@ static void Cmd_playse(void)
+@@ -5318,6 +5471,7 @@ static void Cmd_playse(void)
  
  static void Cmd_fanfare(void)
  {
@@ -575,7 +585,7 @@ index 3af09ec..83b3127 100644
      gActiveBattler = gBattlerAttacker;
      BtlController_EmitPlayFanfareOrBGM(B_COMM_TO_CONTROLLER, T2_READ_16(gBattlescriptCurrInstr + 1), FALSE);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5327,6 +5480,7 @@ static void Cmd_fanfare(void)
+@@ -5327,6 +5481,7 @@ static void Cmd_fanfare(void)
  
  static void Cmd_playfaintcry(void)
  {
@@ -583,7 +593,7 @@ index 3af09ec..83b3127 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      BtlController_EmitFaintingCry(B_COMM_TO_CONTROLLER);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5923,6 +6077,7 @@ static void Cmd_atknameinbuff1(void)
+@@ -5923,6 +6078,7 @@ static void Cmd_atknameinbuff1(void)
  
  static void Cmd_drawlvlupbox(void)
  {
@@ -591,6 +601,159 @@ index 3af09ec..83b3127 100644
      if (gBattleScripting.drawlvlupboxState == 0)
      {
          // If the Pokémon getting exp is not in-battle then
+@@ -9902,10 +10058,59 @@ static void Cmd_removelightscreenreflect(void)
+     gBattlescriptCurrInstr++;
+ }
+ 
+-static void Cmd_handleballthrow(void)
++// One formula for classic and arena captures. Do not change integer rounding:
++// this is the original Emerald calculation, including status and ball bonuses.
++u32 CalculateBallCatchOdds(u8 target, u16 item)
+ {
+-    u8 ballMultiplier = 0;
++    u32 odds;
++    u8 catchRate, multiplier = 10;
++    if (item == ITEM_SAFARI_BALL)
++        catchRate = gBattleStruct->safariCatchFactor * 1275 / 100;
++    else
++        catchRate = gSpeciesInfo[gBattleMons[target].species].catchRate;
++    if (item <= ITEM_SAFARI_BALL)
++        multiplier = sBallCatchBonuses[item - ITEM_ULTRA_BALL];
++    else switch (item)
++    {
++    case ITEM_NET_BALL:
++        if (IS_BATTLER_OF_TYPE(target, TYPE_WATER) || IS_BATTLER_OF_TYPE(target, TYPE_BUG)) multiplier = 30;
++        break;
++    case ITEM_DIVE_BALL:
++        if (GetCurrentMapType() == MAP_TYPE_UNDERWATER) multiplier = 35;
++        break;
++    case ITEM_NEST_BALL:
++        if (gBattleMons[target].level < 40) multiplier = max(10, 40 - gBattleMons[target].level);
++        break;
++    case ITEM_REPEAT_BALL:
++        if (GetSetPokedexFlag(SpeciesToNationalPokedexNum(gBattleMons[target].species), FLAG_GET_CAUGHT)) multiplier = 30;
++        break;
++    case ITEM_TIMER_BALL:
++        multiplier = gBattleResults.battleTurnCounter + 10;
++        if(multiplier>40)multiplier=40;
++        break;
++    }
++    odds = (catchRate * multiplier / 10)
++        * (gBattleMons[target].maxHP * 3 - gBattleMons[target].hp * 2)
++        / (3 * gBattleMons[target].maxHP);
++    if (gBattleMons[target].status1 & (STATUS1_SLEEP | STATUS1_FREEZE)) odds *= 2;
++    if (gBattleMons[target].status1 & (STATUS1_POISON | STATUS1_BURN | STATUS1_PARALYSIS | STATUS1_TOXIC_POISON)) odds = odds * 15 / 10;
++    return odds;
++}
+ 
++u8 CalculateBallCatchShakes(u32 odds, u16 item)
++{
++    u8 shakes;
++    if (odds > 254) return BALL_3_SHAKES_SUCCESS;
++    // A zero catch rate must not divide by zero. Normal species never use it.
++    if (!odds) return item == ITEM_MASTER_BALL ? BALL_3_SHAKES_SUCCESS : 0;
++    odds = Sqrt(Sqrt(16711680 / odds));
++    odds = 1048560 / odds;
++    for (shakes = 0; shakes < BALL_3_SHAKES_SUCCESS && Random() < odds; shakes++);
++    return item == ITEM_MASTER_BALL ? BALL_3_SHAKES_SUCCESS : shakes;
++}
++
++static void Cmd_handleballthrow(void)
++{
+     if (gBattleControllerExecFlags)
+         return;
+ 
+@@ -9926,72 +10131,7 @@ static void Cmd_handleballthrow(void)
+     }
+     else
+     {
+-        u32 odds;
+-        u8 catchRate;
+-
+-        if (gLastUsedItem == ITEM_SAFARI_BALL)
+-            catchRate = gBattleStruct->safariCatchFactor * 1275 / 100;
+-        else
+-            catchRate = gSpeciesInfo[gBattleMons[gBattlerTarget].species].catchRate;
+-
+-        if (gLastUsedItem > ITEM_SAFARI_BALL)
+-        {
+-            switch (gLastUsedItem)
+-            {
+-            case ITEM_NET_BALL:
+-                if (IS_BATTLER_OF_TYPE(gBattlerTarget, TYPE_WATER) || IS_BATTLER_OF_TYPE(gBattlerTarget, TYPE_BUG))
+-                    ballMultiplier = 30;
+-                else
+-                    ballMultiplier = 10;
+-                break;
+-            case ITEM_DIVE_BALL:
+-                if (GetCurrentMapType() == MAP_TYPE_UNDERWATER)
+-                    ballMultiplier = 35;
+-                else
+-                    ballMultiplier = 10;
+-                break;
+-            case ITEM_NEST_BALL:
+-                if (gBattleMons[gBattlerTarget].level < 40)
+-                {
+-                    ballMultiplier = 40 - gBattleMons[gBattlerTarget].level;
+-                    if (ballMultiplier <= 9)
+-                        ballMultiplier = 10;
+-                }
+-                else
+-                {
+-                    ballMultiplier = 10;
+-                }
+-                break;
+-            case ITEM_REPEAT_BALL:
+-                if (GetSetPokedexFlag(SpeciesToNationalPokedexNum(gBattleMons[gBattlerTarget].species), FLAG_GET_CAUGHT))
+-                    ballMultiplier = 30;
+-                else
+-                    ballMultiplier = 10;
+-                break;
+-            case ITEM_TIMER_BALL:
+-                ballMultiplier = gBattleResults.battleTurnCounter + 10;
+-                if (ballMultiplier > 40)
+-                    ballMultiplier = 40;
+-                break;
+-            case ITEM_LUXURY_BALL:
+-            case ITEM_PREMIER_BALL:
+-                ballMultiplier = 10;
+-                break;
+-            }
+-        }
+-        else
+-        {
+-            ballMultiplier = sBallCatchBonuses[gLastUsedItem - ITEM_ULTRA_BALL];
+-        }
+-
+-        odds = (catchRate * ballMultiplier / 10)
+-            * (gBattleMons[gBattlerTarget].maxHP * 3 - gBattleMons[gBattlerTarget].hp * 2)
+-            / (3 * gBattleMons[gBattlerTarget].maxHP);
+-
+-        if (gBattleMons[gBattlerTarget].status1 & (STATUS1_SLEEP | STATUS1_FREEZE))
+-            odds *= 2;
+-        if (gBattleMons[gBattlerTarget].status1 & (STATUS1_POISON | STATUS1_BURN | STATUS1_PARALYSIS | STATUS1_TOXIC_POISON))
+-            odds = (odds * 15) / 10;
++        u32 odds = CalculateBallCatchOdds(gBattlerTarget, gLastUsedItem);
+ 
+         if (gLastUsedItem != ITEM_SAFARI_BALL)
+         {
+@@ -10020,15 +10160,7 @@ static void Cmd_handleballthrow(void)
+         }
+         else // mon may be caught, calculate shakes
+         {
+-            u8 shakes;
+-
+-            odds = Sqrt(Sqrt(16711680 / odds));
+-            odds = 1048560 / odds;
+-
+-            for (shakes = 0; shakes < BALL_3_SHAKES_SUCCESS && Random() < odds; shakes++);
+-
+-            if (gLastUsedItem == ITEM_MASTER_BALL)
+-                shakes = BALL_3_SHAKES_SUCCESS; // why calculate the shakes before that check?
++            u8 shakes = CalculateBallCatchShakes(odds, gLastUsedItem);
+ 
+             BtlController_EmitBallThrowAnim(B_COMM_TO_CONTROLLER, shakes);
+             MarkBattlerForControllerExec(gActiveBattler);
 diff --git a/src/main_menu.c b/src/main_menu.c
 index 45fa12c..b07a0a0 100644
 --- a/src/main_menu.c

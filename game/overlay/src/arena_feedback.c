@@ -107,6 +107,22 @@ static void Number(u8 side, s16 x, s16 y, u16 damage, u8 kind)
     number->life = 36;
 }
 
+void ArenaFeedback_Capture(s16 x,s16 y)
+{
+    Particle(x-8,y-4,-150,-300,22,1);
+    Particle(x,y-8,0,-380,24,1);
+    Particle(x+8,y-4,150,-300,22,1);
+}
+
+void ArenaFeedback_CaptureGlow(s16 x,s16 y,bool8 inward)
+{
+    s16 d=inward?18:2,v=inward?-256:256;
+    Particle(x-d,y,-v,0,16,3);
+    Particle(x+d,y,v,0,16,3);
+    Particle(x,y-d,0,-v,16,3);
+    Particle(x,y+d,0,v,16,3);
+}
+
 void ArenaFeedback_Impact(u8 target, s16 x, s16 y, u16 damage, u8 kind)
 {
     Number(target, x, y, damage, kind);

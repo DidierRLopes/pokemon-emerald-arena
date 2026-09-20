@@ -42,7 +42,7 @@ test('release rejects wrong ROM before any network access',async()=>{
   assert.equal(fetched,false);
   assert.equal(await digest(Buffer.from(patch,'base64')),manifest.patch_sha256);
   assert.equal(manifest.species.length,22);
-  assert.equal(manifest.version,'0.4.0');
-  assert.equal(manifest.target_sha256,'c312ada6abc53e16474c54171235f8d7fff94c81d936fe39295834fd58e6d0c2');
+  assert.equal(manifest.version,'0.5.0');
+  assert.equal(manifest.target_sha256,'c3f9dc6d48a4c670a0e50e8a93dace6e646b16432ee68521cbc6cf06029770f1');
   assert.equal(manifest.target_size,33554432);
 });

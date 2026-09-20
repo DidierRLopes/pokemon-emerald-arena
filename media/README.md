@@ -1,5 +1,13 @@
 # Real gameplay
 
+## Poké Balls 0.5.0
+
+[Watch / download with sound](emerald-arena-pokeballs.mp4)
+
+22 seconds from the release build. Charizard weakens Blastoise, two throws
+break out, the third catches it, then the native party screen shows the result.
+Recorded in mGBA with original game audio. No forced catch or capture XP.
+
 ## Combat update 0.4.0
 
 [Watch / download with sound](emerald-arena-combat-update.mp4) · [GIF](emerald-arena-combat-update.gif)

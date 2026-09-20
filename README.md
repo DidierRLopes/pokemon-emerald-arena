@@ -2,7 +2,7 @@
 
 Pokémon Emerald with real time battles. Inside the original GBA game.
 
-[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0.zip) · [Installation guide](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0.zip) · [Installation guide](PLAY.md)
 
 ## Watch gameplay
 
@@ -12,8 +12,8 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [Playing on an AYN Thor · 16 seconds](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-ayn-thor.mp4)
 
-New in 0.4.0: different attack effects, smarter enemies and a move picker.
-Press **START** to pause, choose your move and jump back in.
+New in 0.5.0: **Poké Balls**. Weaken the Pokémon, hold **L + R** to aim,
+then release to throw. [Watch a catch · 22 seconds](media/emerald-arena-pokeballs.mp4).
 [Changes](RELEASE.md) · [Recording details](media/README.md).
 
 ## Start playing
@@ -32,6 +32,7 @@ For a quick try on a fresh save, press **SELECT** on **NEW GAME** to skip the in
 
 - Move, aim and dodge in real time battles.
 - Break rocks and other objects with your attacks.
+- Catch wild Pokémon and keep them in your team or PC.
 - Keep your team's HP, PP, experience and saves.
 
 Supported wild battles use the arena automatically; trainer, double, link and unsupported battles stay classic.
@@ -40,6 +41,7 @@ Supported wild battles use the arena automatically; trainer, double, link and un
 ## Controls
 
 Direction buttons to move. **A** to attack. **B + a direction** to dodge. **START** to pick a move.
+Hold **L + R** to aim a Poké Ball; release to throw, **B** to cancel.
 [All controls](PLAY.md#controls).
 
 ## Source

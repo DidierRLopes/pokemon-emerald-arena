@@ -8,6 +8,8 @@
 #include "overworld.h"
 #include "palette.h"
 #include "pokemon.h"
+#include "item.h"
+#include "pokedex.h"
 #include "pokemon_storage_system.h"
 #include "save.h"
 #include "script.h"
@@ -20,6 +22,7 @@
 // Only included in the separate arena_lab.gba development build.
 // Commands are consumed in the real overworld, never halfway through a menu.
 EWRAM_DATA struct ArenaLabMailbox gArenaLabMailbox = {};
+EWRAM_DATA u32 gArenaLabCaptureAudit[10] = {};
 extern const u8 EventScript_ArenaLabBattle[];
 
 void ArenaLab_Tick(void)
@@ -131,6 +134,48 @@ void ArenaLab_Tick(void)
         SetLastHealLocationWarp(HEAL_LOCATION_LILYCOVE_CITY);
         SetWarpDestination(MAP_GROUP(MAP_LILYCOVE_CITY),MAP_NUM(MAP_LILYCOVE_CITY),-1,24,15);
         DoWarp();
+        break;
+    }
+    case 8:
+        // Disposable fixture inventory, native bag encryption/stack handling.
+        if(gArenaLabMailbox.species>999){gArenaLabMailbox.result=2;break;}
+        RemoveBagItem(ITEM_POKE_BALL,CountTotalItemQuantityInBag(ITEM_POKE_BALL));
+        if(gArenaLabMailbox.species && !AddBagItem(ITEM_POKE_BALL,gArenaLabMailbox.species))
+            gArenaLabMailbox.result=2;
+        break;
+    case 9:
+    {
+        // Explicit ALL-FULL private fixture. Never compiled into release.
+        u32 box,slot;
+        for(box=0;box<TOTAL_BOXES_COUNT;box++)
+            for(slot=0;slot<IN_BOX_COUNT;slot++)
+                CreateBoxMonAt(box,slot,SPECIES_MAGIKARP,5,20,TRUE,box*30+slot,OT_ID_PLAYER_ID,0);
+        break;
+    }
+    case 10:
+    {
+        u32 box,slot;
+        u16 species=gArenaLabMailbox.species;
+        if(!species || species>=NUM_SPECIES){gArenaLabMailbox.result=2;break;}
+        memset(gArenaLabCaptureAudit,0,sizeof(gArenaLabCaptureAudit));
+        gArenaLabCaptureAudit[0]=CountTotalItemQuantityInBag(ITEM_POKE_BALL);
+        gArenaLabCaptureAudit[2]=CalculatePlayerPartyCount();
+        gArenaLabCaptureAudit[3]=GetSetPokedexFlag(SpeciesToNationalPokedexNum(species),FLAG_GET_SEEN);
+        gArenaLabCaptureAudit[4]=GetGameStat(GAME_STAT_POKEMON_CAPTURES);
+        gArenaLabCaptureAudit[5]=GetSetPokedexFlag(SpeciesToNationalPokedexNum(species),FLAG_GET_CAUGHT);
+        for(box=0;box<TOTAL_BOXES_COUNT;box++)
+            for(slot=0;slot<IN_BOX_COUNT;slot++)
+            {
+                u16 stored=GetBoxMonDataAt(box,slot,MON_DATA_SPECIES);
+                if(stored)gArenaLabCaptureAudit[1]++;
+                if(stored==species)
+                {
+                    gArenaLabCaptureAudit[6]=box*IN_BOX_COUNT+slot+1;
+                    gArenaLabCaptureAudit[7]=GetLevelFromBoxMonExp(GetBoxedMonPtr(box,slot));
+                    gArenaLabCaptureAudit[8]=GetBoxMonDataAt(box,slot,MON_DATA_POKEBALL);
+                    gArenaLabCaptureAudit[9]=GetBoxMonDataAt(box,slot,MON_DATA_SANITY_IS_BAD_EGG);
+                }
+            }
         break;
     }
     default:

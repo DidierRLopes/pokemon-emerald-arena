@@ -1,4 +1,30 @@
-# Emerald Arena 0.4.0
+# Emerald Arena 0.5.0
+
+[Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0-full.bps) · [Watch a catch](media/emerald-arena-pokeballs.mp4)
+
+Weaken the Pokémon, aim and throw. If you catch it, it joins your team.
+
+- Hold L + R to aim, use directions to adjust, release to throw. B cancels.
+- Uses regular Poké Balls from your bag. Misses consume a ball; escapes resume combat.
+- Native catch rules, team/PC storage, Pokédex and saves. No capture XP.
+- Trainer throw animation, ball arc, shakes, breakouts and original capture music.
+
+Other ball types remain available through SELECT and the classic bag.
+No arena nickname prompt yet. Trainer, double and unsupported battles stay classic.
+Back up your in-game save before updating; do not reuse emulator save states.
+
+### Verification
+
+21 real-game capture checks and all 16 existing regression/performance suites
+passed. Catches to the team and PC survived native saving and cold boot.
+The release replay also verified capture, the party screen, saving and continuing.
+The public source rebuild, installer and two independent BPS decoders produce
+the same release hash. Installer and landing checks passed.
+Physical GBA hardware has not been tested.
+
+Release ROM SHA-256: `c3f9dc6d48a4c670a0e50e8a93dace6e646b16432ee68521cbc6cf06029770f1`.
+
+## Previous: 0.4.0
 
 [Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0-full.bps) · [Watch the update](media/emerald-arena-combat-update.mp4)
 

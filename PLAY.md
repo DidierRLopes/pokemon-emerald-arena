@@ -1,8 +1,8 @@
 # Play Emerald Arena
 
-Already use a ROM patcher? [Download the full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0-full.bps) and apply it to your unmodified Emerald (USA/Europe) ROM. It includes the animations and produces the same 0.4.0 game, without extra downloads.
+Already use a ROM patcher? [Download the full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0-full.bps) and apply it to your unmodified Emerald (USA/Europe) ROM. It includes the animations and produces the same 0.5.0 game, without extra downloads.
 
-[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.4.0/Emerald-Arena-0.4.0.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
+[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
 [**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/emerald-arena-walkthrough.mp4)
 From download to your first fight, saving and continuing. GBA button names are
@@ -13,12 +13,12 @@ shown in the video; your emulator's keyboard bindings may differ.
 You need your own **unmodified Pokémon Emerald (USA/Europe) `.gba`** and Internet
 access. Other languages, other Pokémon games and already-patched ROMs will not work.
 
-1. Download **Emerald-Arena-0.4.0.zip** above. Extract/unzip it first.
+1. Download **Emerald-Arena-0.5.0.zip** above. Extract/unzip it first.
 2. Open **Prepare-Emerald-Arena.html** in a current Chrome, Firefox or Safari.
    It is a local web page, not an app to install. Do not open `install.mjs`.
 3. Click **Choose Emerald ROM** and select your original `.gba` file, not a ZIP.
 4. Wait while it checks the ROM and prepares the animations. Keep the page open.
-5. Click **Download game**. You will get **Emerald-Arena-0.4.0.gba** in your downloads.
+5. Click **Download game**. You will get **Emerald-Arena-0.5.0.gba** in your downloads.
 
 **Updating?** Back up your in-game `.sav` first. Import a copy for the new game,
 or give that copy the same basename as the new ROM if your emulator requires it.
@@ -29,7 +29,7 @@ animation files from pinned public sources. The finished game works offline.
 
 ## 2. Open it in an emulator
 
-Open **Emerald-Arena-0.4.0.gba** using your GBA emulator's **Open / Load game**
+Open **Emerald-Arena-0.5.0.gba** using your GBA emulator's **Open / Load game**
 command. [mGBA](https://mgba.io/downloads.html) is the desktop emulator used for
 testing. If you already have a GBA emulator, you do not need another one.
 
@@ -65,12 +65,27 @@ Six additional Pokémon are in Box 1 at the PC.
 | A | Attack; hold a direction to aim |
 | B + a direction | Dodge |
 | L / R | Previous / next move |
+| Hold L + R in battle | Aim a Poké Ball; directions adjust the target |
+| Release L or R while aiming | Throw; B cancels before release |
 | START | Pause / resume; shows all four moves and PP |
 | Up / right / down / left while paused | Choose move 1 / 2 / 3 / 4 |
 | SELECT | Switch to classic battle |
 | L + R in the field | Next practice opponent |
 
 Regular saves keep their encounters and do not receive the practice party.
+
+## Catching Pokémon
+
+Weaken a wild Pokémon, hold **L + R**, aim with the direction buttons, then
+release either shoulder to throw. **B** cancels while aiming. Combat slows
+during aiming and the throw. A miss still uses one ball; a breakout resumes
+the fight. A catch goes to your team, or the PC if your team is full.
+
+This version uses regular **Poké Balls** from your bag. Buy them normally;
+the optional fresh practice save starts with 20. Existing saves get no free
+items. For other ball types or the full bag, press **SELECT** before throwing
+to use classic battle. No capture XP is added, just like original Emerald.
+There is no nickname prompt in the arena yet; the Name Rater still works.
 
 ## Something went wrong?
 

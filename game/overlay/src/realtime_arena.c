@@ -1,5 +1,9 @@
 #include "global.h"
 #include "realtime_arena.h"
+#include "arena_capture.h"
+#include "item.h"
+#include "trig.h"
+#include "pokedex.h"
 #include "arena_lab.h"
 #include "arena_navigation.h"
 #include "arena_sprites.h"
@@ -140,6 +144,8 @@ static const struct WindowTemplate sArenaWindows[] =
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 1 },
     { .bg = 0, .tilemapLeft = 1, .tilemapTop = 6,
       .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 61 },
+    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
+      .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 313 },
     DUMMY_WIN_TEMPLATE
 };
 static const u16 sArenaPalette[16] =
@@ -246,6 +252,7 @@ void RealtimeArena_PracticeTick(void)
 static void CB2_ArenaInit(void);
 static void CB2_Arena(void);
 static void ArenaExit(bool8 fainted);
+static void CaptureHud(void);
 static void AiChooseGoal(void);
 
 static s32 Abs(s32 n) { return n < 0 ? -n : n; }
@@ -548,6 +555,7 @@ static void DrawHud(void)
         CopyWindowToVram(1, COPYWIN_FULL);
     }
     CopyWindowToVram(0, COPYWIN_GFX);
+    CaptureHud();
     sArena.hudDirty = FALSE;
 }
 
@@ -618,6 +626,8 @@ static void CreateSidelineTrainers(void)
         gArenaTrainerTelemetry[6+i] = graphicsId;
     }
 }
+
+#include "arena_capture.inc"
 
 static void CB2_ArenaInit(void)
 {
@@ -714,6 +724,7 @@ static void CB2_ArenaInit(void)
     sArena.aimSprite = CreateSprite(&sAimTemplate, 120, 32, 1);
     gSprites[sArena.aimSprite].invisible = TRUE;
     CreateSidelineTrainers();
+    CaptureInit();
     sArena.aiRandom = gBattleMons[1].personality ^ 0xA12E7A11;
     sArena.style = gBattleMons[1].personality % 3;
     sArena.reaction = Clamp(21 - gBattleMons[1].level / 2, 8, 21);
@@ -901,6 +912,8 @@ static void BufferPlayerActions(void)
     struct ArenaBody *body = &sArena.bodies[0];
     s32 dx = (JOY_HELD(DPAD_RIGHT) != 0) - (JOY_HELD(DPAD_LEFT) != 0);
     s32 dy = (JOY_HELD(DPAD_DOWN) != 0) - (JOY_HELD(DPAD_UP) != 0);
+    if(sCapture.state==ARENA_CAPTURE_AIM)
+    {sArena.attackBuffer=sArena.dashBuffer=0;return;}
     // Brief taps made just before recovery ends survive for six active frames.
     // This also catches input during the two-frame impact stop.
     if (JOY_NEW(A_BUTTON)) sArena.attackBuffer = 6;
@@ -911,7 +924,7 @@ static void BufferPlayerActions(void)
         sArena.dashRequestX = dx; sArena.dashRequestY = dy;
     }
     else if (sArena.dashBuffer) sArena.dashBuffer--;
-    if (JOY_NEW(L_BUTTON | R_BUTTON))
+    if (JOY_NEW(L_BUTTON | R_BUTTON) && JOY_HELD(L_BUTTON|R_BUTTON)!=(L_BUTTON|R_BUTTON))
     {
         u32 i;
         for (i = 1; i <= MAX_MON_MOVES; i++)
@@ -948,7 +961,7 @@ static void TickPlayer(void)
     // Recovery follows the committed animation, not the start of its hitbox.
     // Changing slots cannot reset this shared recovery.
     if (body->cooldown && !body->shotTimer && !body->actionLife) body->cooldown--;
-    if ((JOY_HELD(A_BUTTON) || sArena.attackBuffer) && !body->cooldown && !body->dash && !body->shotTimer)
+    if (sCapture.state==ARENA_CAPTURE_IDLE && (JOY_HELD(A_BUTTON) || sArena.attackBuffer) && !body->cooldown && !body->dash && !body->shotTimer)
     {
         // A alone aims at the rival. D-pad + A gives explicit directional
         // aim, including destructible cover. This is still the same four moves.
@@ -1400,13 +1413,14 @@ static void CB2_Arena(void)
     gArenaFrameTelemetry.updates++;
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
-    if (JOY_NEW(SELECT_BUTTON) && !sArena.resultTimer) { ArenaExit(FALSE); return; }
-    if (JOY_NEW(START_BUTTON) && !sArena.resultTimer)
+    if (JOY_NEW(SELECT_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (JOY_NEW(START_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
         DrawStage();
         sArena.hudDirty = TRUE;
     }
+    CaptureInput();
     if(sArena.paused)
     {
         u16 keys=gMain.newKeys&DPAD_ANY;
@@ -1430,19 +1444,24 @@ static void CB2_Arena(void)
         else
         {
             BufferPlayerActions();
-            if (sArena.hitstop) { sArena.hitstop--; frozen = TRUE; }
+            if(CaptureLocked() || ((sCapture.state==ARENA_CAPTURE_AIM || sCapture.state==ARENA_CAPTURE_THROW) && sArena.frame%3)) frozen=TRUE;
+            else if (sArena.hitstop) { sArena.hitstop--; frozen = TRUE; }
             else
             {
                 TickPhysics();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[0]=now-phaseStamp;phaseStamp=now;
-                TickPlayer(); TickEnemy();
+                if(sCapture.state!=ARENA_CAPTURE_AIM)TickPlayer();
+                TickEnemy();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[1]=now-phaseStamp;phaseStamp=now;
                 TickPendingShots(); TickActions(); TickShots();
             }
         }
     }
+    CaptureTick();
+    if(!sArena.active)return;
+    frozen |= CaptureLocked();
     frozen |= sArena.hitstop != 0;
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
     gArenaFrameTelemetry.scanlines[2]=now-phaseStamp;phaseStamp=now;
@@ -1518,6 +1537,7 @@ static void CB2_Arena(void)
     gArenaCombatTelemetry.aimBlocked = !ArenaNav_LineClear(sArena.bodies[0].x/Q,
         sArena.bodies[0].y/Q, sArena.bodies[1].x/Q, sArena.bodies[1].y/Q, 2);
     gArenaCombatTelemetry.aimVisible = !sArena.paused && !sArena.resultTimer
+        && sCapture.state==ARENA_CAPTURE_IDLE
         && !(sArena.bodies[0].shotTimer?sArena.bodies[0].manualAim:JOY_HELD(DPAD_ANY))
         && (JOY_HELD(A_BUTTON) || sArena.bodies[0].shotTimer);
     gSprites[sArena.aimSprite].x = sArena.bodies[1].x / Q;
@@ -1528,12 +1548,13 @@ static void CB2_Arena(void)
     gSprites[sArena.cueSprite].x = sArena.bodies[1].x / Q;
     gSprites[sArena.cueSprite].y = sArena.bodies[1].y / Q + 14;
     gSprites[sArena.cueSprite].invisible = sArena.aiState != AI_AIM || sArena.resultTimer;
+    CaptureDraw();
     gArenaAiTelemetry.state = sArena.aiState;
     gArenaAiTelemetry.goalX = sArena.goal.x; gArenaAiTelemetry.goalY = sArena.goal.y;
     gArenaAiTelemetry.waypointX = sArena.waypoint.x; gArenaAiTelemetry.waypointY = sArena.waypoint.y;
     gRealtimeArenaTelemetry.paused = sArena.paused;
     gRealtimeArenaTelemetry.selectedMove = sArena.bodies[0].moveSlot;
-    ArenaFeedback_Update(sArena.paused, frozen);
+    ArenaFeedback_Update(sArena.paused, frozen && !CaptureLocked());
     ArenaTerrain_Draw(sArena.paused,frozen);
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
     gArenaRenderTelemetry[0]=now-phaseStamp;
@@ -1566,6 +1587,7 @@ static void CB2_Arena(void)
 static void ArenaExit(bool8 fainted)
 {
     u32 i;
+    CaptureReset();
     // Finish the ORIGINAL battle scripts behind the arena image. No classic
     // scene reconstruction just to say "fainted" and animate an EXP bar.
     // Interactive choices explicitly restore the native UI if needed.
@@ -1648,6 +1670,7 @@ bool8 RealtimeArena_SetupDemo(void)
     FlagSet(FLAG_SYS_POKEDEX_GET);
     FlagSet(FLAG_ADVENTURE_STARTED);
     FlagSet(FLAG_SYS_B_DASH);
+    AddBagItem(ITEM_POKE_BALL,20);
     FlagSet(FLAG_HIDE_ROUTE_101_BIRCH_STARTERS_BAG);
     FlagSet(FLAG_HIDE_ROUTE_101_BIRCH_ZIGZAGOON_BATTLE);
     FlagSet(FLAG_HIDE_ROUTE_101_ZIGZAGOON);
