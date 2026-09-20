@@ -17,8 +17,13 @@ This is a modification of the original GBA game, built from the pinned
 - [Arena controller](game/overlay/src/realtime_arena.c): entry, combat and return flow.
 - [Movement and enemy navigation](game/overlay/src/arena_navigation.c).
 - [Move profiles](game/overlay/src/arena_moves.c) and [effects](game/overlay/src/arena_move_fx.c).
+- [Sprite decoder](game/overlay/src/arena_sprites.c): a tile dictionary streamed into two fixed frame buffers.
 - [Breakable objects and fragments](game/overlay/src/arena_physics.c).
 - [Installer](release/installer.mjs): source hash, patch checksums, pinned graphics and final ROM hash.
+
+Supported stat changes, draining moves, False Swipe and burn eligibility use
+Emerald's native battle routines. The arena provides the real time timing.
+Visual fragments can give up a sprite slot so they never crowd out an attack.
 
 ## Verification, not a compatibility promise
 

@@ -4,7 +4,7 @@
 // Arena-only upload batch. Large PMD/attack frames use DMA instead of the
 // native dialogue sprite path's BIOS CpuCopy16. Commit after OAM is complete;
 // VBlank never consumes a half-built frame. No heap and no ROM-sized buffers.
-#define COPIES 16
+#define COPIES 32
 struct Copy {const void *src;void *dest;u16 size;};
 static EWRAM_DATA struct Copy sCopies[COPIES]={};
 static EWRAM_DATA volatile u8 sCount=0,sReady=0;

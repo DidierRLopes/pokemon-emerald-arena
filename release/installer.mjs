@@ -78,7 +78,7 @@ export async function decodePng(bytes) {
     p+=n+12;if(kind==='IEND')break;
   }
   const channels={0:1,2:3,3:1,4:2,6:4}[type];
-  if(!channels||![1,2,4,8].includes(depth)||(type!==3&&depth!==8)) fail('Profundidad Unsupported PNG.');
+  if(!channels||![1,2,4,8].includes(depth)||(type!==3&&depth!==8)) fail('Unsupported PNG bit depth.');
   const packed=new Uint8Array(total);let at=0;
   for(const part of parts){packed.set(part,at);at+=part.length;}
   const raw=new Uint8Array(await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
@@ -87,7 +87,7 @@ export async function decodePng(bytes) {
   const scan=new Uint8Array(h*stride);
   const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};
   for(let y=0;y<h;y++) {
-    const filter=raw[y*(stride+1)];if(filter>4)fail('Filtro Invalid PNG.');
+    const filter=raw[y*(stride+1)];if(filter>4)fail('Invalid PNG filter.');
     for(let x=0;x<stride;x++) {
       const i=y*stride+x,a=x>=bpp?scan[i-bpp]:0,b=y?scan[i-stride]:0,c=y&&x>=bpp?scan[i-stride-bpp]:0;
       scan[i]=(raw[y*(stride+1)+1+x]+[0,a,b,Math.floor((a+b)/2),paeth(a,b,c)][filter])&255;
@@ -105,6 +105,27 @@ export async function decodePng(bytes) {
     else {rgba[i]=rgba[i+1]=rgba[i+2]=scan[s];if(type===4)rgba[i+3]=scan[s+1];}
   }
   return {width:w,height:h,rgba};
+}
+
+export function encodeSpriteTiles(tiles) {
+  if(!tiles.length || tiles.length%2048)fail('Invalid sprite frame data.');
+  const seen=new Map(),dictionary=[],indices=[];
+  for(let at=0;at<tiles.length;at+=32){
+    const tile=tiles.subarray(at,at+32),key=String.fromCharCode(...tile);
+    let index=seen.get(key);
+    if(index===undefined){
+      index=dictionary.length;
+      if(index>=65536)fail('Sprite dictionary is too large.');
+      seen.set(key,index);dictionary.push(tile);
+    }
+    indices.push(index);
+  }
+  const offset=8+indices.length*2,out=new Uint8Array(offset+dictionary.length*32);
+  const dv=new DataView(out.buffer);
+  dv.setUint32(0,offset,true);dv.setUint32(4,dictionary.length,true);
+  indices.forEach((index,i)=>dv.setUint16(8+i*2,index,true));
+  dictionary.forEach((tile,i)=>out.set(tile,offset+i*32));
+  return out;
 }
 
 export function packSpriteSet(species, sheets) {
@@ -125,15 +146,19 @@ export function packSpriteSet(species, sheets) {
   for(const a of species.animations) {
     if(a.offset===null)continue; // An alias uses an earlier ROM tile array.
     const s=sheets.get(a.sha256),tiles=new Uint8Array(a.frames*8*2048);
+    const scale=a.scale??1;
+    if(![1,2].includes(scale)||a.width%scale||a.height%scale)fail('Invalid sprite scale.');
     for(let d=0;d<8;d++)for(let f=0;f<a.frames;f++)for(let y=0;y<a.height;y++)for(let x=0;x<a.width;x++) {
       const pi=((d*a.height+y)*s.width+f*a.width+x)*4,ci=index(s.rgba,pi);
       if(!ci)continue;
-      const tx=x+32-Math.floor(a.width/2),ty=y+32-Math.floor(a.height/2);
+      const tx=Math.floor(x/scale)+32-Math.floor(a.width/scale/2),ty=Math.floor(y/scale)+32-Math.floor(a.height/scale/2);
       if(tx<0||tx>=64||ty<0||ty>=64)fail('Sprite cropping is not allowed.');
+      if(x%scale||y%scale)continue;
       const off=(d*a.frames+f)*2048+(Math.floor(ty/8)*8+Math.floor(tx/8))*32+(ty%8)*4+Math.floor(tx%8/2);
       tiles[off]|=ci<<((tx&1)*4);
     }
-    chunks.push({offset:a.offset,bytes:tiles,sha256:a.compiled_sha256});
+    if(species.sprite_format && species.sprite_format!=='tile-dictionary-v1')fail('Unsupported sprite format.');
+    chunks.push({offset:a.offset,bytes:species.sprite_format?encodeSpriteTiles(tiles):tiles,sha256:a.compiled_sha256});
   }
   const pal=new Uint8Array(32);colors.forEach((v,i)=>{pal[i*2]=v&255;pal[i*2+1]=v>>8;});
   chunks.push({offset:species.palette_offset,bytes:pal,sha256:species.palette_sha256});
@@ -159,15 +184,19 @@ export async function prepareRom(source, manifest, patch, report=()=>{}, fetchRe
   if(await digest(patch)!==manifest.patch_sha256)fail('Incomplete installation package.');
   const out=applyBps(source,patch),resources=new Map();
   for(const species of manifest.species)for(const a of species.animations)resources.set(a.sha256,a.url);
-  const entries=[...resources],sheets=new Map();let next=0,done=0;
+  // Keep downloaded PNGs compressed. Decode one species at a time so a
+  // larger roster does not retain every animation's RGBA sheet in memory.
+  const entries=[...resources],pngs=new Map();let next=0,done=0;
   async function worker(){for(;;){const at=next++;if(at>=entries.length)return;
     const [sha,url]=entries[at],bytes=await fetchResource(url);
     if(await digest(bytes)!==sha)fail('An asset changed. Download rejected.');
-    sheets.set(sha,await decodePng(bytes));report(`Preparing animations ${++done}/${entries.length}…`);
+    pngs.set(sha,bytes);report(`Preparing animations ${++done}/${entries.length}…`);
   }}
   await Promise.all(Array.from({length:4},worker));
   for(const species of manifest.species) {
     report(`Adding ${species.name}…`);
+    const sheets=new Map();
+    for(const a of species.animations)if(!sheets.has(a.sha256))sheets.set(a.sha256,await decodePng(pngs.get(a.sha256)));
     for(const chunk of packSpriteSet(species,sheets)) {
       if(chunk.offset<0||chunk.offset+chunk.bytes.length>out.length||await digest(chunk.bytes)!==chunk.sha256)fail('Graphics do not match the verified release.');
       if(out.subarray(chunk.offset,chunk.offset+chunk.bytes.length).some(b=>b!==0))fail('Graphics region is not empty.');

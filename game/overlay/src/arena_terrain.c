@@ -24,6 +24,26 @@ static EWRAM_DATA u8 sPieceSprite[ARENA_FRAGMENTS]={};
 static EWRAM_DATA u8 sPropFrame[ARENA_OBSTACLES]={};
 static EWRAM_DATA u8 sBlastSprite=0,sBlastLife=0,sBlastFrame=0;
 static EWRAM_DATA u32 sSeenBlast=0,sSeenBroken=0;
+EWRAM_DATA u32 gArenaOamTelemetry[2]={}; // cosmetic evictions, unavailable projectile slots
+
+bool8 ArenaTerrain_ReserveProjectile(void)
+{
+    u32 i,oldest=ARENA_FRAGMENTS;
+    for(i=0;i<MAX_SPRITES;i++)if(!gSprites[i].inUse)return TRUE;
+    // Physical fragments remain simulated. Recycle only a cosmetic sprite,
+    // never an actor, a hitbox, a capture object or another projectile.
+    for(i=0;i<ARENA_FRAGMENTS;i++)
+        if(sPieceSprite[i]!=MAX_SPRITES
+            && (oldest==ARENA_FRAGMENTS || gArenaFragments[i].life<gArenaFragments[oldest].life))oldest=i;
+    if(oldest!=ARENA_FRAGMENTS)
+    {
+        DestroySprite(&gSprites[sPieceSprite[oldest]]);
+        sPieceSprite[oldest]=MAX_SPRITES;gArenaOamTelemetry[0]++;
+        return TRUE;
+    }
+    gArenaOamTelemetry[1]++;
+    return FALSE;
+}
 void ArenaTerrain_Init(void)
 {
     u32 i;
@@ -41,13 +61,12 @@ void ArenaTerrain_Init(void)
         if(sPropSprite[i]!=MAX_SPRITES)gSprites[sPropSprite[i]].oam.paletteNum=ArenaMoveFx_Palette(gArenaProps[i].kind);
         sPropFrame[i]=0;
     }
-    template.tileTag=TAG+ARENA_OBSTACLES;template.oam=&sPieceOam;
+    // Do not reserve 28 invisible OAM objects for fragments which do not
+    // exist yet. That could starve attacks when impact particles are active.
     for(i=0;i<ARENA_FRAGMENTS;i++)
-    {
-        sPieceSprite[i]=CreateSprite(&template,0,0,6);
-        if(sPieceSprite[i]!=MAX_SPRITES)gSprites[sPieceSprite[i]].invisible=TRUE;
-    }
-    template.tileTag++;template.oam=&sBlastOam;
+        sPieceSprite[i]=MAX_SPRITES;
+    memset(gArenaOamTelemetry,0,sizeof(gArenaOamTelemetry));
+    template.tileTag=TAG+ARENA_OBSTACLES+1;template.oam=&sBlastOam;
     sBlastSprite=CreateSprite(&template,0,0,7);
     if(sBlastSprite!=MAX_SPRITES)gSprites[sBlastSprite].invisible=TRUE;
     sBlastLife=0;sBlastFrame=255;sSeenBlast=sSeenBroken=0;
@@ -76,6 +95,18 @@ void ArenaTerrain_Draw(bool8 paused,bool8 frozen)
     {
         const struct ArenaFragment*f=&gArenaFragments[i];
         struct Sprite*s;
+        if(!f->life)
+        {
+            if(sPieceSprite[i]!=MAX_SPRITES)DestroySprite(&gSprites[sPieceSprite[i]]);
+            sPieceSprite[i]=MAX_SPRITES;
+            continue;
+        }
+        if(sPieceSprite[i]==MAX_SPRITES)
+        {
+            struct SpriteTemplate template=sTemplate;
+            template.tileTag=TAG+ARENA_OBSTACLES;template.oam=&sPieceOam;
+            sPieceSprite[i]=CreateSprite(&template,0,0,6);
+        }
         if(sPieceSprite[i]==MAX_SPRITES)continue;
         s=&gSprites[sPieceSprite[i]];
         s->x=f->x/256;s->y=(f->y-f->z)/256;

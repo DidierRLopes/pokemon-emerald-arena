@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fetch pinned originals; compile their exact pixels/timing into GBA assets.
+"""Fetch pinned originals; compile their pixels/timing into GBA assets.
+
+Original dimensions are preserved except explicit integer scale entries in the
+catalog (Gyarados/Wailord: 2x nearest-neighbor reduction). Nothing is cropped.
 
 No ROMs and no generated image artwork. All downloaded/compiled data is private
 and ignored by Git. Authorship and source hashes accompany every import.
@@ -50,6 +53,8 @@ def main():
     assert len({m['dex'] for m in catalog}) == len(catalog), 'Duplicate source dex'
     def collect(mon):
         dex, species = mon['dex'], mon['species']
+        scale=mon.get('scale',1)
+        assert scale in (1,2), 'Only documented integer sampling is supported'
         assert len(dex) == 4 and dex.isdigit()
         assert species.replace('_', '').isalpha() and species.isupper()
         folder = f'sprite/{dex}/'
@@ -76,14 +81,14 @@ def main():
             animations.append(dict(name=motion, actual=actual, png=str(png),
                 width=int(node.findtext('FrameWidth')), height=int(node.findtext('FrameHeight')),
                 durations=durations, hit_frame=int(node.findtext('HitFrame', str(len(durations)//2) if motion == 'Attack' else '0')),
-                sha256=hashlib.sha256(png.read_bytes()).hexdigest()))
+                scale=scale,sha256=hashlib.sha256(png.read_bytes()).hexdigest()))
         print('Fetched/cached ' + species + ': 5 poses, 8 directions', flush=True)
         return dict(dex=dex,species=species,credits=credits.read_text(),animations=animations,
                     fixture_level=mon['level'], xml_sha256=hashlib.sha256(xml.read_bytes()).hexdigest(),
                     credits_sha256=hashlib.sha256(credits.read_bytes()).hexdigest())
     with ThreadPoolExecutor(max_workers=4) as pool:
         bundles = list(pool.map(collect, catalog))
-    manifest = dict(repo='PMDCollab/SpriteCollab', commit=PIN, bundles=bundles,
+    manifest = dict(repo='PMDCollab/SpriteCollab', commit=PIN, sprite_format='tile-dictionary-v1', bundles=bundles,
         license_file=str(license_path), note='Credits preserved separately for each species. '
         'Repository CC BY-NC terms do not relicense Nintendo/Chunsoft originals. Private prototype, not redistributed.')
     (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
@@ -99,7 +104,7 @@ def main():
     for bundle in bundles:
         dex, species = bundle['dex'], bundle['species']
         palette = OUT / (dex + '.gbapal')
-        argv = [str(packer), str(palette)]
+        argv = [str(packer), str(palette), str(bundle['animations'][0]['scale'])]
         for a in bundle['animations']:
             a['binary'] = str(OUT / (dex + '-' + a['name'] + '.4bpp'))
             argv += [a['binary'], a['png'], str(a['width']), str(a['height']), str(len(a['durations']))]
@@ -127,7 +132,7 @@ def main():
     if not header.exists() or header.read_text() != content: header.write_text(content)
     manifest['bundles'] = bundles
     (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-    print(f'Imported {len(bundles)} Pokemon: 5 poses, 8 directions; original timing/pixels; no clipping.')
+    print(f'Imported {len(bundles)} Pokemon: 5 poses, 8 directions; original timing; no clipping; explicit scale in manifest.')
 
 
 if __name__ == '__main__': main()

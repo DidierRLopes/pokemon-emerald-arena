@@ -1,0 +1,540 @@
+{
+  "milestone": "Early Hoenn: routes 101\u2013110 and 116, Petalburg Woods, Rusturf Tunnel, Granite Cave, and nearby town waters",
+  "native_species": [
+    "ABRA",
+    "ARON",
+    "CASCOON",
+    "CORPHISH",
+    "ELECTRIKE",
+    "GEODUDE",
+    "GOLDEEN",
+    "GULPIN",
+    "LOTAD",
+    "MAGIKARP",
+    "MAKUHITA",
+    "MARILL",
+    "MINUN",
+    "MUDKIP",
+    "NINCADA",
+    "NOSEPASS",
+    "ODDISH",
+    "PELIPPER",
+    "PLUSLE",
+    "POOCHYENA",
+    "RALTS",
+    "SABLEYE",
+    "SEEDOT",
+    "SHARPEDO",
+    "SHROOMISH",
+    "SILCOON",
+    "SKITTY",
+    "SLAKOTH",
+    "TAILLOW",
+    "TENTACOOL",
+    "TORCHIC",
+    "TREECKO",
+    "WAILMER",
+    "WHISMUR",
+    "WINGULL",
+    "WURMPLE",
+    "ZIGZAGOON",
+    "ZUBAT"
+  ],
+  "evolution_families": [
+    "ABRA",
+    "AGGRON",
+    "ALAKAZAM",
+    "ARON",
+    "AZUMARILL",
+    "BEAUTIFLY",
+    "BELLOSSOM",
+    "BLAZIKEN",
+    "BRELOOM",
+    "CASCOON",
+    "COMBUSKEN",
+    "CORPHISH",
+    "CRAWDAUNT",
+    "CROBAT",
+    "DELCATTY",
+    "DUSTOX",
+    "ELECTRIKE",
+    "EXPLOUD",
+    "GARDEVOIR",
+    "GEODUDE",
+    "GLOOM",
+    "GOLBAT",
+    "GOLDEEN",
+    "GOLEM",
+    "GRAVELER",
+    "GROVYLE",
+    "GULPIN",
+    "GYARADOS",
+    "HARIYAMA",
+    "KADABRA",
+    "KIRLIA",
+    "LAIRON",
+    "LINOONE",
+    "LOMBRE",
+    "LOTAD",
+    "LOUDRED",
+    "LUDICOLO",
+    "MAGIKARP",
+    "MAKUHITA",
+    "MANECTRIC",
+    "MARILL",
+    "MARSHTOMP",
+    "MIGHTYENA",
+    "MINUN",
+    "MUDKIP",
+    "NINCADA",
+    "NINJASK",
+    "NOSEPASS",
+    "NUZLEAF",
+    "ODDISH",
+    "PELIPPER",
+    "PLUSLE",
+    "POOCHYENA",
+    "RALTS",
+    "SABLEYE",
+    "SCEPTILE",
+    "SEAKING",
+    "SEEDOT",
+    "SHARPEDO",
+    "SHEDINJA",
+    "SHIFTRY",
+    "SHROOMISH",
+    "SILCOON",
+    "SKITTY",
+    "SLAKING",
+    "SLAKOTH",
+    "SWALOT",
+    "SWAMPERT",
+    "SWELLOW",
+    "TAILLOW",
+    "TENTACOOL",
+    "TENTACRUEL",
+    "TORCHIC",
+    "TREECKO",
+    "VIGOROTH",
+    "VILEPLUME",
+    "WAILMER",
+    "WAILORD",
+    "WHISMUR",
+    "WINGULL",
+    "WURMPLE",
+    "ZIGZAGOON",
+    "ZUBAT"
+  ],
+  "maps": [
+    {
+      "map": "MAP_ROUTE101",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "POOCHYENA",
+            "WURMPLE",
+            "ZIGZAGOON"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE102",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "LOTAD",
+            "POOCHYENA",
+            "RALTS",
+            "SEEDOT",
+            "WURMPLE",
+            "ZIGZAGOON"
+          ]
+        },
+        {
+          "method": "water_mons",
+          "species": [
+            "GOLDEEN",
+            "MARILL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "CORPHISH",
+            "GOLDEEN",
+            "MAGIKARP"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE103",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "POOCHYENA",
+            "WINGULL",
+            "ZIGZAGOON"
+          ]
+        },
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "SHARPEDO",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE104",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "MARILL",
+            "POOCHYENA",
+            "TAILLOW",
+            "WINGULL",
+            "WURMPLE"
+          ]
+        },
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE105",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE110",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ELECTRIKE",
+            "GULPIN",
+            "MINUN",
+            "ODDISH",
+            "PLUSLE",
+            "POOCHYENA",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE116",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ABRA",
+            "NINCADA",
+            "POOCHYENA",
+            "SKITTY",
+            "TAILLOW",
+            "WHISMUR"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_PETALBURG_WOODS",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "CASCOON",
+            "POOCHYENA",
+            "SHROOMISH",
+            "SILCOON",
+            "SLAKOTH",
+            "TAILLOW",
+            "WURMPLE"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_RUSTURF_TUNNEL",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "WHISMUR"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_GRANITE_CAVE_1F",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ABRA",
+            "GEODUDE",
+            "MAKUHITA",
+            "ZUBAT"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_GRANITE_CAVE_B1F",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ABRA",
+            "ARON",
+            "MAKUHITA",
+            "SABLEYE",
+            "ZUBAT"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_GRANITE_CAVE_B2F",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ABRA",
+            "ARON",
+            "SABLEYE",
+            "ZUBAT"
+          ]
+        },
+        {
+          "method": "rock_smash_mons",
+          "species": [
+            "GEODUDE",
+            "NOSEPASS"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE106",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE107",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE108",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_ROUTE109",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_GRANITE_CAVE_STEVENS_ROOM",
+      "encounters": [
+        {
+          "method": "land_mons",
+          "species": [
+            "ABRA",
+            "ARON",
+            "MAKUHITA",
+            "ZUBAT"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_DEWFORD_TOWN",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_SLATEPORT_CITY",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "PELIPPER",
+            "TENTACOOL",
+            "WINGULL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "MAGIKARP",
+            "TENTACOOL",
+            "WAILMER"
+          ]
+        }
+      ]
+    },
+    {
+      "map": "MAP_PETALBURG_CITY",
+      "encounters": [
+        {
+          "method": "water_mons",
+          "species": [
+            "MARILL"
+          ]
+        },
+        {
+          "method": "fishing_mons",
+          "species": [
+            "CORPHISH",
+            "GOLDEEN",
+            "MAGIKARP"
+          ]
+        }
+      ]
+    }
+  ],
+  "note": "Art coverage only. Trainer/double/link battles and unsupported mechanics remain classic."
+}

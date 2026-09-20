@@ -1,6 +1,8 @@
 #include "global.h"
 #include "arena_move_fx.h"
 #include "arena_render.h"
+#include "arena_feedback.h"
+#include "constants/moves.h"
 #include "sprite.h"
 #include "constants/rgb.h"
 #define TAG 0xA760
@@ -11,6 +13,7 @@ static const s16 sDirections[8][2] = {{0,256},{181,181},{256,0},{181,-181},
     {0,-256},{-181,-181},{-256,0},{-181,181}};
 static EWRAM_DATA u8 sActorFx[2] = {};
 static EWRAM_DATA u16 sDrawn[2] = {};
+static EWRAM_DATA u16 sBoltFrames[ARENA_BOLT_SLOTS] = {};
 static const struct OamData sActionOam = {.shape=SPRITE_SHAPE(64x64),.size=SPRITE_SIZE(64x64),.priority=0};
 static const struct OamData sBoltOam = {.shape=SPRITE_SHAPE(16x16),.size=SPRITE_SIZE(16x16),.priority=0};
 static const struct SpriteTemplate sActionTemplate = {
@@ -24,8 +27,11 @@ static const struct SpriteTemplate sBoltTemplate = {
 void ArenaMoveFx_Init(void)
 {
     u32 i;
-    struct SpriteSheet bolts={sBolts,sizeof(sBolts),TAG+2};
+    // Only six live projectile frames in VRAM, independent of move catalogue
+    // size. Water trails share their head's slot and never own extra hitboxes.
+    struct SpriteSheet bolts={sBolts,ARENA_BOLT_SLOTS*128,TAG+2};
     LoadSpriteSheet(&bolts);
+    for(i=0;i<ARENA_BOLT_SLOTS;i++)sBoltFrames[i]=0xFFFF;
     for(i=0;i<ARENA_MOVE_PALETTES;i++)
     {
         struct SpritePalette pal={sPalettes+i*16,TAG+i};LoadSpritePalette(&pal);
@@ -60,18 +66,34 @@ void ArenaMoveFx_Action(u8 side,const struct ArenaMoveProfile *p,
     }
     if(p->kind==ARENA_MOVE_CONE){x+=sDirections[dir][0]/8;y+=sDirections[dir][1]/8;}
     sprite->x=x;sprite->y=y;
-    sprite->oam.paletteNum=IndexOfSpritePaletteTag(TAG+p->palette);
+    sprite->oam.paletteNum=(p->move==MOVE_FIRE_PUNCH||p->move==MOVE_BLAZE_KICK)
+        ?ArenaFeedback_FirePalette():IndexOfSpritePaletteTag(TAG+p->palette);
 }
-u8 ArenaMoveFx_CreateBolt(const struct ArenaMoveProfile *p,s16 x,s16 y,u8 dir)
+u8 ArenaMoveFx_CreateBolt(const struct ArenaMoveProfile *p,s16 x,s16 y,u8 dir,u8 slot)
 {
-    u8 sprite=CreateSprite(&sBoltTemplate,x,y,0);
-    if(sprite!=MAX_SPRITES)ArenaMoveFx_Bolt(sprite,p,x,y,dir,0);
+    u8 sprite;
+    if(slot>=ARENA_BOLT_SLOTS)return MAX_SPRITES;
+    sprite=CreateSprite(&sBoltTemplate,x,y,0);
+    if(sprite!=MAX_SPRITES)
+    {
+        gSprites[sprite].data[7]=slot;
+        sBoltFrames[slot]=0xFFFF;
+        ArenaMoveFx_Bolt(sprite,p,x,y,dir,0);
+    }
     return sprite;
 }
 void ArenaMoveFx_Bolt(u8 sprite,const struct ArenaMoveProfile *p,s16 x,s16 y,u8 dir,u8 age)
 {
     u16 frame=((p->visual-ARENA_VIS_ABSORB)*8+dir)*4+((age/3)&3);
+    u8 slot=gSprites[sprite].data[7];
     gSprites[sprite].x=x;gSprites[sprite].y=y;
-    gSprites[sprite].oam.tileNum=GetSpriteTileStartByTag(TAG+2)+frame*4;
-    gSprites[sprite].oam.paletteNum=IndexOfSpritePaletteTag(TAG+p->palette);
+    gSprites[sprite].oam.tileNum=GetSpriteTileStartByTag(TAG+2)+slot*4;
+    if(sBoltFrames[slot]!=frame)
+    {
+        ArenaRender_Copy((const u8*)sBolts+frame*128,
+            (u8*)OBJ_VRAM0+gSprites[sprite].oam.tileNum*32,128);
+        sBoltFrames[slot]=frame;
+    }
+    gSprites[sprite].oam.paletteNum=p->visual==ARENA_VIS_EMBER
+        ?ArenaFeedback_FirePalette():IndexOfSpritePaletteTag(TAG+p->palette);
 }

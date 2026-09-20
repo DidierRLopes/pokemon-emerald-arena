@@ -6,7 +6,10 @@ static const u8 sGlyphs[][5] =
     {7,5,5,5,7}, {2,6,2,2,7}, {7,1,7,4,7}, {7,1,7,1,7}, {5,5,7,1,1},
     {7,4,7,1,7}, {7,4,7,5,7}, {7,1,1,1,1}, {7,5,7,5,7}, {7,5,7,1,7},
     {7,4,6,4,4}, {2,5,7,5,5}, {4,4,4,4,7}, {2,5,5,5,2}, {5,7,7,5,5},
-    {6,5,5,5,6}, {7,4,6,4,7}, {0,0,7,0,0}, {0,2,7,2,0}
+    {6,5,5,5,6}, {7,4,6,4,7}, {0,0,7,0,0}, {0,2,7,2,0},
+    {5,7,7,5,5}, {7,2,2,2,7}, {3,4,2,1,6}, {6,5,6,4,4},
+    {7,2,2,2,2}, {5,5,6,5,5}, {3,4,4,4,3}, {6,5,6,5,6},
+    {6,5,6,5,5}, {5,5,5,5,7}
 };
 static const u8 sReverse[8] = {0,4,2,6,1,5,3,7};
 // Expand eight occupancy bits into the low bit of eight 4bpp pixels.
@@ -30,10 +33,20 @@ void ArenaNumber_Render(u32 *tiles, u16 damage, u8 kind)
     u32 count = 0, i, row, x;
     if (kind == ARENA_FEEDBACK_MISS)
     {
-        glyphs[0]=10; glyphs[1]=11; glyphs[2]=12; glyphs[3]=12; glyphs[4]=13; count=5;
+        glyphs[0]=19; glyphs[1]=20; glyphs[2]=21; glyphs[3]=21; count=4;
     }
     else if (kind == ARENA_FEEDBACK_IMMUNE) { glyphs[0]=14; glyphs[1]=13; count=2; }
     else if (kind == ARENA_FEEDBACK_DEFENSE) { glyphs[0]=15;glyphs[1]=16;glyphs[2]=10;glyphs[3]=17;count=4; }
+    else if(kind==ARENA_FEEDBACK_BURN){glyphs[0]=26;glyphs[1]=27;glyphs[2]=14;count=3;}
+    else if(kind==ARENA_FEEDBACK_CRIT){glyphs[0]=25;glyphs[1]=27;glyphs[2]=20;glyphs[3]=23;glyphs[4]=18;count=5;}
+    else if(kind==ARENA_FEEDBACK_STAT)
+    {
+        static const u8 names[8][3]={{11,23,24},{11,23,24},{15,16,10},{21,22,15},
+            {21,22,11},{21,22,15},{11,25,25},{11,25,25}};
+        u8 stat=damage&7;
+        glyphs[0]=names[stat][0];glyphs[1]=names[stat][1];glyphs[2]=names[stat][2];
+        glyphs[3]=(damage&256)?18:17;count=4;
+    }
     else
     {
         if (kind == ARENA_FEEDBACK_HEAL) glyphs[count++]=18;

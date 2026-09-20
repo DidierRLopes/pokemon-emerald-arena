@@ -2,7 +2,7 @@
 
 Pokémon Emerald with real time battles. Inside the original GBA game.
 
-[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0.zip) · [Installation guide](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Installation guide](PLAY.md)
 
 ## Watch gameplay
 
@@ -12,8 +12,9 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [Playing on an AYN Thor · 16 seconds](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-ayn-thor.mp4)
 
-New in 0.5.0: **Poké Balls**. Weaken the Pokémon, hold **L + R** to aim,
-then release to throw. [Watch a catch · 22 seconds](media/emerald-arena-pokeballs.mp4).
+New in 0.6.0: all three Hoenn starter families, more early-route Pokémon and
+44 adapted moves. **Poké Balls are included**: hold **L + R** to aim, release
+to throw. [Watch a catch · 22 seconds](media/emerald-arena-pokeballs.mp4).
 [Changes](RELEASE.md) · [Recording details](media/README.md).
 
 ## Start playing

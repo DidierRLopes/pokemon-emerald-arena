@@ -29,7 +29,7 @@ static const u32 sDotTiles[8] = {0,0,0,0x00011000,0x00011000,0,0,0};
 static const struct SpriteSheet sDotSheet = {sDotTiles, sizeof(sDotTiles), FX_TAG + 2};
 static const u16 sPalettes[4][16] =
 {
-    {RGB_BLACK, RGB(31,14,10), RGB(6,5,8)},
+    {RGB_BLACK, RGB(31,14,10), RGB(6,5,8), RGB(31,29,9), RGB(31,8,2)},
     {RGB_BLACK, RGB(31,30,19), RGB(5,8,7)},
     {RGB_BLACK, RGB(22,29,14), RGB(7,11,6)},
     {RGB_BLACK, RGB(31,20,31), RGB(8,5,11)}
@@ -78,6 +78,8 @@ void ArenaFeedback_Init(void)
     }
 }
 
+u8 ArenaFeedback_FirePalette(void){return IndexOfSpritePaletteTag(FX_TAG);}
+
 static void Particle(s16 x, s16 y, s16 vx, s16 vy, u8 life, u8 palette)
 {
     u32 i;
@@ -102,7 +104,7 @@ static void Number(u8 side, s16 x, s16 y, u16 damage, u8 kind)
     ArenaRender_Copy((const u8 *)number->tiles, (u8 *)OBJ_VRAM0 + GetSpriteTileStartByTag(FX_TAG + side)*32, sizeof(number->tiles));
     gSprites[number->sprite].x = max(16, min(x,224));
     gSprites[number->sprite].oam.paletteNum=IndexOfSpritePaletteTag(FX_TAG+
-        (kind==ARENA_FEEDBACK_HEAL?2:kind==ARENA_FEEDBACK_DEFENSE?3:side));
+        (kind==ARENA_FEEDBACK_HEAL?2:kind==ARENA_FEEDBACK_BURN?0:kind>=ARENA_FEEDBACK_DEFENSE?3:side));
     number->y = max(24, y-17) * Q;
     number->life = 36;
 }

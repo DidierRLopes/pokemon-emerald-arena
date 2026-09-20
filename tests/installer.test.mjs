@@ -3,7 +3,7 @@ import './player-journey.checks.mjs';
 import assert from 'node:assert/strict';
 import {deflateSync} from 'node:zlib';
 import {readFile} from 'node:fs/promises';
-import {applyBps,crc32,decodePng,digest,packSpriteSet,prepareRom} from '../release/installer.mjs';
+import {applyBps,crc32,decodePng,digest,encodeSpriteTiles,packSpriteSet,prepareRom} from '../release/installer.mjs';
 
 const variable=n=>{const out=[];for(;;){let b=n%128;n=Math.floor(n/128);if(!n){out.push(b|128);return out;}out.push(b);n--;}};
 const le=n=>[n&255,(n>>>8)&255,(n>>>16)&255,n>>>24];
@@ -41,8 +41,35 @@ test('release rejects wrong ROM before any network access',async()=>{
   await assert.rejects(prepareRom(new Uint8Array(10),manifest,Buffer.from(patch,'base64'),()=>{},async()=>{fetched=true;}));
   assert.equal(fetched,false);
   assert.equal(await digest(Buffer.from(patch,'base64')),manifest.patch_sha256);
-  assert.equal(manifest.species.length,22);
-  assert.equal(manifest.version,'0.5.0');
-  assert.equal(manifest.target_sha256,'c3f9dc6d48a4c670a0e50e8a93dace6e646b16432ee68521cbc6cf06029770f1');
+  assert.equal(manifest.species.length,92);
+  assert.equal(manifest.version,'0.6.0');
+  assert.equal(manifest.target_sha256,'47b2b0442cd619a4428ff5be95f5b914160aebdc0815a711fe6144a76e837b2c');
   assert.equal(manifest.target_size,33554432);
+  assert.ok(manifest.species.every(s=>s.sprite_format==='tile-dictionary-v1'));
+  assert.deepEqual(manifest.species.filter(s=>s.animations.some(a=>a.scale===2)).map(s=>s.name).sort(),['GYARADOS','WAILORD']);
+});
+test('tile dictionary preserves every byte and first-occurrence order',()=>{
+  const raw=Uint8Array.from({length:4096},(_,i)=>Math.floor(i/32)%3);
+  const packed=encodeSpriteTiles(raw),dv=new DataView(packed.buffer);
+  const offset=dv.getUint32(0,true),count=dv.getUint32(4,true);
+  assert.equal(count,3);assert.equal(offset,8+128*2);
+  const restored=new Uint8Array(raw.length);
+  for(let i=0;i<128;i++){
+    const index=dv.getUint16(8+i*2,true);assert.equal(index,i%3);
+    restored.set(packed.subarray(offset+index*32,offset+(index+1)*32),i*32);
+  }
+  assert.deepEqual(restored,raw);assert.ok(packed.length<raw.length);
+  assert.throws(()=>encodeSpriteTiles(new Uint8Array(2047)));
+  assert.throws(()=>encodeSpriteTiles(new Uint8Array()));
+});
+test('large sprites require explicit reduction and never silent cropping',()=>{
+  const rgba=new Uint8Array(128*128*8*4);
+  for(let i=0;i<rgba.length;i+=4){rgba[i]=248;rgba[i+3]=255;}
+  const sheets=new Map([['large',{width:128,height:128*8,rgba}]]);
+  const mon={sprite_format:'tile-dictionary-v1',palette_offset:0,animations:[{sha256:'large',width:128,height:128,frames:1,offset:32,scale:2}]};
+  const chunks=packSpriteSet(mon,sheets),dv=new DataView(chunks[0].bytes.buffer);
+  assert.equal(dv.getUint32(4,true),1);
+  assert.ok(chunks[0].bytes.subarray(dv.getUint32(0,true)).every(b=>b===0x11));
+  mon.animations[0].scale=1;assert.throws(()=>packSpriteSet(mon,sheets),/cropping/);
+  mon.animations[0].scale=3;assert.throws(()=>packSpriteSet(mon,sheets),/scale/);
 });

@@ -10,7 +10,7 @@ int main(void)
     assert(ArenaMoves_Get(MOVE_QUICK_ATTACK)->speed>ArenaMoves_Get(MOVE_TACKLE)->speed);
     assert(ArenaMoves_Get(MOVE_ABSORB)->kind==ARENA_MOVE_PROJECTILE);
     assert(!ArenaMoves_Get(MOVE_THUNDER));
-    assert(!ArenaMoves_Get(MOVE_FLAMETHROWER)); // Burn not silently omitted.
+    assert(ArenaMoves_Get(MOVE_FLAMETHROWER)->visual==ARENA_VIS_EMBER); // Native burn is tested separately.
     assert(ArenaMoves_Get(MOVE_WING_ATTACK)->visual!=p->visual);
     assert(ArenaMoves_Get(MOVE_SLAM)->windup>p->windup);
     assert(ArenaMoves_Get(MOVE_PECK)->cone==2);

@@ -370,23 +370,35 @@ index 11fc168..cc81fa8 100644
      {
          RandomlyGivePartyPokerus(gPlayerParty);
 diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
-index 3af09ec..fff8b9c 100644
+index 3af09ec..831a580 100644
 --- a/src/battle_script_commands.c
 +++ b/src/battle_script_commands.c
-@@ -1,4 +1,6 @@
+@@ -1,5 +1,8 @@
  #include "global.h"
 +#include "realtime_arena.h"
 +#include "arena_capture.h"
  #include "battle.h"
++#include "battle_script_commands.h"
  #include "battle_message.h"
  #include "battle_anim.h"
-@@ -1303,6 +1305,135 @@ static void Cmd_damagecalc(void)
+ #include "battle_ai_script_commands.h"
+@@ -53,6 +56,9 @@
+ #include "constants/trainers.h"
+ 
+ extern const u8 *const gBattleScriptsForMoveEffects[];
++// Scoped synchronous entry into the original burn eligibility rules. It never
++// runs from the classic interpreter and bypasses only its queued presentation.
++static EWRAM_DATA bool8 sArenaApplyingBurn = FALSE;
+ 
+ #define DEFENDER_IS_PROTECTED ((gProtectStructs[gBattlerTarget].protected) && (gBattleMoves[gCurrentMove].flags & FLAG_PROTECT_AFFECTED))
+ 
+@@ -1303,6 +1309,206 @@ static void Cmd_damagecalc(void)
      gBattlescriptCurrInstr++;
  }
  
 +// Synchronous adapter for the arena's physical collision. These are the SAME
 +// accuracy/critical/damage/STAB/type/variance commands used by normal moves.
-+// Eligibility excludes effects needing a script, status, weather or item tick.
++// Eligibility excludes unsupported script, status, weather or item effects.
 +s32 RealtimeArena_ResolveDamage(u8 attacker, u8 target, u16 move)
 +{
 +    const u8 *savedScript = gBattlescriptCurrInstr;
@@ -438,23 +450,47 @@ index 3af09ec..fff8b9c 100644
 +    return result;
 +}
 +
-+// Bounded, non-script secondary effects. No statuses/items/weather are admitted
-+// by the arena gate. Acid uses the native stat mutation and Shield Dust rule.
++// Bounded synchronous secondary effects. Burn delegates to the native status
++// eligibility routine; stat drops keep the native mutation and Shield Dust rule.
 +// Bite's turn flinch becomes a brief interrupt in the real-time action layer.
 +u8 RealtimeArena_ResolveSecondary(u8 attacker, u8 target, u16 move)
 +{
 +    const u8 *savedScript = gBattlescriptCurrInstr;
 +    u8 result = 0;
-+    u8 before = gBattleMons[target].statStages[STAT_DEF];
++    u8 stat = move == MOVE_MUD_SLAP ? STAT_ACC : move == MOVE_MUD_SHOT || move == MOVE_BUBBLE ? STAT_SPEED : STAT_DEF;
++    u8 before = gBattleMons[target].statStages[stat];
 +    if (!gBattleMons[target].hp) return 0;
++    if ((gBattleMoves[move].effect == EFFECT_BURN_HIT || move == MOVE_BLAZE_KICK)
++        && Random()%100 < gBattleMoves[move].secondaryEffectChance)
++    {
++        u8 scratch[2]={0},oldEffect=gBattleCommunication[MOVE_EFFECT_BYTE];
++        u8 oldBattler=gEffectBattler,oldScripting=gBattleScripting.battler;
++        u32 oldStatus=gBattleMons[target].status1;
++        gBattlerAttacker=attacker;gBattlerTarget=target;gCurrentMove=move;
++        gBattlescriptCurrInstr=scratch;
++        gBattleCommunication[MOVE_EFFECT_BYTE]=MOVE_EFFECT_BURN;
++        sArenaApplyingBurn=TRUE;
++        SetMoveEffect(FALSE,0);
++        sArenaApplyingBurn=FALSE;
++        gBattleCommunication[MOVE_EFFECT_BYTE]=oldEffect;
++        gEffectBattler=oldBattler;gBattleScripting.battler=oldScripting;
++        gBattlescriptCurrInstr=savedScript;
++        if(gBattleMons[target].status1!=oldStatus)
++        {
++            SetMonData(target?&gEnemyParty[gBattlerPartyIndexes[target]]:&gPlayerParty[gBattlerPartyIndexes[target]],
++                       MON_DATA_STATUS,&gBattleMons[target].status1);
++            result|=8;
++        }
++    }
 +    if (gBattleMons[target].ability != ABILITY_SHIELD_DUST
-+        && (move == MOVE_ACID || move == MOVE_BITE)
++        && (move == MOVE_ACID || move == MOVE_BITE || move == MOVE_ASTONISH
++            || move == MOVE_MUD_SLAP || move == MOVE_MUD_SHOT || move == MOVE_BUBBLE)
 +        && Random() % 100 < gBattleMoves[move].secondaryEffectChance)
 +    {
-+        if (move == MOVE_ACID)
++        if (move == MOVE_ACID || move == MOVE_MUD_SLAP || move == MOVE_MUD_SHOT || move == MOVE_BUBBLE)
 +        {
-+            ChangeStatBuffs(SET_STAT_BUFF_VALUE(1) | STAT_BUFF_NEGATIVE, STAT_DEF, 0, NULL);
-+            if (gBattleMons[target].statStages[STAT_DEF] < before) result |= 1;
++            ChangeStatBuffs(SET_STAT_BUFF_VALUE(1) | STAT_BUFF_NEGATIVE, stat, 0, NULL);
++            if (gBattleMons[target].statStages[stat] < before) result |= 1;
 +        }
 +        else if (gBattleMons[target].ability != ABILITY_INNER_FOCUS)
 +            result |= 2;
@@ -476,27 +512,74 @@ index 3af09ec..fff8b9c 100644
 +// arena battlers have no Protect, Mist, Substitute, Clear Body or White Smoke;
 +// keep those encounters on the original battle script until separately tested.
 +// Shield Dust must not block a primary stat move: use the same flag as Leer.
++s8 RealtimeArena_StatChange(u16 move, u8 *stat, bool8 *self)
++{
++    *self = FALSE;
++    switch (move)
++    {
++    case MOVE_LEER: case MOVE_TAIL_WHIP: *stat=STAT_DEF; return -1;
++    case MOVE_GROWL: *stat=STAT_ATK; return -1;
++    case MOVE_SAND_ATTACK: *stat=STAT_ACC; return -1;
++    case MOVE_STRING_SHOT: *stat=STAT_SPEED; return -1;
++    case MOVE_SCREECH: *stat=STAT_DEF; return -2;
++    }
++    *self = TRUE;
++    switch (move)
++    {
++    case MOVE_HARDEN: case MOVE_DEFENSE_CURL: *stat=STAT_DEF; return 1;
++    case MOVE_HOWL: *stat=STAT_ATK; return 1;
++    case MOVE_GROWTH: *stat=STAT_SPATK; return 1;
++    case MOVE_AGILITY: *stat=STAT_SPEED; return 2;
++    }
++    return 0;
++}
++
 +bool8 RealtimeArena_ResolveLeer(u8 attacker, u8 target)
++{
++    return RealtimeArena_ResolveStatMove(attacker,target,MOVE_LEER);
++}
++
++bool8 RealtimeArena_ResolveStatMove(u8 attacker, u8 target, u16 move)
 +{
 +    const u8 *savedScript = gBattlescriptCurrInstr;
 +    u8 scratch[16] = {0};
 +    u32 failure = (u32)(scratch + 7);
-+    u8 before = gBattleMons[target].statStages[STAT_DEF];
++    u8 stat=STAT_ATK, before, affected, savedStack=gBattleResources->battleScriptsStack->size;
++    bool8 self;
++    s8 delta=RealtimeArena_StatChange(move,&stat,&self);
++    bool8 worked=FALSE;
++    if(move==MOVE_FOCUS_ENERGY)
++    {
++        worked=!(gBattleMons[attacker].status2&STATUS2_FOCUS_ENERGY);
++        gBattleMons[attacker].status2|=STATUS2_FOCUS_ENERGY;
++        if(attacker==0)gBattleResults.lastUsedMovePlayer=move;
++        else gBattleResults.lastUsedMoveOpponent=move;
++        return worked;
++    }
++    if(!delta)return FALSE;
++    affected=self?attacker:target;
++    before=gBattleMons[affected].statStages[stat];
 +    gBattlerAttacker = attacker;
 +    gBattlerTarget = target;
-+    gCurrentMove = MOVE_LEER;
++    gCurrentMove = move;
 +    gMoveResultFlags = 0;
 +    scratch[1] = failure; scratch[2] = failure >> 8;
 +    scratch[3] = failure >> 16; scratch[4] = failure >> 24;
 +    gBattlescriptCurrInstr = scratch;
-+    Cmd_accuracycheck();
++    if(!self)Cmd_accuracycheck();
 +    if (!(gMoveResultFlags & MOVE_RESULT_NO_EFFECT))
-+        ChangeStatBuffs(SET_STAT_BUFF_VALUE(1) | STAT_BUFF_NEGATIVE,
-+                       STAT_DEF, STAT_CHANGE_ALLOW_PTR, scratch + 7);
-+    if (attacker == 0) gBattleResults.lastUsedMovePlayer = MOVE_LEER;
-+    else gBattleResults.lastUsedMoveOpponent = MOVE_LEER;
++    {
++        ChangeStatBuffs(SET_STAT_BUFF_VALUE(delta<0?-delta:delta) | (delta<0?STAT_BUFF_NEGATIVE:0),
++                       stat, STAT_CHANGE_ALLOW_PTR | (self?MOVE_EFFECT_AFFECTS_USER:0), scratch + 7);
++        if(move==MOVE_DEFENSE_CURL)gBattleMons[attacker].status2|=STATUS2_DEFENSE_CURL;
++    }
++    if (attacker == 0) gBattleResults.lastUsedMovePlayer = move;
++    else gBattleResults.lastUsedMoveOpponent = move;
 +    gBattlescriptCurrInstr = savedScript;
-+    return gBattleMons[target].statStages[STAT_DEF] < before;
++    // Keen Eye's original rejection can push presentation text; its native
++    // prevention is retained, but the arena supplies its own brief feedback.
++    gBattleResources->battleScriptsStack->size=savedStack;
++    return gBattleMons[affected].statStages[stat] != before;
 +}
 +
 +u16 RealtimeArena_DrainAmount(u16 hpDealt)
@@ -516,7 +599,7 @@ index 3af09ec..fff8b9c 100644
  void AI_CalcDmg(u8 attacker, u8 defender)
  {
      u16 sideStatus = gSideStatuses[GET_BATTLER_SIDE(defender)];
-@@ -2139,6 +2270,24 @@ static void Cmd_printstring(void)
+@@ -2139,6 +2345,24 @@ static void Cmd_printstring(void)
      if (gBattleControllerExecFlags == 0)
      {
          u16 var = T2_READ_16(gBattlescriptCurrInstr + 1);
@@ -541,7 +624,19 @@ index 3af09ec..fff8b9c 100644
          PrepareStringBattle(var, gBattlerAttacker);
          gBattlescriptCurrInstr += 3;
          gBattleCommunication[MSG_DISPLAY] = 1;
-@@ -3051,6 +3200,8 @@ static void Cmd_tryfaintmon(void)
+@@ -2475,6 +2699,11 @@ void SetMoveEffect(bool8 primary, u8 certain)
+         }
+         if (statusChanged == TRUE)
+         {
++            if(sArenaApplyingBurn && gBattleCommunication[MOVE_EFFECT_BYTE]==MOVE_EFFECT_BURN)
++            {
++                gBattleMons[gEffectBattler].status1 |= STATUS1_BURN;
++                return;
++            }
+             BattleScriptPush(gBattlescriptCurrInstr + 1);
+ 
+             if (sStatusFlagsForMoveEffects[gBattleCommunication[MOVE_EFFECT_BYTE]] == STATUS1_SLEEP)
+@@ -3051,6 +3280,8 @@ static void Cmd_tryfaintmon(void)
  
  static void Cmd_dofaintanimation(void)
  {
@@ -550,7 +645,7 @@ index 3af09ec..fff8b9c 100644
      if (gBattleControllerExecFlags == 0)
      {
          gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
-@@ -3360,7 +3511,7 @@ static void Cmd_getexp(void)
+@@ -3360,7 +3591,7 @@ static void Cmd_getexp(void)
                  if (!(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && gBattleMons[0].hp != 0 && !gBattleStruct->wildVictorySong)
                  {
                      BattleStopLowHpSound();
@@ -559,7 +654,7 @@ index 3af09ec..fff8b9c 100644
                      gBattleStruct->wildVictorySong++;
                  }
  
-@@ -3416,7 +3567,8 @@ static void Cmd_getexp(void)
+@@ -3416,7 +3647,8 @@ static void Cmd_getexp(void)
                      PREPARE_STRING_BUFFER(gBattleTextBuff2, i);
                      PREPARE_WORD_NUMBER_BUFFER(gBattleTextBuff3, 5, gBattleMoveDamage);
  
@@ -569,7 +664,7 @@ index 3af09ec..fff8b9c 100644
                      MonGainEVs(&gPlayerParty[gBattleStruct->expGetterMonId], gBattleMons[gBattlerFainted].species);
                  }
                  gBattleStruct->sentInPokes >>= 1;
-@@ -3913,6 +4065,7 @@ static void Cmd_bicword(void)
+@@ -3913,6 +4145,7 @@ static void Cmd_bicword(void)
  
  static void Cmd_pause(void)
  {
@@ -577,7 +672,7 @@ index 3af09ec..fff8b9c 100644
      if (gBattleControllerExecFlags == 0)
      {
          u16 value = T2_READ_16(gBattlescriptCurrInstr + 1);
-@@ -5318,6 +5471,7 @@ static void Cmd_playse(void)
+@@ -5318,6 +5551,7 @@ static void Cmd_playse(void)
  
  static void Cmd_fanfare(void)
  {
@@ -585,7 +680,7 @@ index 3af09ec..fff8b9c 100644
      gActiveBattler = gBattlerAttacker;
      BtlController_EmitPlayFanfareOrBGM(B_COMM_TO_CONTROLLER, T2_READ_16(gBattlescriptCurrInstr + 1), FALSE);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5327,6 +5481,7 @@ static void Cmd_fanfare(void)
+@@ -5327,6 +5561,7 @@ static void Cmd_fanfare(void)
  
  static void Cmd_playfaintcry(void)
  {
@@ -593,7 +688,7 @@ index 3af09ec..fff8b9c 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      BtlController_EmitFaintingCry(B_COMM_TO_CONTROLLER);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5923,6 +6078,7 @@ static void Cmd_atknameinbuff1(void)
+@@ -5923,6 +6158,7 @@ static void Cmd_atknameinbuff1(void)
  
  static void Cmd_drawlvlupbox(void)
  {
@@ -601,7 +696,7 @@ index 3af09ec..fff8b9c 100644
      if (gBattleScripting.drawlvlupboxState == 0)
      {
          // If the Pokémon getting exp is not in-battle then
-@@ -9902,10 +10058,59 @@ static void Cmd_removelightscreenreflect(void)
+@@ -9902,10 +10138,59 @@ static void Cmd_removelightscreenreflect(void)
      gBattlescriptCurrInstr++;
  }
  
@@ -609,8 +704,7 @@ index 3af09ec..fff8b9c 100644
 +// One formula for classic and arena captures. Do not change integer rounding:
 +// this is the original Emerald calculation, including status and ball bonuses.
 +u32 CalculateBallCatchOdds(u8 target, u16 item)
- {
--    u8 ballMultiplier = 0;
++{
 +    u32 odds;
 +    u8 catchRate, multiplier = 10;
 +    if (item == ITEM_SAFARI_BALL)
@@ -645,9 +739,10 @@ index 3af09ec..fff8b9c 100644
 +    if (gBattleMons[target].status1 & (STATUS1_POISON | STATUS1_BURN | STATUS1_PARALYSIS | STATUS1_TOXIC_POISON)) odds = odds * 15 / 10;
 +    return odds;
 +}
- 
++
 +u8 CalculateBallCatchShakes(u32 odds, u16 item)
-+{
+ {
+-    u8 ballMultiplier = 0;
 +    u8 shakes;
 +    if (odds > 254) return BALL_3_SHAKES_SUCCESS;
 +    // A zero catch rate must not divide by zero. Normal species never use it.
@@ -657,13 +752,13 @@ index 3af09ec..fff8b9c 100644
 +    for (shakes = 0; shakes < BALL_3_SHAKES_SUCCESS && Random() < odds; shakes++);
 +    return item == ITEM_MASTER_BALL ? BALL_3_SHAKES_SUCCESS : shakes;
 +}
-+
+ 
 +static void Cmd_handleballthrow(void)
 +{
      if (gBattleControllerExecFlags)
          return;
  
-@@ -9926,72 +10131,7 @@ static void Cmd_handleballthrow(void)
+@@ -9926,72 +10211,7 @@ static void Cmd_handleballthrow(void)
      }
      else
      {
@@ -737,7 +832,7 @@ index 3af09ec..fff8b9c 100644
  
          if (gLastUsedItem != ITEM_SAFARI_BALL)
          {
-@@ -10020,15 +10160,7 @@ static void Cmd_handleballthrow(void)
+@@ -10020,15 +10240,7 @@ static void Cmd_handleballthrow(void)
          }
          else // mon may be caught, calculate shakes
          {

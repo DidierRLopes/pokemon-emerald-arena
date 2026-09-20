@@ -35,7 +35,8 @@ cd workspace
 ./tools/arena/dev.sh release
 ```
 
-`assets` downloads pinned sources and converts them without cropping.
+`assets` downloads pinned sources and converts them without cropping. The tile
+dictionary is lossless; Gyarados and Wailord use explicit 2× pixel reduction.
 Keep generated sprite assets out of Git. Lab and release builds are separate.
 
 ## Checks
@@ -47,9 +48,9 @@ node tools/build-installer.mjs --check
 node --test tests/*.test.mjs
 ```
 
-The 0.5.0 private acceptance run passed 21 capture checks and 16 existing suites
-against real ARM code in mGBA, including combat, saves, move selection and
-performance. Saves, snapshots and full test evidence remain private.
+The 0.6.0 release gate runs 23 suites against real ARM code in mGBA: existing
+combat and capture checks, starter families, early encounters, new moves,
+stat effects, burns, visuals and performance. Saves and full test evidence remain private.
 Host C tests for navigation, physics, geometry and numbers are included in the
 overlay; compile them with their `*_HOST` macros and sanitizers.
 
@@ -69,4 +70,4 @@ node tools/package-release.mjs /path/outside/this/repo/new-release-directory
 
 Packaging uses an explicit five-file allowlist. It refuses to overwrite an
 existing archive and emits `SHA256SUMS.txt`. The original ROM is never an input
-to packaging. Version 0.5.0 includes arena captures.
+to packaging. Version 0.6.0 includes arena captures, 92 sprite sets and 44 move profiles.

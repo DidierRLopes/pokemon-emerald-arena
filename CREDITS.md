@@ -3,14 +3,16 @@
 - [pret/pokeemerald](https://github.com/pret/pokeemerald):
   Pokémon Emerald decompilation and reconstruction.
 - [PMDCollab/SpriteCollab](https://github.com/PMDCollab/SpriteCollab):
-  animation sources, metadata and individual credits for the 22 Pokémon.
+  animation sources, metadata and individual credits for the 92 Pokémon.
   Pin: `d25607ff4746957df10bdb78db090887cd94f1f8`.
   The installer manifest preserves each species' credit file. The original
-  sheets credit CHUNSOFT. The web installer downloads and converts these locally.
+  sheets credit CHUNSOFT and individual PMDCollab contributors. The web installer downloads and converts these locally.
   The optional full BPS patch includes the converted animation data so it can
   be applied without a separate animation download. Original sprite sheets are
   not bundled. Conversion includes frame selection, palette reduction and GBA
-  tile packing. These official PMD assets remain their owners' material, not
+  tile packing. Gyarados and Wailord are reduced 2× to fit; other sprites keep
+  their original size. Pose aliases are explicit in the [catalog](game/overlay/tools/arena/roster.json).
+  These PMD resources remain their owners' material, not
   original art by this project or assets licensed by this project's code license.
 - Nintendo, Game Freak, Creatures, The Pokémon Company and Chunsoft:
   Pokémon and the associated original material belong to their owners.

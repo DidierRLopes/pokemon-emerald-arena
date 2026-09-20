@@ -1,4 +1,39 @@
-# Emerald Arena 0.5.0
+# Emerald Arena 0.6.0
+
+[Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0-full.bps) · [Controls](PLAY.md)
+
+- All three Hoenn starters and their evolutions have directional animations.
+- 92 animated Pokémon, covering early routes, nearby caves and their evolution families.
+- 44 adapted moves. Fire, mud, rocks, bubbles, wind and stars have new effects.
+- Native stat changes, draining moves, False Swipe, Focus Energy and burns.
+- Poké Ball captures from 0.5.0 are included.
+- Cosmetic fragments no longer crowd out real attack sprites.
+
+Sprite coverage is not full battle compatibility. Unsupported moves, abilities
+and encounters still use classic battles. Trainers, doubles and link battles
+are unchanged. [Exact scope](PLAY.md#current-scope).
+
+Back up your in-game `.sav` before updating and import a copy for the new ROM.
+Do not reuse emulator save states across versions.
+
+### Verification
+
+All 23 real-ROM suites passed, plus host C checks and visual inspection.
+Release-only controls verified capture, native saving and cold boot with the
+same party. All 33,168 animation frames decode correctly; the original 7,864
+frames remain byte-identical. Gyarados and Wailord use explicit 2× pixel reduction.
+
+The clean public source rebuild, installer and two independent BPS decoders
+match the release hash below. All 15 installer checks and four landing checks
+passed. Physical GBA hardware has not been tested.
+
+The reported Team Aqua gate was checked on a separate seven-badge save. The
+original Slateport submarine event opened the passage, including after save/reboot.
+No story bug was reproduced or patched; the reporter's exact save was unavailable.
+
+Release ROM SHA-256: `47b2b0442cd619a4428ff5be95f5b914160aebdc0815a711fe6144a76e837b2c`.
+
+## Previous: 0.5.0
 
 [Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.5.0/Emerald-Arena-0.5.0-full.bps) · [Watch a catch](media/emerald-arena-pokeballs.mp4)
 

@@ -11,6 +11,7 @@ void ArenaFeedback_Wall(s16 x, s16 y);
 void ArenaFeedback_Dust(s16 x, s16 y, bool8 dash);
 void ArenaFeedback_Capture(s16 x,s16 y);
 void ArenaFeedback_CaptureGlow(s16 x,s16 y,bool8 inward);
+u8 ArenaFeedback_FirePalette(void);
 void ArenaFeedback_Drain(u8 side,s16 x,s16 y,s16 sourceX,s16 sourceY,u16 healing);
 
 struct ArenaFeedbackTelemetry

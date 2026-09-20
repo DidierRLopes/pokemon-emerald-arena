@@ -112,8 +112,45 @@ static void frame(FILE *f, int visual, int direction, int phase, int size)
             if ((a-2)*(a-2)+(b+2)*(b+2)<4) color=1;
             if ((a+5)*(a+5)+(b-(phase-1)*2)*(b-(phase-1)*2)<2) color=1;
         }
+        else if(visual==13) // mud clod with two loose grains trailing behind
+        {
+            if(a*a*.8+b*b<20 && a<4)color=2;
+            if((a-1)*(a-1)+(b+2)*(b+2)<3)color=1;
+            if(a<-4 && a>-7 && fabs(b-(phase-1)*2)<1.2)color=2;
+        }
+        else if(visual==14) // faceted, rotating thrown stone
+        {
+            double qx=dx*cos(phase*.35)-dy*sin(phase*.35),qy=dx*sin(phase*.35)+dy*cos(phase*.35);
+            if(fabs(qx)<5 && fabs(qy)<5 && fabs(qx)+fabs(qy)<7.5)color=2;
+            if(qy<-1 && qx>-3 && qx<2 && fabs(qx)+fabs(qy)<6)color=1;
+        }
+        else if(visual==15) // small flame head and alternating tongues
+        {
+            if(a>-6 && a<4 && fabs(b)<(5-a)*.45)color=2;
+            if(a>-3 && a<3 && fabs(b)<1.3)color=1;
+            if(a<-3 && a>-7 && fabs(b-(phase&1?3:-3))<1.4)color=2;
+        }
+        else if(visual==16) // hollow rising bubbles, no solid acid glob
+        {
+            double rr=hypot(a-1,b),r2=hypot(a+4,b-3+(phase&1));
+            if(fabs(rr-4)<1 || fabs(r2-2)<.8)color=2;
+            if(fabs(rr-4)<.8 && b<-1)color=1;
+        }
+        else if(visual==17) // three curved wind strokes
+        {
+            if(a>-5 && a<5 && fabs(b-(a*a/12-3))<1)color=1;
+            if(a>-6 && a<3 && fabs(b-(a*a/14+1))<1)color=2;
+            if(a>-4 && a<3 && fabs(b-5)<.8)color=2;
+        }
+        else if(visual==18) // four-point spinning Swift star
+        {
+            double qx=dx*cos(phase*.4)-dy*sin(phase*.4),qy=dx*sin(phase*.4)+dy*cos(phase*.4);
+            if(fabs(qx)*fabs(qy)<3 && r<7)color=2;
+            if(fabs(qx)+fabs(qy)<3)color=1;
+        }
         if (color)
         {
+            if(visual==15)color+=2; // Shared fire feedback palette: yellow/red.
             size_t p=((y/8)*(size/8)+x/8)*32+(y%8)*4+(x%8)/2;
             tiles[p]|=color<<((x&1)*4);
         }
@@ -134,7 +171,7 @@ int main(int argc,char **argv)
     for(v=0;v<9;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,64);
     fclose(f);
     f=fopen(argv[2],"wb");if(!f)return 2;
-    for(v=9;v<13;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,16);
+    for(v=9;v<19;v++)for(d=0;d<8;d++)for(p=0;p<4;p++)frame(f,v,d,p,16);
     fclose(f);
     return 0;
 }

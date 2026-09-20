@@ -18,6 +18,7 @@
 #include "constants/moves.h"
 #include "constants/species.h"
 #include "constants/heal_locations.h"
+#include "constants/vars.h"
 
 // Only included in the separate arena_lab.gba development build.
 // Commands are consumed in the real overworld, never halfway through a menu.
@@ -178,6 +179,40 @@ void ArenaLab_Tick(void)
             }
         break;
     }
+    case 12:
+        // Legal HM fixture in a disposable party. Native compatibility and
+        // move assignment, never arbitrary battle HP/PP/XP manipulation.
+        if(gArenaLabMailbox.species!=MOVE_CUT || gArenaLabMailbox.level<1
+            || gArenaLabMailbox.level>4 || !CanMonLearnTMHM(&gPlayerParty[0],ITEM_HM01-ITEM_TM01))
+        {gArenaLabMailbox.result=2;break;}
+        SetMonMoveSlot(&gPlayerParty[0],MOVE_CUT,gArenaLabMailbox.level-1);
+        break;
+    case 11:
+        // Explicit disposable story checkpoint, never a player-facing command.
+        // 0 visits Aqua with untouched flags; 1 rewinds only its two guards;
+        // 2 prepares the original submarine cutscene and lets its script unlock.
+        if (gArenaLabMailbox.species > 2
+            || !FlagGet(FLAG_GROUDON_AWAKENED_MAGMA_HIDEOUT))
+        {gArenaLabMailbox.result = 2; break;}
+        if (gArenaLabMailbox.species == 1)
+        {
+            FlagClear(FLAG_HIDE_AQUA_HIDEOUT_1F_GRUNT_1_BLOCKING_ENTRANCE);
+            FlagClear(FLAG_HIDE_AQUA_HIDEOUT_1F_GRUNT_2_BLOCKING_ENTRANCE);
+        }
+        if (gArenaLabMailbox.species == 2)
+        {
+            FlagClear(FLAG_MET_TEAM_AQUA_HARBOR);
+            FlagClear(FLAG_HIDE_SLATEPORT_CITY_HARBOR_CAPTAIN_STERN);
+            FlagClear(FLAG_HIDE_SLATEPORT_CITY_HARBOR_SUBMARINE_SHADOW);
+            FlagClear(FLAG_HIDE_SLATEPORT_CITY_HARBOR_AQUA_GRUNT);
+            FlagClear(FLAG_HIDE_SLATEPORT_CITY_HARBOR_ARCHIE);
+            VarSet(VAR_SLATEPORT_HARBOR_STATE, 1);
+            SetWarpDestination(MAP_GROUP(MAP_SLATEPORT_CITY_HARBOR),MAP_NUM(MAP_SLATEPORT_CITY_HARBOR),-1,11,14);
+        }
+        else
+            SetWarpDestination(MAP_GROUP(MAP_AQUA_HIDEOUT_1F),MAP_NUM(MAP_AQUA_HIDEOUT_1F),-1,13,13);
+        DoWarp();
+        break;
     default:
         gArenaLabMailbox.result = 2;
     }
