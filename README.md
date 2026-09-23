@@ -4,6 +4,8 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Installation guide](PLAY.md)
 
+[**Follow development on Twitter / X**](https://x.com/germanburgardt) for new previews, progress and updates.
+
 ## Watch gameplay
 
 [![New battle gameplay: Blastoise versus Eevee, attacks, dodges and the move picker](media/emerald-arena-combat-update.gif)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-combat-update.mp4)
