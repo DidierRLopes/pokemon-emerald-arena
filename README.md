@@ -6,6 +6,8 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [**Follow development on Twitter / X**](https://x.com/germanburgardt) for new previews, progress and updates.
 
+[**Join the Discord**](https://discord.gg/GBVjbNhEdb) to chat, share ideas and report bugs. English and Spanish welcome.
+
 ## Watch gameplay
 
 [![New battle gameplay: Blastoise versus Eevee, attacks, dodges and the move picker](media/emerald-arena-combat-update.gif)](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-combat-update.mp4)
