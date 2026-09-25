@@ -11,11 +11,8 @@ jobs:
         with:
           node-version: 22
       - run: node --test tests/installer.test.mjs
-      - name: No ROMs, saves or extracted sprite binaries
-        run: |
-          if git ls-files | grep -Ei '\.(gba|gbc|gb|sav|state|ss[0-9]+|4bpp|gbapal)$'; then
-            exit 1
-          fi
+      - name: No ROMs, saves or unlisted sprite binaries
+        run: node tools/check-public-files.mjs
   landing:
     runs-on: ubuntu-latest
     defaults:

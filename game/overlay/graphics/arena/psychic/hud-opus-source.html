@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Arena HUD — refined 240x16 UI</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #0b1016; color: #c8d8d0; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 14px; margin: 0 0 10px; color: #e8f8e8; font-weight: normal; letter-spacing: .5px; }
+  .stage { overflow-x: auto; padding: 12px; background: #121a22; border: 1px solid #22303c; }
+  #view { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 10px 0; }
+  button, select { background: #182430; color: #e8f8e8; border: 1px solid #30465a; padding: 4px 9px; font: inherit; cursor: pointer; }
+  button:hover, select:hover { border-color: #50a098; }
+  label { display: inline-flex; gap: 4px; align-items: center; }
+  #status { white-space: pre; background: #0f151c; border: 1px solid #22303c; padding: 8px; margin-top: 8px; }
+  .pass { color: #40e8b8; } .fail { color: #f87040; }
+  details { margin-top: 10px; }
+  pre.notes { background: #0f151c; border: 1px solid #22303c; padding: 8px; overflow-x: auto; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Arena HUD · 240×16 · 1 frame · binary alpha · native runtime translucency</h1>
+  <div class="stage"><canvas id="view"></canvas></div>
+
+  <div class="controls">
+    <button id="play">Pause</button>
+    <button id="prev">◀ Frame</button>
+    <button id="next">Frame ▶</button>
+    <span id="frameLabel">frame 1/1</span>
+    <label>Scale
+      <select id="scale">
+        <option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option>
+      </select>
+    </label>
+    <label>Preview bg
+      <select id="bg">
+        <option value="checker">checker (alpha)</option>
+        <option value="forest" selected>lush forest</option>
+        <option value="cave">dim cave</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="guides"> reserved-rect guides</label>
+    <button id="dlSheet">Download spritesheet PNG</button>
+    <button id="dlMeta">Download metadata JSON</button>
+    <button id="dlFrames">Download frame PNG</button>
+  </div>
+
+  <div id="status">validating…</div>
+
+  <details open>
+    <summary>Rectangle placement notes (inclusive pixel coordinates)</summary>
+<pre class="notes">Canvas 240x24, origin top-left. Everything outside both panels is alpha 0 (incl. x117..122 center gap).
+
+Panel             LEFT            RIGHT
+outline box       x2..116  y0..23 x123..237 y0..23   #103048, 1px clipped corners (all four) = alpha 0
+frame body        x3..115  y1..22 x124..236 y1..22   #306878, lit top row + left col #607888,
+                                                     shadow right col + bottom row #204860, cream glint at top-left
+NAME (game font)  x7..110  y0..11 x128..232 y0..11   y0 = #103048 outline, y1..11 = #183048 flat, blank
+  well edge       x6 shade/x111 lit x127 shade/x233 lit (inset read, rows 1..11)
+HP bevel ring     x7..110 y12..17 x128..231 y12..17  top+left #204860, bottom+right #607888, TR/BL corners #306878
+HP trough (empty) x8..109 y13..16 x129..230 y13..16  102x4 flat #103048 — game fills bar here
+META (3x5 font)   x7..110  y19..23 x128..232 y19..23 y19..22 = #183048 flat, y23 = #103048 outline
+  well edge       rows 19..22 same inset edges as NAME
+spacer row        y18 across wells = #306878 frame body
+emerald pill      x4..5 y13..16   x234..235 y13..16  #50a098, top-left px #40e8b8, seated on #204860 at y17
+right-panel x232 y12..18 is frame body (#306878): trough ring is 1px narrower than the well by spec.
+
+Lighting is consistent top-left on both panels (native-GBA convention); layout/accents are mirrored.
+Pivot for integration: (120, 23) bottom-center of the strip.</pre>
+  </details>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Palette — only these RGB values (plus transparent) may appear in the sprite.
+  // ---------------------------------------------------------------------------
+  const PAL = {
+    shade:   '#183048', // unused alias guard (see below)
+  };
+  const C = {
+    outline: '#103048', // darkest navy: outline, empty trough
+    well:    '#183048', // dark slate: name / meta wells
+    shade:   '#204860', // bevel shadow
+    body:    '#306878', // frame body
+    lite:    '#607888', // bevel light
+    emer:    '#50a098', // restrained emerald
+    emerHi:  '#40e8b8', // emerald glint (1px)
+    cream:   '#e8f8e8', // corner glint (1px)
+    white:   '#f8f8f8', // reserved (unused)
+    orange:  '#f87040', // reserved (unused)
+    gold:    '#e8c048', // reserved (unused)
+  };
+  void PAL;
+  const ALLOWED = ['#183048','#204860','#306878','#50a098','#e8f8e8','#40e8b8','#f87040','#e8c048','#607888','#103048','#f8f8f8'];
+
+  const W = 240, H = 16;
+
+  // ---------------------------------------------------------------------------
+  // Layout — explicit per-panel rects (spec is not a perfect pixel mirror).
+  // All ranges are inclusive.
+  // ---------------------------------------------------------------------------
+  const PANELS = [
+    { id: 'left',  x0: 2,   x1: 116, well: [7, 110],   trough: [8, 109],   outer: 'left'  },
+    { id: 'right', x0: 123, x1: 237, well: [128, 232], trough: [129, 230], outer: 'right' },
+  ];
+  const Y = { nameTop: 0, nameBot: 11, bevelTop: 12, troughTop: 13, troughBot: 16, bevelBot: 17, spacer: 18, metaTop: 19, metaBot: 23 };
+
+  // ---------------------------------------------------------------------------
+  // Integer pixel helpers (inclusive coordinates, always opaque fills)
+  // ---------------------------------------------------------------------------
+  function painter(ctx) {
+    const box = (xa, ya, xb, yb, c) => { ctx.fillStyle = c; ctx.fillRect(xa, ya, xb - xa + 1, yb - ya + 1); };
+    return {
+      box,
+      hl: (xa, xb, y, c) => box(xa, y, xb, y, c),
+      vl: (x, ya, yb, c) => box(x, ya, x, yb, c),
+      px: (x, y, c) => box(x, y, x, y, c),
+      clear: (x, y) => ctx.clearRect(x, y, 1, 1),
+    };
+  }
+
+  function drawPanel(ctx, p) {
+    const g = painter(ctx);
+    const { x0, x1 } = p;
+    const [wx0, wx1] = p.well;
+    const [tx0, tx1] = p.trough;
+
+    // 1. outline slab + clipped corners
+    g.box(x0, 0, x1, 23, C.outline);
+    g.clear(x0, 0); g.clear(x1, 0); g.clear(x0, 23); g.clear(x1, 23);
+
+    // 2. frame body with top-left light
+    g.box(x0 + 1, 1, x1 - 1, 22, C.body);
+    g.hl(x0 + 1, x1 - 1, 1, C.lite);
+    g.vl(x0 + 1, 1, 21, C.lite);
+    g.vl(x1 - 1, 2, 22, C.shade);
+    g.hl(x0 + 2, x1 - 1, 22, C.shade);
+    g.px(x0 + 1, 22, C.body);
+    g.px(x0 + 1, 1, C.cream);
+
+    // 3. name well (y0 stays outline, y1..11 flat dark)
+    g.box(wx0, 1, wx1, Y.nameBot, C.well);
+    g.vl(wx0 - 1, 1, Y.nameBot, C.shade);
+    g.vl(wx1 + 1, 1, Y.nameBot, C.lite);
+
+    // 4. HP trough: 1px inset bevel ring outside, flat empty interior
+    const bx0 = tx0 - 1, bx1 = tx1 + 1;
+    g.hl(bx0, bx1 - 1, Y.bevelTop, C.shade);
+    g.vl(bx0, Y.bevelTop, Y.bevelBot - 1, C.shade);
+    g.hl(bx0 + 1, bx1, Y.bevelBot, C.lite);
+    g.vl(bx1, Y.bevelTop, Y.bevelBot, C.lite);
+    g.px(bx1, Y.bevelTop, C.body);
+    g.px(bx0, Y.bevelBot, C.body);
+    g.box(tx0, Y.troughTop, tx1, Y.troughBot, C.outline);
+
+    // 5. meta well (y23 stays outline)
+    g.box(wx0, Y.metaTop, wx1, 22, C.well);
+    g.vl(wx0 - 1, Y.metaTop, 22, C.shade);
+    g.vl(wx1 + 1, Y.metaTop, 21, C.lite);
+
+    // 6. restrained emerald pill on the outer cheek, level with the HP trough
+    const pxL = p.outer === 'left' ? x0 + 2 : x1 - 3;
+    g.box(pxL, Y.troughTop, pxL + 1, Y.troughBot, C.emer);
+    g.px(pxL, Y.troughTop, C.emerHi);
+    g.hl(pxL, pxL + 1, Y.bevelBot, C.shade);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Deterministic renderer
+  // ---------------------------------------------------------------------------
+  const meta = { width: W, height: H, frameCount: 1, frameDurationMs: 1000, kind: 'sprite' };
+  const FRAME_NAMES = ['arena_hud_0'];
+  const PIVOT = { x: 120, y: 15 };
+
+  function renderFrame(index, canvas) {
+    const i = ((index % meta.frameCount) + meta.frameCount) % meta.frameCount;
+    if (canvas.width !== W) canvas.width = W;
+    if (canvas.height !== H) canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    void i; // single static pose
+    // Codex refinement requested after the original Opus design: slimmer frame.
+    for (const p of PANELS) {
+      const g=painter(ctx), a=p.x0+2, b=p.x1-2;
+      g.box(a,1,b,15,C.well);
+      g.hl(a+1,b-1,0,C.shade);
+      g.px(a,1,C.lite); g.px(b,1,C.shade);
+      g.hl(p.trough[0]-1,p.trough[1]+1,11,C.shade);
+      g.box(p.trough[0],12,p.trough[1],14,C.outline);
+      g.hl(p.trough[0]-1,p.trough[1]+1,15,C.shade);
+    }
+    return canvas;
+  }
+
+  function makeCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+  }
+
+  function exportFrames() {
+    const out = [];
+    for (let i = 0; i < meta.frameCount; i++) {
+      const c = renderFrame(i, makeCanvas(W, H));
+      out.push({ name: FRAME_NAMES[i] + '.png', dataUrl: c.toDataURL('image/png') });
+    }
+    return out;
+  }
+
+  function layoutMetadata() {
+    if(H===16)return PANELS.map(p=>({id:p.id,panel:{x:p.x0+2,y:0,w:p.x1-p.x0-3,h:16},hpTrough:{x:p.trough[0],y:12,w:102,h:3}}));
+    return PANELS.map(p => ({
+      id: p.id,
+      panel: { x: p.x0, y: 0, w: p.x1 - p.x0 + 1, h: 24 },
+      nameRect: { x: p.well[0], y: Y.nameTop, w: p.well[1] - p.well[0] + 1, h: Y.nameBot - Y.nameTop + 1 },
+      hpTrough: { x: p.trough[0], y: Y.troughTop, w: p.trough[1] - p.trough[0] + 1, h: Y.troughBot - Y.troughTop + 1 },
+      hpBevel: { x: p.trough[0] - 1, y: Y.bevelTop, w: p.trough[1] - p.trough[0] + 3, h: Y.bevelBot - Y.bevelTop + 1 },
+      metaRect: { x: p.well[0], y: Y.metaTop, w: p.well[1] - p.well[0] + 1, h: Y.metaBot - Y.metaTop + 1 },
+    }));
+  }
+
+  function exportSheet() {
+    const sheet = makeCanvas(W * meta.frameCount, H);
+    const sctx = sheet.getContext('2d');
+    sctx.imageSmoothingEnabled = false;
+    const frames = [];
+    const tmp = makeCanvas(W, H);
+    for (let i = 0; i < meta.frameCount; i++) {
+      renderFrame(i, tmp);
+      sctx.drawImage(tmp, i * W, 0);
+      frames.push({
+        name: FRAME_NAMES[i],
+        rect: { x: i * W, y: 0, w: W, h: H },
+        durationMs: meta.frameDurationMs,
+        pivot: { x: PIVOT.x, y: PIVOT.y },
+      });
+    }
+    return {
+      name: 'arena_hud_sheet.png',
+      dataUrl: sheet.toDataURL('image/png'),
+      metadata: {
+        image: 'arena_hud_sheet.png',
+        size: { w: sheet.width, h: sheet.height },
+        kind: meta.kind,
+        frameCount: meta.frameCount,
+        frameDurationMs: meta.frameDurationMs,
+        alpha: 'binary',
+        palette: ALLOWED.slice(),
+        frames,
+        layout: layoutMetadata(),
+      },
+    };
+  }
+
+  window.pixelArt = { meta, renderFrame, exportFrames, exportSheet };
+
+  // ---------------------------------------------------------------------------
+  // Validation (reads a freshly rendered export canvas)
+  // ---------------------------------------------------------------------------
+  function hex(r, g, b) { return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join(''); }
+
+  function validate() {
+    if(H===16){
+      const c=renderFrame(0,makeCanvas(W,H)),d=c.getContext('2d').getImageData(0,0,W,H).data;
+      const used=new Set(),allowed=new Set(ALLOWED);let alpha=true,palette=true;
+      for(let k=0;k<d.length;k+=4){alpha=alpha&&(d[k+3]===0||d[k+3]===255);if(d[k+3]){const col=hex(d[k],d[k+1],d[k+2]);used.add(col);palette=palette&&allowed.has(col);}}
+      return {checks:[['240x16',c.width===240&&c.height===16],['binary alpha',alpha],['palette',palette]],used:[...used]};
+    }
+    const c = renderFrame(0, makeCanvas(W, H));
+    const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+    const at = (x, y) => { const k = (y * W + x) * 4; return { a: d[k + 3], c: hex(d[k], d[k + 1], d[k + 2]) }; };
+    const allowed = new Set(ALLOWED);
+    const used = new Set();
+    let alphaOk = true, palOk = true;
+    for (let k = 0; k < d.length; k += 4) {
+      const a = d[k + 3];
+      if (a !== 0 && a !== 255) alphaOk = false;
+      if (a === 255) { const h = hex(d[k], d[k + 1], d[k + 2]); used.add(h); if (!allowed.has(h)) palOk = false; }
+    }
+    const dark = new Set([C.outline, C.well]);
+    const rectAll = (xa, ya, xb, yb, test) => { for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) if (!test(at(x, y))) return false; return true; };
+    const checks = [];
+    checks.push(['size 240x24', c.width === 240 && c.height === 24]);
+    checks.push(['binary alpha', alphaOk]);
+    checks.push(['palette only (' + used.size + ' used)', palOk]);
+    checks.push(['center x117..122 transparent', rectAll(117, 0, 122, 23, p => p.a === 0)]);
+    checks.push(['x0..1 / x238..239 transparent', rectAll(0, 0, 1, 23, p => p.a === 0) && rectAll(238, 0, 239, 23, p => p.a === 0)]);
+    for (const p of PANELS) {
+      const [wx0, wx1] = p.well, [tx0, tx1] = p.trough;
+      checks.push([p.id + ' name rect dark+blank', rectAll(wx0, 0, wx1, 11, q => q.a === 255 && dark.has(q.c)) && rectAll(wx0, 1, wx1, 11, q => q.c === C.well)]);
+      checks.push([p.id + ' meta rect dark+calm', rectAll(wx0, 19, wx1, 23, q => q.a === 255 && dark.has(q.c)) && rectAll(wx0, 19, wx1, 22, q => q.c === C.well)]);
+      checks.push([p.id + ' trough 102x4 empty dark', (tx1 - tx0 + 1) === 102 && rectAll(tx0, 13, tx1, 16, q => q.a === 255 && q.c === C.outline)]);
+      checks.push([p.id + ' trough bevel ring 1px', rectAll(tx0 - 1, 12, tx1 + 1, 12, q => q.a === 255 && q.c !== C.outline) && rectAll(tx0 - 1, 17, tx1 + 1, 17, q => q.a === 255 && q.c !== C.outline)
+        && rectAll(tx0 - 1, 12, tx0 - 1, 17, q => q.c !== C.outline) && rectAll(tx1 + 1, 12, tx1 + 1, 17, q => q.c !== C.outline)]);
+      checks.push([p.id + ' clipped corners', at(p.x0, 0).a === 0 && at(p.x1, 0).a === 0 && at(p.x0, 23).a === 0 && at(p.x1, 23).a === 0]);
+    }
+    return { checks, used: [...used] };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Preview (separate canvases: export canvas never sees the preview background)
+  // ---------------------------------------------------------------------------
+  const view = document.getElementById('view');
+  const vctx = view.getContext('2d');
+  const spriteCanvas = makeCanvas(W, H);
+  const bgCanvas = makeCanvas(W, H);
+
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+  function drawBg(mode) {
+    const b = bgCanvas.getContext('2d');
+    b.imageSmoothingEnabled = false;
+    b.clearRect(0, 0, W, H);
+    if (mode === 'checker') {
+      for (let y = 0; y < H; y += 4) for (let x = 0; x < W; x += 4) {
+        b.fillStyle = ((x + y) / 4) % 2 ? '#2a2a2a' : '#3a3a3a';
+        b.fillRect(x, y, 4, 4);
+      }
+      return;
+    }
+    const r = rng(mode === 'forest' ? 1337 : 4242);
+    const cols = mode === 'forest'
+      ? ['#1c3a20', '#24502a', '#2f6a30', '#3f8a38', '#5aa844', '#8cd060', '#f0c0e0', '#f8e070']
+      : ['#141820', '#1c2230', '#262e40', '#323c50', '#44506a', '#2a6070', '#58b0c0', '#c880f0'];
+    b.fillStyle = cols[0]; b.fillRect(0, 0, W, H);
+    for (let i = 0; i < 260; i++) {
+      const x = (r() * W) | 0, y = (r() * H) | 0, w = 1 + ((r() * 4) | 0), h = 1 + ((r() * 3) | 0);
+      b.fillStyle = cols[1 + ((r() * 4) | 0)];
+      b.fillRect(x, y, w, h);
+    }
+    for (let i = 0; i < 18; i++) {
+      b.fillStyle = cols[5 + ((r() * 3) | 0)];
+      b.fillRect((r() * W) | 0, (r() * H) | 0, 1, 1);
+    }
+  }
+
+  const state = { frame: 0, playing: true, scale: 4, bg: 'forest', guides: false, acc: 0, last: 0 };
+
+  function drawGuides(s) {
+    vctx.save();
+    vctx.lineWidth = 1;
+    const stroke = (xa, ya, xb, yb, col) => {
+      vctx.strokeStyle = col;
+      vctx.strokeRect(xa * s + 0.5, ya * s + 0.5, (xb - xa + 1) * s - 1, (yb - ya + 1) * s - 1);
+    };
+    for (const p of PANELS) {
+      stroke(p.well[0], 0, p.well[1], 11, 'rgba(248,112,64,.9)');
+      stroke(p.trough[0], 13, p.trough[1], 16, 'rgba(232,192,72,.9)');
+      stroke(p.well[0], 19, p.well[1], 23, 'rgba(64,232,184,.9)');
+    }
+    vctx.restore();
+  }
+
+  function present() {
+    const s = state.scale;
+    if (view.width !== W * s) view.width = W * s;
+    if (view.height !== H * s) view.height = H * s;
+    vctx.imageSmoothingEnabled = false;
+    drawBg(state.bg);
+    renderFrame(state.frame, spriteCanvas);
+    vctx.clearRect(0, 0, view.width, view.height);
+    vctx.drawImage(bgCanvas, 0, 0, W * s, H * s);
+    vctx.drawImage(spriteCanvas, 0, 0, W * s, H * s);
+    if (state.guides) drawGuides(s);
+    document.getElementById('frameLabel').textContent = 'frame ' + (state.frame + 1) + '/' + meta.frameCount;
+  }
+
+  function tick(t) {
+    if (state.playing) {
+      if (!state.last) state.last = t;
+      state.acc += t - state.last;
+      while (state.acc >= meta.frameDurationMs) {
+        state.acc -= meta.frameDurationMs;
+        const next = (state.frame + 1) % meta.frameCount;
+        if (next !== state.frame) { state.frame = next; present(); }
+      }
+    }
+    state.last = t;
+    requestAnimationFrame(tick);
+  }
+
+  function download(name, href) {
+    const a = document.createElement('a');
+    a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  document.getElementById('play').onclick = e => {
+    state.playing = !state.playing; state.acc = 0;
+    e.target.textContent = state.playing ? 'Pause' : 'Play';
+  };
+  document.getElementById('prev').onclick = () => { state.frame = (state.frame - 1 + meta.frameCount) % meta.frameCount; present(); };
+  document.getElementById('next').onclick = () => { state.frame = (state.frame + 1) % meta.frameCount; present(); };
+  document.getElementById('scale').onchange = e => { state.scale = parseInt(e.target.value, 10) || 4; present(); };
+  document.getElementById('bg').onchange = e => { state.bg = e.target.value; present(); };
+  document.getElementById('guides').onchange = e => { state.guides = e.target.checked; present(); };
+  document.getElementById('dlSheet').onclick = () => { const s = exportSheet(); download(s.name, s.dataUrl); };
+  document.getElementById('dlMeta').onclick = () => {
+    const s = exportSheet();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(s.metadata, null, 2)], { type: 'application/json' }));
+    download('arena_hud_sheet.json', url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  document.getElementById('dlFrames').onclick = () => { for (const f of exportFrames()) download(f.name, f.dataUrl); };
+
+  present();
+  if(H===16)document.querySelector('.notes').textContent='Refinement by Codex of the Opus design: 16px panels, minimal bevel, original Emerald names, 102x3 native HP bars. The ROM blends BG0 with the real arena at 12:4; exported pixels remain binary alpha. Bottom strip uses the same palette and native blend.';
+  const v = validate();
+  const status = document.getElementById('status');
+  status.innerHTML = v.checks.map(([label, ok]) => '<span class="' + (ok ? 'pass' : 'fail') + '">' + (ok ? 'PASS' : 'FAIL') + '</span>  ' + label).join('\n')
+    + '\ncolors used: ' + v.used.sort().join(' ');
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

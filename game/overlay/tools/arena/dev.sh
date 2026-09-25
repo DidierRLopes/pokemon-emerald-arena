@@ -7,18 +7,32 @@ cd "$arena_root"
 export LC_ALL=C
 build_background() {
   mkdir -p .arena-dev/art
+  if [[ ! -f .arena-dev/art/space.4bpp || ! -f .arena-dev/art/space.bin || ! -f .arena-dev/art/space.gbapal || ! -f .arena-dev/art/crater.4bpp || tools/arena/pack_toss_pr1.c -nt .arena-dev/art/space.4bpp ]]; then
+    cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_toss_pr1.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-toss-pr1
+    .arena-dev/art/pack-toss-pr1 .arena-dev/art/pr1-actions.4bpp .arena-dev/art/pr1-bolts.4bpp .arena-dev/art/crater.4bpp .arena-dev/art/space.4bpp .arena-dev/art/space.bin .arena-dev/art/space.gbapal
+  fi
   if [[ ! -f .arena-dev/art/props.4bpp || ! -f .arena-dev/art/prop-palettes.gbapal || tools/arena/pack_props.c -nt .arena-dev/art/props.4bpp || graphics/arena/forest-props-sunburst-v1.png -nt .arena-dev/art/props.4bpp ]]; then
     cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_props.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-props
     .arena-dev/art/pack-props graphics/arena/forest-props-sunburst-v1.png .arena-dev/art/props.4bpp .arena-dev/art/pieces.4bpp .arena-dev/art/blast.4bpp .arena-dev/art/prop-palettes.gbapal
   fi
-  if [[ ! -f .arena-dev/art/actions.4bpp || ! -f .arena-dev/art/crater.4bpp || ! -f .arena-dev/art/space.4bpp || tools/arena/pack_move_fx.c -nt .arena-dev/art/actions.4bpp || graphics/arena/cc0/trace_01.png -nt .arena-dev/art/actions.4bpp ]]; then
+  if [[ ! -f .arena-dev/art/actions.4bpp || tools/arena/pack_move_fx.c -nt .arena-dev/art/actions.4bpp || graphics/arena/cc0/trace_01.png -nt .arena-dev/art/actions.4bpp ]]; then
     cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_move_fx.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-move-fx
-    .arena-dev/art/pack-move-fx .arena-dev/art/actions.4bpp .arena-dev/art/bolts.4bpp .arena-dev/art/crater.4bpp .arena-dev/art/space.4bpp .arena-dev/art/space.bin .arena-dev/art/space.gbapal
+    .arena-dev/art/pack-move-fx .arena-dev/art/actions.4bpp .arena-dev/art/bolts.4bpp
   fi
   if [[ ! -f .arena-dev/art/forest.8bpp || graphics/arena/forest-clearing-v2-clean.png -nt .arena-dev/art/forest.8bpp || tools/arena/pack_background.c -nt .arena-dev/art/forest.8bpp ]]; then
     cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_background.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-background
     .arena-dev/art/pack-background graphics/arena/forest-clearing-v2-clean.png .arena-dev/art/forest.8bpp .arena-dev/art/forest.gbapal .arena-dev/art/forest.bin
   fi
+  for biome in coast cave desert gym; do
+    if [[ ! -f .arena-dev/art/$biome-props.4bpp || graphics/arena/props-$biome-v2.png -nt .arena-dev/art/$biome-props.4bpp || tools/arena/pack_props.c -nt .arena-dev/art/$biome-props.4bpp ]]; then
+      cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_props.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-props
+      .arena-dev/art/pack-props graphics/arena/props-$biome-v2.png .arena-dev/art/$biome-props.4bpp .arena-dev/art/$biome-pieces.4bpp .arena-dev/art/$biome-blast.4bpp .arena-dev/art/$biome-prop-palettes.gbapal
+    fi
+    if [[ ! -f .arena-dev/art/$biome.8bpp || graphics/arena/biome-$biome-v1.png -nt .arena-dev/art/$biome.8bpp || tools/arena/pack_background.c -nt .arena-dev/art/$biome.8bpp ]]; then
+      cc -std=c11 -O2 -Wall -Wextra -Werror -I/opt/homebrew/include tools/arena/pack_background.c -L/opt/homebrew/lib -lpng -o .arena-dev/art/pack-background
+      .arena-dev/art/pack-background graphics/arena/biome-$biome-v1.png .arena-dev/art/$biome.8bpp .arena-dev/art/$biome.gbapal .arena-dev/art/$biome.bin
+    fi
+  done
 }
 case "${1:-help}" in
   assets)

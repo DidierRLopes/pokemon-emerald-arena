@@ -1,0 +1,18 @@
+{
+  "game/overlay/graphics/arena/psychic/aura.4bpp": "93c14af0bb52a80aadb6742e27e5f501d40b616da7d0f1b152d06402d9b4945b",
+  "game/overlay/graphics/arena/psychic/halo.4bpp": "02fffaf06b8048fe783500b3591704e244cd64403a6b53ecd187baa3c52cf628",
+  "game/overlay/graphics/arena/psychic/hud.4bpp": "04ef35ea01367af39188b6ea09fe0a49fcae127b2b8bf165b6c2095ab8403dc0",
+  "game/overlay/graphics/arena/psychic/impact.4bpp": "cf708aaddbf3535905cc5d1aa87e79d9b7a67ad2038abf3b54d0c7e976b7d50c",
+  "game/overlay/graphics/arena/psychic/palette.gbapal": "b3b212005944a61bc98552c7e602afd1c5447e09e1bdf591174cff58837d6446",
+  "game/overlay/graphics/arena/sendout/burst.4bpp": "2af09290b1c3048b27267c9d43aeb6f6b404e62892d1cd8acad93147afa9c1ae",
+  "game/overlay/graphics/arena/sendout/palette.gbapal": "a27cfa0e01651791ce171c798a0ad305d0ed4824742463549a64e1a724ad777e",
+  "game/overlay/graphics/arena/elements/palette.gbapal": "9542c8d9ffa2add510c9c1508a4edbd608ca3333639392f6c8d38480e3d91c15",
+  "game/overlay/graphics/arena/elements/pools.4bpp": "e924dc375b3cd34878a766aabf441b16c4e2369d4674cf0ad2994ff8ffe5bf6f",
+  "game/overlay/graphics/arena/elements/shatter.4bpp": "7cd76b5ce0e4d5493c26e86016d406a2f9b45b7d5bac53e31d6c497befb89183",
+  "game/overlay/graphics/arena/flame/palette.gbapal": "55a39572120f7fac4f3010cca635f0c9d9d704d5fd4077b0ca5f9efe32966ed9",
+  "game/overlay/graphics/arena/flame/plume.4bpp": "14537db13eacdeeec79ad5c45dc04f5656e14b6f56c994602342c99d64685292",
+  "game/overlay/graphics/arena/double-team/effect.4bpp": "853bcbb914ed7e50dc89bfe4966d0608b421df9d0d5d5480aca565e9eb6ec0aa",
+  "game/overlay/graphics/arena/double-team/palette.gbapal": "96da0f6790f33a0301ee3e80de46e38a618e44791836464147b44b64830a3ceb",
+  "game/overlay/graphics/arena/warp-toss/effect.4bpp": "252e79823bc8a438a7595d48582645b2cfc16150a7783622337bf0b0384c090b",
+  "game/overlay/graphics/arena/dig-fly/effect.4bpp": "7d00fa20d637d6e93ae74838c8aca1936205b6c3e9b37b26ee36a232a4593afa"
+}

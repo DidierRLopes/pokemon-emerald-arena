@@ -53,6 +53,9 @@ static void import(const char*path)
         if(!n||n>(x1-x0)*(y1-y0)*9/10)die("Missing sprite or opaque background in atlas cell");
         w=right-left+1;h=bottom-top+1;dw=widths[i]+4;dh=heights[i]+9;
         if(dw>31)dw=31;if(dh>31)dh=31;
+        // Tall biome props must fit above the common ground-contact baseline.
+        // Otherwise unsigned ty underflows and writes before the frame buffer.
+        if(dh>16+(unsigned)heights[i]/2+1)dh=16+(unsigned)heights[i]/2+1;
         if(s==2)dh=9; // remnants are low, visibly traversable rubble
         if(dw*h>dh*w)dw=dh*w/h;else dh=dw*h/w;
         if(!dw)dw=1;if(!dh)dh=1;
@@ -61,6 +64,7 @@ static void import(const char*path)
         {
             unsigned sx=left+(x*2+1)*w/(dw*2),sy=top+(y*2+1)*h/(dh*2);
             const unsigned char*p=rgba+(sy*im.width+sx)*4;
+            if(ty+y>=32 || tx+x>=32)die("Prop exceeds native frame bounds");
             if(p[3]>=128)pixels[i][s][(ty+y)*32+tx+x]=(p[0]>>3)|((p[1]>>3)<<5)|((p[2]>>3)<<10);
         }
     }
@@ -115,11 +119,23 @@ int main(int argc,char**argv)
     f=fopen(argv[3],"wb");if(!f)return 2;
     for(k=0;k<5;k++)for(p=0;p<4;p++)
     {
+        unsigned hi=3,lo=3,mid=3,j;int brightest=-1,darkest=9999;
+        for(j=3;j<16;j++)
+        {
+            unsigned c=palettes[k][j];int lum=(c&31)*2+((c>>5)&31)*3+(c>>10);
+            if(lum>brightest){brightest=lum;hi=j;}
+            if(lum<darkest){darkest=lum;lo=j;}
+        }
+        {int best=9999;for(j=3;j<16;j++)
+        {unsigned c=palettes[k][j];int lum=(c&31)*2+((c>>5)&31)*3+(c>>10);int d=abs(lum-(brightest*2+darkest)/3);if(d<best){best=d;mid=j;}}}
         memset(tile,0,sizeof(tile));
         for(y=0;y<8;y++)for(x=0;x<8;x++)
         {
             int a=x-3,b=y-3,rot=p&1?a:b,cross=p&1?b:a;unsigned c=0;
-            if(k==0&&a*a+b*b<9)c=a<0?5:3;
+            // Faceted, rotating chips use this biome's actual rock colours,
+            // not arbitrary palette indices which could both quantize black.
+            if(k==0&&abs(rot)+abs(cross)<4&&cross<2&&rot>-3)
+                c=cross<0?hi:rot<1?mid:lo;
             if(k==1&&abs(cross)<1&&abs(rot)<4)c=rot<0?9:6;
             if(k==2&&abs(rot+cross/2)<2&&abs(cross)<3)c=rot<0?10:8;
             if(k==3&&abs(rot)*2+abs(cross)<5)c=rot<0?12:11;

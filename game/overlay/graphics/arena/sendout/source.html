@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poké Ball Send-Out Burst · 64×64 GBA effect sprite</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --z: 6; --bg: #12131c; --panel: #1b1d2a; --line: #2e3145; --text: #dfe6f5; --dim: #8a93ad; --accent: #60d8f0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0; font-size: 16px; letter-spacing: .5px; }
+  h2 { margin: 0 0 8px; font-size: 13px; color: var(--dim); font-weight: normal; text-transform: uppercase; letter-spacing: 1px; }
+  header p { margin: 4px 0 0; color: var(--dim); }
+  main { display: flex; flex-wrap: wrap; gap: 18px; padding: 10px 20px; align-items: flex-start; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; }
+  .view { position: relative; width: calc(64px * var(--z)); height: calc(64px * var(--z)); outline: 1px solid var(--line); }
+  .view canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  button, select { background: #262a3d; color: var(--text); border: 1px solid #3a3f5a; border-radius: 4px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  button.primary { background: #1e3b4a; border-color: #2f6f86; }
+  input[type=range] { width: calc(64px * var(--z)); margin-top: 10px; accent-color: var(--accent); }
+  label { color: var(--dim); display: inline-flex; gap: 4px; align-items: center; }
+  #status { margin-top: 6px; color: var(--accent); }
+  .side { min-width: 300px; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; }
+  .sw i { width: 14px; height: 14px; display: inline-block; border: 1px solid #000; }
+  .sw small { color: var(--dim); }
+  ul.checks { list-style: none; margin: 0; padding: 0; }
+  ul.checks li { padding: 2px 0; }
+  .ok { color: #8fe3a0; } .bad { color: #ff8a8a; } .pending { color: var(--dim); }
+  .dl { display: flex; flex-direction: column; gap: 6px; }
+  section.strip { padding: 4px 20px 24px; }
+  #strip { display: flex; flex-wrap: wrap; gap: 8px; }
+  .thumb { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; }
+  .thumb canvas { width: 128px; height: 128px; image-rendering: pixelated; image-rendering: crisp-edges; border: 1px solid var(--line); background-size: 8px 8px; }
+  .thumb.cur canvas { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .thumb span { color: var(--dim); font-size: 11px; }
+  .thumb.cur span { color: var(--accent); }
+  kbd { background: #262a3d; border: 1px solid #3a3f5a; border-radius: 3px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Poké Ball send-out burst — transparent effect sprite</h1>
+  <p>64×64 · 24 frames · 50 ms/frame · pivot 32,32 · 7 colors + transparent (GBA 4bpp, one shared palette)</p>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="view" id="view">
+      <canvas id="bg" width="64" height="64"></canvas>
+      <canvas id="pv" width="64" height="64"></canvas>
+      <canvas id="ov" width="384" height="384"></canvas>
+    </div>
+    <input type="range" id="scrub" min="0" max="23" step="1" value="0">
+    <div class="controls">
+      <button id="prev" title="Previous frame (←)">◀ Prev</button>
+      <button id="play" class="primary" title="Play / pause (Space)">❚❚ Pause</button>
+      <button id="next" title="Next frame (→)">Next ▶</button>
+      <select id="speed" title="Preview speed">
+        <option value="1">1×</option>
+        <option value="0.5">0.5×</option>
+        <option value="0.25">0.25×</option>
+      </select>
+      <select id="zoom" title="Zoom">
+        <option value="4">4×</option>
+        <option value="6" selected>6×</option>
+        <option value="8">8×</option>
+      </select>
+    </div>
+    <div class="controls">
+      <label>Checker
+        <select id="checker">
+          <option value="dark">dark</option>
+          <option value="mid">mid</option>
+          <option value="light">light</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="pivot"> pivot</label>
+      <label><input type="checkbox" id="gap" checked> hold 400 ms between loops</label>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h2>Palette (index · hex · GBA BGR555)</h2>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="panel">
+      <h2>Export</h2>
+      <div class="dl">
+        <button id="dlSheet" class="primary">Download spritesheet PNG (1536×64)</button>
+        <button id="dlMeta">Download metadata JSON</button>
+        <button id="dlFrames">Download 24 frame PNGs</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Checks</h2>
+      <ul class="checks" id="checks"><li class="pending">running…</li></ul>
+    </div>
+    <div class="panel" style="color:var(--dim)">
+      <kbd>Space</kbd> play/pause · <kbd>←</kbd>/<kbd>→</kbd> step · click a thumbnail to jump.<br>
+      Phases: 0–3 anticipation · 4–8 bloom (peak 7) · 9–15 shockwave · 16–23 dust.
+    </div>
+  </div>
+</main>
+
+<section class="strip">
+  <h2>Frames</h2>
+  <div id="strip"></div>
+</section>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Constants & palette
+  // ---------------------------------------------------------------------------
+  const W = 64, H = 64, N = 24, MS = 50, CX = 32, CY = 32;
+  const WHITE = 1, ICE = 2, CYAN = 3, BLUE = 4, PGOLD = 5, GOLD = 6, DUST = 7;
+  const HEX = [null, '#ffffff', '#c8f8ff', '#60d8f0', '#3878c8', '#fff0a0', '#e8b858', '#b8a888'];
+  const NAMES = ['transparent', 'white', 'ice', 'cyan', 'blue', 'pale gold', 'gold', 'dust'];
+  const RGB = HEX.map(h => h ? [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)] : null);
+  const RAMP = [WHITE, ICE, CYAN, BLUE]; // hot -> cool energy ramp
+  const PHASES = [
+    { name: 'anticipation', from: 0, to: 3 },
+    { name: 'bloom', from: 4, to: 8 },
+    { name: 'shockwave', from: 9, to: 15 },
+    { name: 'dust', from: 16, to: 23 }
+  ];
+  const phaseOf = i => PHASES.find(p => i >= p.from && i <= p.to).name;
+  const frameName = i => 'sendout_burst_' + String(i).padStart(2, '0') + '.png';
+  const SHEET_NAME = 'sendout_burst_sheet.png';
+
+  function gba555(rgb) {
+    const v = (rgb[0] >> 3) | ((rgb[1] >> 3) << 5) | ((rgb[2] >> 3) << 10);
+    return '0x' + v.toString(16).toUpperCase().padStart(4, '0');
+  }
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Indexed pixel buffer primitives (integer coordinates, clipped to canvas)
+  // ---------------------------------------------------------------------------
+  function put(b, x, y, c) {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    b[y * W + x] = c;
+  }
+  function under(b, x, y, c) {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    if (!b[y * W + x]) b[y * W + x] = c;
+  }
+  function line(b, x0, y0, x1, y1, colorAt, useUnder) {
+    const f = useUnder ? under : put;
+    let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      const c = colorAt(x0, y0);
+      if (c) f(b, x0, y0, c);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  function disc(b, cx, cy, r, c) {
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (dx * dx + dy * dy <= r * r + r * 0.8) put(b, cx + dx, cy + dy, c);
+  }
+  // Four-point sparkle: 1 = speck, 2 = small cross, 3 = gold-tipped, 4 = hot white center
+  function sparkle(b, x, y, size) {
+    x = Math.round(x); y = Math.round(y);
+    if (size <= 0) return;
+    if (size === 1) { put(b, x, y, PGOLD); return; }
+    const arms = size === 2 ? [PGOLD] : size === 3 ? [PGOLD, GOLD] : [WHITE, PGOLD, GOLD];
+    for (let i = 0; i < arms.length; i++) {
+      const d = i + 1, c = arms[i];
+      put(b, x + d, y, c); put(b, x - d, y, c); put(b, x, y + d, c); put(b, x, y - d, c);
+    }
+    put(b, x, y, WHITE);
+  }
+  const clampL = l => l < 0 ? 0 : l > 3 ? 3 : l;
+
+  // ---------------------------------------------------------------------------
+  // Shapes
+  // ---------------------------------------------------------------------------
+  // Clean radius-6 circle (hand-picked octant, mirrored) for the opening ball rim
+  const C6 = (function () {
+    const oct = [[0, 6], [1, 6], [2, 6], [3, 5], [4, 5]], seen = new Set(), pts = [];
+    for (const [p, q] of oct) for (const [x, y] of [[p, q], [q, p]])
+      for (const sx of [1, -1]) for (const sy of [1, -1]) {
+        const px = x * sx || 0, py = y * sy || 0, k = px + ',' + py;
+        if (!seen.has(k)) { seen.add(k); pts.push([px, py]); }
+      }
+    return pts;
+  })();
+  const SPECULAR = new Set(['-3,-5', '-4,-5', '-5,-4']);
+
+  function ballRim(b, s, mode) {
+    for (const [dx, dy] of C6) {
+      if (dy === 0) continue;
+      if (mode === 'dotted' && ((dx + dy) & 1)) continue;
+      let c;
+      if (mode === 'closed') c = SPECULAR.has(dx + ',' + dy) ? ICE : BLUE;
+      else if (mode === 'open') c = SPECULAR.has(dx + ',' + dy) || Math.abs(dy) <= 2 ? ICE : BLUE;
+      else c = Math.abs(dy) <= 2 ? CYAN : BLUE;
+      put(b, CX + dx, CY + dy + (dy < 0 ? -s : s), c);
+    }
+  }
+
+  // Energy petals: 4 long cardinal lenses + 4 short diagonal lenses
+  const S2 = Math.SQRT1_2;
+  const PETALS = [
+    [1, 0], [0, 1], [-1, 0], [0, -1]
+  ].map(u => ({ u, long: true })).concat(
+    [[S2, S2], [-S2, S2], [-S2, -S2], [S2, -S2]].map(u => ({ u, long: false }))
+  );
+  function petals(b, o) {
+    const lim = Math.ceil(o.R) + 1;
+    for (let y = CY - lim; y <= CY + lim; y++) {
+      for (let x = CX - lim; x <= CX + lim; x++) {
+        const dx = x - CX, dy = y - CY;
+        if (Math.hypot(dx, dy) < o.inner) continue;
+        for (const p of PETALS) {
+          const R = p.long ? o.R : o.R * 0.6;
+          const along = dx * p.u[0] + dy * p.u[1];
+          if (along <= 0 || along > R) continue;
+          const perp = Math.abs(dy * p.u[0] - dx * p.u[1]);
+          const t = along / R;
+          const hw = 0.22 * R * Math.pow(Math.sin(Math.PI * t), 0.75) + 0.3;
+          if (perp > hw) continue;
+          const edge = hw - perp;
+          let c = 0;
+          if (o.hollow) {
+            if (edge < 1) c = t < 0.5 ? BLUE : t < 0.82 ? CYAN : ICE;
+          } else if (edge < 1) {
+            c = RAMP[clampL((t < 0.55 ? 2 : 3) - o.heat)];
+          } else {
+            let l = t < 0.35 ? 0 : t < 0.62 ? 1 : 2;
+            if (perp < 0.6 && t < 0.85) l--; // bright spine
+            c = RAMP[clampL(l - o.heat)];
+          }
+          if (c) put(b, x, y, c);
+          break;
+        }
+      }
+    }
+  }
+
+  // Branching rays on clean 2:1 pixel slopes, placed in the gaps between petals
+  const RAYS = [[2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2], [1, -2], [2, -1]];
+  const levelRho = rho => rho < 0.3 ? 0 : rho < 0.58 ? 1 : rho < 0.86 ? 2 : 3;
+  function rays(b, o) {
+    const col = (x, y) => RAMP[clampL(levelRho(Math.hypot(x - CX, y - CY) / 29) - o.heat)];
+    for (const d of RAYS) {
+      line(b, CX + d[0] * o.n0, CY + d[1] * o.n0, CX + d[0] * o.n1, CY + d[1] * o.n1, col, true);
+      if (o.br) {
+        const [m, len] = o.br;
+        const bd = Math.abs(d[0]) > Math.abs(d[1]) ? [Math.sign(d[0]), 0] : [0, Math.sign(d[1])];
+        const px = CX + d[0] * m, py = CY + d[1] * m;
+        line(b, px, py, px + bd[0] * len, py + bd[1] * len, col, true);
+      }
+      if (o.tick) {
+        const [m, len] = o.tick;
+        const td = [Math.sign(d[0]), Math.sign(d[1])];
+        const px = CX + d[0] * m, py = CY + d[1] * m;
+        line(b, px, py, px + td[0] * len, py + td[1] * len, col, true);
+      }
+    }
+  }
+
+  // Segmented ellipse shockwave (scanline test between nested ellipses)
+  function inE(dx, dy, ax, by) {
+    if (ax <= 0 || by <= 0) return false;
+    return (dx / ax) * (dx / ax) + (dy / by) * (dy / by) <= 1;
+  }
+  function ellipseRing(b, a, bb, thick, gap, segs, phase, colorOf) {
+    const lx = Math.ceil(a) + 1, ly = Math.ceil(bb) + 1;
+    for (let y = CY - ly; y <= CY + ly; y++) {
+      for (let x = CX - lx; x <= CX + lx; x++) {
+        const dx = x - CX, dy = y - CY;
+        if (!inE(dx, dy, a + 0.5, bb + 0.5)) continue;
+        let layer = -1;
+        for (let k = 1; k <= thick; k++) {
+          if (!inE(dx, dy, a - k + 0.5, bb - k + 0.5)) { layer = k - 1; break; }
+        }
+        if (layer < 0) continue;
+        if (gap > 0) {
+          const u = ((Math.atan2(dy / bb, dx / a) / (Math.PI * 2)) + 1 + phase) % 1;
+          if ((u * segs) % 1 < gap) continue;
+        }
+        const c = colorOf(layer, dy);
+        if (c) put(b, x, y, c);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Seeded, precomputed particles (independent of render order)
+  // ---------------------------------------------------------------------------
+  const rng = mulberry32(0x5E0D07);
+
+  const SPARKS = [];
+  for (let i = 0; i < 12; i++) {
+    const a = (i * 30 + 15 + (rng() - 0.5) * 14) * Math.PI / 180;
+    const rad = 13 + rng() * 12;
+    SPARKS.push({
+      x: Math.round(CX + Math.cos(a) * rad),
+      y: Math.round(CY + Math.sin(a) * rad * 0.74),
+      peak: rng() < 0.4 ? 4 : 3,
+      born: 8 + ((i * 5) % 7),
+      dir: Math.cos(a) >= 0 ? 1 : -1
+    });
+  }
+
+  const WISPS = [];
+  for (let i = 0; i < 14; i++) {
+    const ang = (i + 0.5) / 14 * Math.PI * 2 + (rng() - 0.5) * 0.25;
+    const ra = 15 + rng() * 10;
+    WISPS.push({
+      ang, ra, rb: ra * 0.44,
+      born: 13 + Math.floor(rng() * 4),
+      die: 19 + Math.floor(rng() * 4),
+      side: i % 2 ? 1 : -1,
+      len: 3 + Math.floor(rng() * 2)
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Choreography
+  // ---------------------------------------------------------------------------
+  function anticipation(b, f) {
+    // converging charge motes
+    const moteR = [22, 15, 9];
+    if (f <= 2) {
+      for (let i = 0; i < 8; i++) {
+        const a = (i + 0.5) * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a);
+        const hx = CX + ux * moteR[f], hy = CY + uy * moteR[f];
+        if (f === 1) put(b, hx + ux, hy + uy, BLUE);
+        if (f === 2) { put(b, hx + ux * 2, hy + uy * 2, BLUE); put(b, hx + ux, hy + uy, CYAN); }
+        put(b, hx, hy, f === 0 ? CYAN : f === 1 ? CYAN : ICE);
+      }
+    }
+    if (f === 0) {
+      ballRim(b, 0, 'closed');
+      for (let dx = -6; dx <= 6; dx++) {
+        const a = Math.abs(dx);
+        put(b, CX + dx, CY, a <= 3 ? WHITE : a <= 5 ? ICE : CYAN);
+      }
+    } else if (f === 1) {
+      ballRim(b, 2, 'open');
+      for (let dx = -12; dx <= 12; dx++) {
+        const a = Math.abs(dx);
+        put(b, CX + dx, CY, a <= 8 ? WHITE : a <= 10 ? ICE : CYAN);
+      }
+      for (let dx = -6; dx <= 6; dx++) {
+        const c = Math.abs(dx) <= 4 ? WHITE : ICE;
+        put(b, CX + dx, CY - 1, c); put(b, CX + dx, CY + 1, c);
+      }
+      for (let dx = -2; dx <= 2; dx++) { put(b, CX + dx, CY - 2, ICE); put(b, CX + dx, CY + 2, ICE); }
+    } else if (f === 2) {
+      ballRim(b, 5, 'dotted');
+      for (let dx = -14; dx <= 14; dx++) {
+        const a = Math.abs(dx);
+        put(b, CX + dx, CY, a <= 6 ? WHITE : a <= 10 ? ICE : a <= 12 ? CYAN : BLUE);
+      }
+      for (let dx = -4; dx <= 4; dx++) {
+        const c = Math.abs(dx) <= 2 ? WHITE : ICE;
+        put(b, CX + dx, CY - 1, c); put(b, CX + dx, CY + 1, c);
+      }
+      const v = [null, null, WHITE, ICE, CYAN];
+      for (let k = 2; k <= 4; k++) { put(b, CX, CY - k, v[k]); put(b, CX, CY + k, v[k]); }
+    } else {
+      // f === 3: compressed, vertical pinch just before the pop
+      disc(b, CX, CY, 3, ICE);
+      disc(b, CX, CY, 2, WHITE);
+      for (let k = 4; k <= 8; k++) {
+        const c = k <= 5 ? ICE : k <= 7 ? CYAN : BLUE;
+        put(b, CX, CY - k, c); put(b, CX, CY + k, c);
+      }
+      for (let k = 4; k <= 6; k++) {
+        const c = k <= 5 ? ICE : CYAN;
+        put(b, CX - k, CY, c); put(b, CX + k, CY, c);
+      }
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) put(b, CX + sx * 4, CY + sy * 4, PGOLD);
+    }
+  }
+
+  const BLOOM = {
+    4: { R: 9, heat: 1, n0: 2, n1: 5, core: 4 },
+    5: { R: 14, heat: 1, n0: 2, n1: 8, br: [5, 3], core: 5 },
+    6: { R: 18, heat: 0, n0: 2, n1: 11, br: [6, 5], core: 5, diag: [11, 3] },
+    7: { R: 22, heat: 0, n0: 2, n1: 13, br: [7, 7], tick: [10, 3], core: 6, diag: [14, 4], tips: [26, 2] },
+    8: { R: 23, heat: 0, n0: 8, n1: 13, br: [9, 5], core: 4, diag: [17, 3], hollow: true, inner: 7 }
+  };
+  function bloom(b, f) {
+    const c = BLOOM[f];
+    petals(b, { R: c.R, heat: c.heat, hollow: !!c.hollow, inner: c.inner || 0 });
+    rays(b, c);
+    disc(b, CX, CY, c.core + 1, ICE);
+    disc(b, CX, CY, c.core, WHITE);
+    if (c.diag) {
+      const [d, s] = c.diag;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) sparkle(b, CX + sx * d, CY + sy * d, s);
+    }
+    if (c.tips) {
+      const [d, s] = c.tips;
+      sparkle(b, CX + d, CY, s); sparkle(b, CX - d, CY, s);
+      sparkle(b, CX, CY + d, s); sparkle(b, CX, CY - d, s);
+    }
+  }
+
+  function shock(b, f) {
+    const i = f - 9;
+    const A = [12, 17, 21, 24, 27, 29, 30][i];
+    const thick = [3, 2, 2, 1, 1, 1, 1][i];
+    const gap = [0, 0.12, 0.22, 0.32, 0.45, 0.58, 0.72][i];
+    const L = [0, 0, 1, 1, 2, 2, 3][i];
+    const B = Math.round(A * 0.42);
+    // front half (dy >= 0) brighter than the back half: reads as a ring in depth
+    ellipseRing(b, A, B, thick, gap, 16, f * 0.012,
+      (layer, dy) => RAMP[Math.min(3, L + layer + (dy < 0 ? 1 : 0))]);
+
+    if (f >= 10 && f <= 12) {
+      const a = [10, 13, 15][f - 10];
+      ellipseRing(b, a, Math.round(a * 0.42), 1, 0.5, 12, -f * 0.015,
+        (layer, dy) => dy < 0 ? GOLD : (f < 12 ? PGOLD : GOLD));
+    }
+
+    if (f === 9) { disc(b, CX, CY, 4, ICE); disc(b, CX, CY, 3, WHITE); }
+    else if (f === 10) { disc(b, CX, CY, 3, ICE); disc(b, CX, CY, 2, WHITE); }
+    else if (f === 11) { disc(b, CX, CY, 2, ICE); disc(b, CX, CY, 1, WHITE); }
+    else if (f === 12) { disc(b, CX, CY, 1, ICE); put(b, CX, CY, WHITE); }
+    else if (f === 13) { put(b, CX, CY, ICE); }
+
+    if (f === 9) rays(b, { n0: 12, n1: 13, heat: 0 });
+  }
+
+  function dust(b, f) {
+    for (const w of WISPS) {
+      if (f < w.born || f > w.die) continue;
+      const age = f - w.born, life = w.die - w.born;
+      const ca = Math.cos(w.ang), sa = Math.sin(w.ang);
+      const hx = CX + ca * (w.ra + age * 0.5);
+      const hy = CY + sa * (w.rb + age * 0.3) - age * 0.55;
+      let vx = ca * 0.5, vy = sa * 0.3 - 0.55;
+      const vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;
+      const px = -vy * w.side, py = vx * w.side;
+      const L = age === life ? 1 : Math.max(1, Math.round(w.len * (1 - age / (life + 1))));
+      for (let k = 0; k < L; k++) {
+        let c = DUST;
+        if (k === 0 && age <= 1) c = PGOLD;
+        else if (k === 1 && age === 0) c = ICE;
+        under(b, hx - vx * k + px * k * k * 0.22, hy - vy * k + py * k * k * 0.22, c);
+      }
+    }
+    if (f === 16 || f === 17) {
+      const step = f === 16 ? 2 : 4;
+      for (let k = 0; k < 20; k += step) {
+        const a = (k / 20 + f * 0.012) * Math.PI * 2;
+        under(b, CX + Math.cos(a) * 30, CY + Math.sin(a) * 13 - (f - 15), DUST);
+      }
+    }
+  }
+
+  function sparkField(b, f) {
+    for (const s of SPARKS) {
+      const age = f - s.born;
+      if (age < 0 || age > 5) continue;
+      const size = [1, 2, s.peak, s.peak - 1, 2, 1][age];
+      sparkle(b, s.x + Math.round(s.dir * age * 0.4), s.y - Math.floor(age / 2), size);
+    }
+  }
+
+  function buildFrame(f) {
+    const b = new Uint8Array(W * H);
+    if (f <= 3) anticipation(b, f);
+    else if (f <= 8) bloom(b, f);
+    else if (f <= 15) shock(b, f);
+    dust(b, f);
+    sparkField(b, f);
+    return b;
+  }
+
+  const CACHE = [];
+  function getFrame(i) {
+    i = ((Math.floor(i) % N) + N) % N;
+    return CACHE[i] || (CACHE[i] = buildFrame(i));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Canvas output
+  // ---------------------------------------------------------------------------
+  function toImageData(ctx, buf) {
+    const img = ctx.createImageData(W, H), d = img.data;
+    for (let i = 0; i < W * H; i++) {
+      const c = buf[i];
+      if (!c) continue;
+      const p = RGB[c];
+      d[i * 4] = p[0]; d[i * 4 + 1] = p[1]; d[i * 4 + 2] = p[2]; d[i * 4 + 3] = 255;
+    }
+    return img;
+  }
+
+  function renderFrame(index, canvas) {
+    canvas = canvas || document.createElement('canvas');
+    if (canvas.width !== W) canvas.width = W;
+    if (canvas.height !== H) canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.putImageData(toImageData(ctx, getFrame(index)), 0, 0);
+    return canvas;
+  }
+
+  function exportFrames() {
+    const out = [];
+    for (let i = 0; i < N; i++) {
+      const c = document.createElement('canvas');
+      renderFrame(i, c);
+      out.push({ name: frameName(i), dataUrl: c.toDataURL('image/png') });
+    }
+    return out;
+  }
+
+  function buildMetadata() {
+    return {
+      image: SHEET_NAME,
+      kind: 'sprite',
+      size: { w: W * N, h: H },
+      frameWidth: W, frameHeight: H,
+      frameCount: N, frameDurationMs: MS,
+      loop: false,
+      pivot: { x: CX, y: CY },
+      phases: PHASES.map(p => ({ ...p })),
+      peakFrame: 7,
+      palette: HEX.map((h, i) => i === 0
+        ? { index: 0, name: 'transparent', transparent: true }
+        : { index: i, name: NAMES[i], hex: h, gbaBGR555: gba555(RGB[i]) }),
+      gba: { bpp: 4, objSize: '64x64', tilesPerFrame: 64, bytesPerFrame: 2048, paletteSlotsUsed: 8 },
+      frames: Array.from({ length: N }, (_, i) => ({
+        index: i, name: frameName(i),
+        x: i * W, y: 0, w: W, h: H,
+        durationMs: MS,
+        pivot: { x: CX, y: CY },
+        phase: phaseOf(i)
+      }))
+    };
+  }
+
+  function exportSheet() {
+    const c = document.createElement('canvas');
+    c.width = W * N; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < N; i++) ctx.putImageData(toImageData(ctx, getFrame(i)), i * W, 0);
+    return { name: SHEET_NAME, dataUrl: c.toDataURL('image/png'), metadata: buildMetadata() };
+  }
+
+  window.pixelArt = {
+    meta: { width: W, height: H, frameCount: N, frameDurationMs: MS, kind: 'sprite', pivot: { x: CX, y: CY } },
+    palette: HEX.slice(1),
+    renderFrame,
+    exportFrames,
+    exportSheet
+  };
+
+  // ---------------------------------------------------------------------------
+  // Preview UI
+  // ---------------------------------------------------------------------------
+  const $ = id => document.getElementById(id);
+  const pv = $('pv'), bg = $('bg'), ov = $('ov'), view = $('view');
+  const CHECKERS = { dark: ['#23243a', '#2d2f49'], mid: ['#6a6d80', '#7a7d92'], light: ['#d4d6de', '#f2f3f7'] };
+  let zoom = 6, cur = 0, playing = true, acc = 0, last = performance.now(), speed = 1;
+
+  function checkerTile(pair) {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 4;
+    const x = c.getContext('2d');
+    x.fillStyle = pair[0]; x.fillRect(0, 0, 4, 4);
+    x.fillStyle = pair[1]; x.fillRect(0, 0, 2, 2); x.fillRect(2, 2, 2, 2);
+    return c.toDataURL('image/png');
+  }
+  function drawChecker() {
+    const pair = CHECKERS[$('checker').value];
+    const x = bg.getContext('2d');
+    for (let y = 0; y < H; y += 2) for (let xx = 0; xx < W; xx += 2) {
+      x.fillStyle = pair[((xx + y) / 2) & 1];
+      x.fillRect(xx, y, 2, 2);
+    }
+    const url = checkerTile(pair);
+    document.querySelectorAll('.thumb canvas').forEach(c => c.style.backgroundImage = 'url(' + url + ')');
+  }
+  function drawOverlay() {
+    const s = W * zoom;
+    ov.width = s; ov.height = s;
+    const x = ov.getContext('2d');
+    x.clearRect(0, 0, s, s);
+    if (!$('pivot').checked) return;
+    x.strokeStyle = 'rgba(255,79,216,.55)'; x.lineWidth = 1;
+    x.beginPath();
+    x.moveTo(0, CY * zoom + zoom / 2 + 0.5); x.lineTo(s, CY * zoom + zoom / 2 + 0.5);
+    x.moveTo(CX * zoom + zoom / 2 + 0.5, 0); x.lineTo(CX * zoom + zoom / 2 + 0.5, s);
+    x.stroke();
+    x.strokeStyle = '#ff4fd8';
+    x.strokeRect(CX * zoom + 0.5, CY * zoom + 0.5, zoom - 1, zoom - 1);
+  }
+  function setZoom(z) {
+    zoom = z;
+    document.documentElement.style.setProperty('--z', z);
+    drawOverlay();
+  }
+
+  const thumbs = [];
+  function buildStrip() {
+    const strip = $('strip');
+    for (let i = 0; i < N; i++) {
+      const d = document.createElement('div');
+      d.className = 'thumb';
+      const c = document.createElement('canvas');
+      renderFrame(i, c);
+      const s = document.createElement('span');
+      s.textContent = String(i).padStart(2, '0') + ' ' + phaseOf(i);
+      d.appendChild(c); d.appendChild(s);
+      d.addEventListener('click', () => { setPlaying(false); show(i); });
+      strip.appendChild(d);
+      thumbs.push(d);
+    }
+  }
+
+  function show(i) {
+    cur = ((i % N) + N) % N;
+    renderFrame(cur, pv);
+    $('scrub').value = cur;
+    $('status').textContent = 'Frame ' + String(cur).padStart(2, '0') + ' / ' + (N - 1) +
+      ' · ' + phaseOf(cur) + ' · t = ' + (cur * MS) + ' ms' + (cur === 7 ? ' · PEAK' : '');
+    thumbs.forEach((t, k) => t.classList.toggle('cur', k === cur));
+  }
+  function setPlaying(p) {
+    playing = p; acc = 0;
+    $('play').textContent = p ? '❚❚ Pause' : '▶ Play';
+  }
+
+  function tick(now) {
+    const dt = Math.min(250, now - last);
+    last = now;
+    if (playing) {
+      acc += dt * speed;
+      let need = MS + (cur === N - 1 && $('gap').checked ? 400 : 0);
+      let next = cur;
+      while (acc >= need) {
+        acc -= need;
+        next = (next + 1) % N;
+        need = MS + (next === N - 1 && $('gap').checked ? 400 : 0);
+      }
+      if (next !== cur) show(next);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function download(name, url) {
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  function buildSwatches() {
+    const box = $('swatches');
+    for (let i = 1; i < HEX.length; i++) {
+      const s = document.createElement('div');
+      s.className = 'sw';
+      s.innerHTML = '<i style="background:' + HEX[i] + '"></i>' + i + ' ' + HEX[i] + ' <small>' + gba555(RGB[i]) + '</small>';
+      box.appendChild(s);
+    }
+  }
+
+  function runChecks() {
+    const list = $('checks');
+    const items = [];
+    const add = (ok, text) => items.push('<li class="' + (ok ? 'ok' : 'bad') + '">' + (ok ? '✓ ' : '✗ ') + text + '</li>');
+    let minX = W, minY = H, maxX = -1, maxY = -1, maxPx = 0, maxF = -1;
+    const used = new Set();
+    for (let f = 0; f < N; f++) {
+      const b = getFrame(f);
+      let n = 0;
+      for (let i = 0; i < W * H; i++) {
+        const c = b[i];
+        if (!c) continue;
+        n++; used.add(c);
+        const x = i % W, y = (i / W) | 0;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+      if (n > maxPx) { maxPx = n; maxF = f; }
+      if (f === N - 1) add(n === 0, 'frame 23 fully transparent (' + n + ' px)');
+    }
+    add(minX > 0 && minY > 0 && maxX < W - 1 && maxY < H - 1,
+      'content bounds x ' + minX + '–' + maxX + ', y ' + minY + '–' + maxY + ' (no edge contact)');
+    add(maxF === 7, 'largest frame: ' + String(maxF).padStart(2, '0') + ' (' + maxPx + ' px)');
+    add(used.size <= 7, 'palette indices used: ' + used.size + ' / 7');
+    list.innerHTML = items.join('') + '<li class="pending" id="pngcheck">… decoding exported PNG</li>';
+
+    const sheet = exportSheet();
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d');
+      x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data;
+      const allowed = new Set(HEX.slice(1));
+      let semi = 0, foreign = 0, opaque = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const a = d[i + 3];
+        if (a === 0) continue;
+        if (a !== 255) { semi++; continue; }
+        opaque++;
+        const h = '#' + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
+        if (!allowed.has(h)) foreign++;
+      }
+      const ok = img.width === W * N && img.height === H && semi === 0 && foreign === 0;
+      const li = $('pngcheck');
+      li.className = ok ? 'ok' : 'bad';
+      li.textContent = (ok ? '✓ ' : '✗ ') + 'PNG sheet ' + img.width + '×' + img.height +
+        ', alpha 0/255 only (' + semi + ' partial), ' + foreign + ' off-palette of ' + opaque + ' opaque px';
+    };
+    img.src = sheet.dataUrl;
+  }
+
+  // wiring
+  $('prev').onclick = () => { setPlaying(false); show(cur - 1); };
+  $('next').onclick = () => { setPlaying(false); show(cur + 1); };
+  $('play').onclick = () => setPlaying(!playing);
+  $('scrub').oninput = e => { setPlaying(false); show(+e.target.value); };
+  $('speed').onchange = e => { speed = +e.target.value; };
+  $('zoom').onchange = e => setZoom(+e.target.value);
+  $('checker').onchange = drawChecker;
+  $('pivot').onchange = drawOverlay;
+  $('dlSheet').onclick = () => { const s = exportSheet(); download(s.name, s.dataUrl); };
+  $('dlMeta').onclick = () => {
+    const s = exportSheet();
+    const blob = new Blob([JSON.stringify(s.metadata, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    download(s.name.replace(/\.png$/, '.json'), url);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  $('dlFrames').onclick = () => {
+    exportFrames().forEach((fr, i) => setTimeout(() => download(fr.name, fr.dataUrl), i * 150));
+  };
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === 'ArrowLeft') { setPlaying(false); show(cur - 1); }
+    else if (e.key === 'ArrowRight') { setPlaying(false); show(cur + 1); }
+  });
+
+  buildSwatches();
+  buildStrip();
+  drawChecker();
+  setZoom(6);
+  show(0);
+  runChecks();
+  requestAnimationFrame(t => { last = t; tick(t); });
+})();
+</script>
+</body>
+</html>

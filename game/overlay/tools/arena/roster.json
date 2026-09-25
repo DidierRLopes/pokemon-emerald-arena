@@ -1,5 +1,13 @@
 [
   {
+    "dex": "0131",
+    "species": "LAPRAS",
+    "level": 40,
+    "scale": 1,
+    "frame_offset": [0,4],
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
     "dex": "0252",
     "species": "TREECKO",
     "level": 11,
@@ -742,5 +750,38 @@
     "poses": {
       "Attack": "Charge"
     }
+  },
+  {
+    "dex": "0150",
+    "species": "MEWTWO",
+    "level": 66,
+    "poses": {"Attack": "Charge", "SpAttack": "Shoot"}
+  },
+  {
+    "dex": "0144",
+    "species": "ARTICUNO",
+    "level": 55,
+    "scale": 2,
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
+    "dex": "0026",
+    "species": "RAICHU",
+    "level": 55,
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
+    "dex": "0145",
+    "species": "ZAPDOS",
+    "level": 55,
+    "scale": 2,
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
+    "dex": "0384",
+    "species": "RAYQUAZA",
+    "level": 60,
+    "scale": 2,
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
   }
 ]

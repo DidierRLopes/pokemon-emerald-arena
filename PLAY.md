@@ -1,8 +1,8 @@
 # Play Emerald Arena
 
-Already use a ROM patcher? [Download the full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0-full.bps) and apply it to your unmodified Emerald (USA/Europe) ROM. It includes the animations and produces the same 0.6.0 game, without extra downloads.
+Already use a ROM patcher? [Download the full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0-full.bps) and apply it to your unmodified Emerald (USA/Europe) ROM. It includes the animations and produces the same 0.8.0 game, without extra downloads.
 
-[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
+[Download the ZIP](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0.zip) · [Watch gameplay](https://github.com/GBurgardt/pokemon-emerald-arena#watch-gameplay)
 
 [**How to play · 1 minute video (MP4)**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.3.3/emerald-arena-walkthrough.mp4)
 From download to your first fight, saving and continuing. GBA button names are
@@ -13,12 +13,12 @@ shown in the video; your emulator's keyboard bindings may differ.
 You need your own **unmodified Pokémon Emerald (USA/Europe) `.gba`** and Internet
 access. Other languages, other Pokémon games and already-patched ROMs will not work.
 
-1. Download **Emerald-Arena-0.6.0.zip** above. Extract/unzip it first.
+1. Download **Emerald-Arena-0.8.0.zip** above. Extract/unzip it first.
 2. Open **Prepare-Emerald-Arena.html** in a current Chrome, Firefox or Safari.
    It is a local web page, not an app to install. Do not open `install.mjs`.
 3. Click **Choose Emerald ROM** and select your original `.gba` file, not a ZIP.
 4. Wait while it checks the ROM and prepares the animations. Keep the page open.
-5. Click **Download game**. You will get **Emerald-Arena-0.6.0.gba** in your downloads.
+5. Click **Download game**. You will get **Emerald-Arena-0.8.0.gba** in your downloads.
 
 **Updating?** Back up your in-game `.sav` first. Import a copy for the new game,
 or give that copy the same basename as the new ROM if your emulator requires it.
@@ -29,7 +29,7 @@ animation files from pinned public sources. The finished game works offline.
 
 ## 2. Open it in an emulator
 
-Open **Emerald-Arena-0.6.0.gba** using your GBA emulator's **Open / Load game**
+Open **Emerald-Arena-0.8.0.gba** using your GBA emulator's **Open / Load game**
 command. [mGBA](https://mgba.io/downloads.html) is the desktop emulator used for
 testing. If you already have a GBA emulator, you do not need another one.
 
@@ -105,8 +105,8 @@ Include the emulator/version, device, error message and steps. **Do not attach y
 
 ## Current scope
 
-92 animated Pokémon and 45 adapted move profiles. Wild 1v1 arena encounters;
-trainer, double and link battles remain classic. Unsupported effects also fall
+98 animated Pokémon. Wild and single trainer arena encounters;
+double and link battles remain classic. Unsupported effects also fall
 back to classic battles. This is not a fully rebalanced adventure.
 
 ### Pokémon
@@ -126,14 +126,17 @@ Fire attacks, mud, rocks, bubbles, wind and stars now join the earlier moves.
 Stat changes affect native battle stats; Speed changes also affect movement.
 Draining moves restore HP from actual damage. False Swipe leaves one HP.
 Fire attacks can cause native burns, with damage about every five active seconds.
-Pause and capture freeze that timer. [All 45 move profiles](game/overlay/src/arena_moves.c).
+Pause and capture freeze that timer. [All 58 move profiles](game/overlay/src/arena_moves.c).
 
 Seismic Toss is a throw. Connect the grab up close and the attacker carries the
 target straight up off the screen, dives back down with it and slams it into
 the ground, leaving a crater. A throw that knocks the target out first circles
 the Earth from space, as in the anime. It deals the user's level in damage, as
-in the original game, and cannot touch Ghost types. The practice Charizard
-knows it in place of Rage.
+in the original game, and cannot touch Ghost types.
+
+Dig hides the Pokémon underground before its strike. Fly leaves a moving shadow
+before the dive. Teleport blinks away from danger. Double Team creates a decoy
+that breaks when hit. Water leaves pools, ice freezes them and fire melts them.
 
 Rocks, wood, foliage, crystals and explosive pods can break. Enemies navigate
 obstacles, aim and dodge, with level-based reactions. Speed affects movement;

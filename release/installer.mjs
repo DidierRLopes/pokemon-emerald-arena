@@ -148,10 +148,12 @@ export function packSpriteSet(species, sheets) {
     const s=sheets.get(a.sha256),tiles=new Uint8Array(a.frames*8*2048);
     const scale=a.scale??1;
     if(![1,2].includes(scale)||a.width%scale||a.height%scale)fail('Invalid sprite scale.');
+    const offset=a.frame_offset??[0,0];
+    if(!Array.isArray(offset)||offset.length!==2||!offset.every(v=>Number.isInteger(v)&&Math.abs(v)<=16))fail('Invalid sprite registration.');
     for(let d=0;d<8;d++)for(let f=0;f<a.frames;f++)for(let y=0;y<a.height;y++)for(let x=0;x<a.width;x++) {
       const pi=((d*a.height+y)*s.width+f*a.width+x)*4,ci=index(s.rgba,pi);
       if(!ci)continue;
-      const tx=Math.floor(x/scale)+32-Math.floor(a.width/scale/2),ty=Math.floor(y/scale)+32-Math.floor(a.height/scale/2);
+      const tx=Math.floor(x/scale)+32-Math.floor(a.width/scale/2)+offset[0],ty=Math.floor(y/scale)+32-Math.floor(a.height/scale/2)+offset[1];
       if(tx<0||tx>=64||ty<0||ty>=64)fail('Sprite cropping is not allowed.');
       if(x%scale||y%scale)continue;
       const off=(d*a.frames+f)*2048+(Math.floor(ty/8)*8+Math.floor(tx/8))*32+(ty%8)*4+Math.floor(tx%8/2);

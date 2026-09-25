@@ -1,3 +1,6 @@
+// Seismic Toss by DidierRLopes (@didier_lopes), PR #1, MIT.
+// Original module from add033a0d6f51edbf116c5f0690775699f138523.
+// Integration changes: biome palette restoration, telemetry, breakable props.
 // Seismic Toss presentation, included by realtime_arena.c like the capture code.
 //
 // The attacker grabs the target, leaps straight up until both leave the top
@@ -154,7 +157,11 @@ static void TossSpaceStep(u8 step)
     case 2: ShowBg(2); break;
     case 3: t->blackout = FALSE; break;
     case 4: t->blackout = TRUE; break;
-    case 5: HideBg(2); LoadPalette(&sForestPalette[TOSS_SPACE_PALETTE], TOSS_SPACE_PALETTE, sizeof(u16) * 16); break;
+    case 5:
+    {
+        const u16 *palettes[]={sForestPalette,scoastPalette,scavePalette,sdesertPalette,sgymPalette};
+        HideBg(2); LoadPalette(palettes[gArenaBiome]+TOSS_SPACE_PALETTE,TOSS_SPACE_PALETTE,sizeof(u16)*16);break;
+    }
     case 6: t->blackout = FALSE; break;
     case 7: ShowBg(1); ShowBg(0); LoadPalette(sArenaPalette, 0, sizeof(u16)); t->space = FALSE; break;
     }
@@ -169,6 +176,7 @@ static void TossBegin(u8 side)
     {
         // Native accuracy or type immunity failed: the swing simply whiffs.
         ApplyResolvedHit(side, MOVE_SEISMIC_TOSS, damage);
+        gArenaWarpTossTelemetry[3]++;
         return;
     }
     memset(t, 0, sizeof(*t));
@@ -176,6 +184,7 @@ static void TossBegin(u8 side)
     t->attacker = side;
     t->damage = damage;
     t->fatal = damage >= gBattleMons[side ^ 1].hp;
+    gArenaWarpTossTelemetry[2]++;
     t->holdX = target->x / Q;
     t->holdY = target->y / Q;
     // Both bodies are committed to the throw: no pending shots, actions,
@@ -202,7 +211,16 @@ static void TossImpact(void)
     struct ArenaToss *t = &sArena.toss;
     struct ArenaBody *victim = &sArena.bodies[t->attacker ^ 1];
     s16 x = victim->x / Q, y = victim->y / Q;
+    u32 i;
     ApplyResolvedHit(t->attacker, MOVE_SEISMIC_TOSS, t->damage);
+    gArenaWarpTossTelemetry[4]++;
+    if(sArena.resultTimer)gArenaWarpTossTelemetry[5]++;
+    for(i=0;i<ARENA_OBSTACLES;i++)
+    {
+        const struct ArenaRect*r=&gArenaObstacles[i];
+        s16 dx=(r->left+r->right)/2-x,dy=(r->top+r->bottom)/2-y;
+        if(dx*dx+dy*dy<56*56&&!gArenaProps[i].reserved)ArenaPhysics_Hit(i,dx*32,dy*32,4);
+    }
     // Slammed straight down, never pushed away from the crater.
     victim->knockX = victim->knockY = 0;
     ArenaTerrain_Crater(x, y + 8);

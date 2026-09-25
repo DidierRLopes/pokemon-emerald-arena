@@ -8,6 +8,7 @@ void ArenaFeedback_Destroy(void);
 void ArenaFeedback_Update(bool8 paused, bool8 frozen);
 void ArenaFeedback_Impact(u8 target, s16 x, s16 y, u16 damage, u8 kind);
 void ArenaFeedback_Wall(s16 x, s16 y);
+void ArenaFeedback_Embers(s16 x,s16 y,s16 dx,s16 dy);
 void ArenaFeedback_Dust(s16 x, s16 y, bool8 dash);
 void ArenaFeedback_Capture(s16 x,s16 y);
 void ArenaFeedback_CaptureGlow(s16 x,s16 y,bool8 inward);

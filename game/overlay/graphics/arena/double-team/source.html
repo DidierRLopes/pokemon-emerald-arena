@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Double Team · apparition + shatter FX (64×64 sprite, Psychic palette)</title>
+<style>
+  :root { --bg:#0c0b10; --panel:#15131c; --line:#2c2440; --text:#e6b4ff; --dim:#9c8ab0; --acc:#c583f6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+  main { max-width:1080px; margin:0 auto; padding:18px; }
+  h1 { font-size:15px; margin:0 0 4px; color:var(--acc); letter-spacing:.04em; }
+  .sub { color:var(--dim); margin:0 0 14px; }
+  .row { display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; }
+  .stage { background:var(--panel); border:1px solid var(--line); padding:10px; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; display:block; }
+  #view { width:384px; height:384px; }
+  #strip { width:100%; max-width:1024px; height:auto; cursor:pointer; }
+  .controls { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; align-items:center; }
+  button { background:#221c30; color:var(--text); border:1px solid #3d3058; padding:5px 10px; font:inherit; cursor:pointer; }
+  button:hover { background:#2e2542; }
+  label { color:var(--dim); user-select:none; }
+  #status { margin-top:8px; color:var(--dim); min-height:2.8em; max-width:384px; }
+  .info { flex:1; min-width:280px; background:var(--panel); border:1px solid var(--line); padding:10px 12px; }
+  .info h2 { font-size:13px; margin:0 0 6px; color:var(--acc); }
+  .sw { display:flex; align-items:center; gap:8px; margin:2px 0; }
+  .sw i { width:14px; height:14px; display:inline-block; border:1px solid #000; }
+  .sw code { color:#ffeeff; }
+  .sw span { color:var(--dim); }
+  p { margin:6px 0; }
+  .stripwrap { margin-top:16px; background:var(--panel); border:1px solid var(--line); padding:10px; }
+  .stripwrap .lbl { color:var(--dim); margin-bottom:6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DOUBLE TEAM — apparition + shatter effect (rev. 2)</h1>
+  <p class="sub">64×64 binary-alpha sprite · 16 frames · 60 ms/frame · pivot (32,40) · effect only, no Pokémon, terrain or HUD.</p>
+
+  <div class="row">
+    <div class="stage">
+      <canvas id="view" width="384" height="384"></canvas>
+      <div class="controls">
+        <button id="prev" title="Left arrow">◀ Prev</button>
+        <button id="play" title="Space">Pause</button>
+        <button id="next" title="Right arrow">Next ▶</button>
+        <label><input type="checkbox" id="guide"> guides</label>
+      </div>
+      <div class="controls">
+        <button id="dlSheet">Download spritesheet PNG</button>
+        <button id="dlMeta">Download metadata JSON</button>
+        <button id="dlFrames">Download frames</button>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div class="info">
+      <h2>Palette — shared Psychic OBJ ramp (7 colours + transparent)</h2>
+      <div class="sw"><i style="background:#201039"></i><code>#201039</code><span>1 ink — hard outer outline, shard back caps</span></div>
+      <div class="sw"><i style="background:#4a2062"></i><code>#4a2062</code><span>2 shade — shadow facets, last remnants</span></div>
+      <div class="sw"><i style="background:#73319c"></i><code>#73319c</code><span>3 dusk — back arc, afterimage echo, outer bands</span></div>
+      <div class="sw"><i style="background:#9c4ad5"></i><code>#9c4ad5</code><span>4 violet — blade bodies, slash tails</span></div>
+      <div class="sw"><i style="background:#c583f6"></i><code>#c583f6</code><span>5 lilac — cores of crescents and slivers</span></div>
+      <div class="sw"><i style="background:#e6b4ff"></i><code>#e6b4ff</code><span>6 pale — cutting edges facing the Pokémon</span></div>
+      <div class="sw"><i style="background:#ffeeff"></i><code>#ffeeff</code><span>7 flash — sparse: crack glints, spark centres, hot tips</span></div>
+      <p>Order matches the hardware ramp. Fades step one index down (7→6→…→1→transparent); no blending, no glow, binary alpha.</p>
+      <h2>Pivot &amp; bounds</h2>
+      <p>Pivot <b>(32,40)</b>: align to the Pokémon's anchor. The 20×30 box x22–41 / y17–46 stays clear; the split ground crescent sits at y≈46–53, the paired side crescents frame left and right. A 1px transparent border is enforced; sparks and slivers are placed whole or not at all, never cropped.</p>
+      <h2>Timing</h2>
+      <p>0 flash · 1 expand · 2 slash · 3 paired crescents · 4 peel · 5–7 settle | 8 impact (fractured crescents) · 9–10 burst · 11–12 scatter · 13–14 dissolve · 15 fully transparent. All tables explicit; no RNG.</p>
+    </div>
+  </div>
+
+  <div class="stripwrap">
+    <div class="lbl">All frames (top: apparition 0–7, bottom: shatter 8–15) — click to select</div>
+    <canvas id="strip" width="1024" height="256"></canvas>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const W = 64, H = 64, N = 16, MS = 60, PIVOT = { x: 32, y: 40 };
+  const BOX = { x: 22, y: 17, w: 20, h: 30 };
+  const LO = 1, HI = W - 2; // 1px transparent border on every frame
+  const HEX = ['', '#201039', '#4a2062', '#73319c', '#9c4ad5', '#c583f6', '#e6b4ff', '#ffeeff'];
+  const INK = 1, SHADE = 2, DUSK = 3, VIOLET = 4, LILAC = 5, PALE = 6, FLASH = 7;
+  const RGB = HEX.map(h => h ? [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)) : null);
+  const DOWN = [0, 0, 1, 2, 3, 4, 5, 6]; // ordered ramp: one shade darker per step
+  const fade = (c, n) => { while (n-- > 0 && c) c = DOWN[c]; return c; };
+  const PHASE = ['flash', 'expand', 'slash', 'crescents', 'peel', 'settle', 'settle', 'rest',
+                 'impact', 'burst', 'burst', 'scatter', 'scatter', 'dissolve', 'dissolve', 'clear'];
+
+  // ---------- pixel buffer ----------
+  const makeBuf = () => new Uint8Array(W * H);
+  const inSafe = (x, y) => x >= LO && y >= LO && x <= HI && y <= HI;
+  function put(b, x, y, c) {
+    x = Math.round(x); y = Math.round(y);
+    if (!c || !inSafe(x, y)) return;
+    const i = y * W + x;
+    if (c >= b[i]) b[i] = c;
+  }
+  // Small particles are committed whole or not at all, so nothing is ever cropped.
+  function group(b, draw) {
+    const pts = [];
+    draw((x, y, c) => { if (c) pts.push([Math.round(x), Math.round(y), c]); });
+    if (pts.every(([x, y]) => inSafe(x, y))) for (const [x, y, c] of pts) put(b, x, y, c);
+  }
+
+  // ---------- ground crescent ----------
+  function colColors(t, u, hot) {
+    const au = Math.abs(u), top = hot && au < 0.06 ? FLASH : PALE;
+    if (t === 1) return [au > 0.88 ? PALE : LILAC];
+    if (t === 2) return [top, DUSK];
+    if (t === 3) return [top, VIOLET, SHADE];
+    const c = [top, LILAC];
+    while (c.length < t - 2) c.push(VIOLET);
+    c.push(DUSK, INK);
+    return c;
+  }
+
+  function crescent(b, o) {
+    const cx = 32, cy = 47, rx = o.rx, T = o.T, ry = rx * 0.22, fd = o.fade || 0;
+    const cr = o.cracks || [], sk = o.shrink == null ? 1 : o.shrink;
+    const edges = [cx - rx, ...cr, cx + rx];
+    const segOf = x => { let i = 0; while (i < cr.length && x > cr[i]) i++; return i; };
+    const shiftOf = i => {
+      const m = (edges[i] + edges[i + 1]) / 2;
+      return o.shift ? o.shift(i, (m - cx) / rx) : { dx: 0, dy: 0 };
+    };
+    for (let x = cx - rx + 1; x <= cx + rx - 1; x++) {
+      if (cr.includes(x)) continue;
+      if (o.dash && x % o.dash === 0) continue;
+      const si = segOf(x), L = edges[si], R = edges[si + 1], m = (L + R) / 2;
+      if (Math.abs(x - m) > (R - L) / 2 * sk) continue;
+      const u = (x - cx) / rx, s = Math.sqrt(1 - u * u), yo = cy + Math.round(ry * s);
+      const t = Math.max(1, Math.round(T * Math.pow(s, 1.6)));
+      const col = colColors(t, u, o.hot), sh = shiftOf(si);
+      const afterCrack = si > 0 && x === cr[si - 1] + 1;
+      for (let k = 0; k < t; k++) {
+        if (afterCrack && k < t / 2) continue; // slanted fracture line
+        put(b, x + sh.dx, yo - t + 1 + k + sh.dy, fade(col[k], fd));
+      }
+      if (o.back && Math.abs(u) > 0.58 && x % 3 !== 0)
+        put(b, x + sh.dx, cy - Math.round(ry * 0.7 * s) + sh.dy, fade(DUSK, fd));
+    }
+    if (o.tips) {
+      const ue = (rx - 1) / rx, yEnd = cy + Math.round(ry * Math.sqrt(1 - ue * ue));
+      const a = shiftOf(0), z = shiftOf(cr.length);
+      put(b, cx - rx + a.dx, yEnd - 1 + a.dy, fade(LILAC, fd));
+      put(b, cx - rx - 1 + a.dx, yEnd - 2 + a.dy, fade(PALE, fd));
+      put(b, cx + rx + z.dx, yEnd - 1 + z.dy, fade(LILAC, fd));
+      put(b, cx + rx + 1 + z.dx, yEnd - 2 + z.dy, fade(PALE, fd));
+    }
+  }
+
+  // ---------- paired side blades (slashes / crescents) ----------
+  function geo(P, t) {
+    const m = 1 - t;
+    const x = m * m * P[0][0] + 2 * m * t * P[1][0] + t * t * P[2][0];
+    const y = m * m * P[0][1] + 2 * m * t * P[1][1] + t * t * P[2][1];
+    let tx = 2 * m * (P[1][0] - P[0][0]) + 2 * t * (P[2][0] - P[1][0]);
+    let ty = 2 * m * (P[1][1] - P[0][1]) + 2 * t * (P[2][1] - P[1][1]);
+    const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    let nx = -ty, ny = tx;
+    if (nx * (x - 32) + ny * (y - 31) < 0) { nx = -nx; ny = -ny; } // outward, away from silhouette
+    return { x, y, tx, ty, nx, ny };
+  }
+
+  function band(k, w, s, hot) {
+    if (w === 1) return s > 0.82 ? PALE : s > 0.45 ? LILAC : VIOLET;
+    if (w === 2) return k === 0 ? (s > 0.25 ? PALE : LILAC) : DUSK;
+    if (w === 3) return [PALE, VIOLET, SHADE][k];
+    const top = hot && s > 0.47 && s < 0.53 ? FLASH : PALE;
+    if (w === 4) return [top, LILAC, DUSK, INK][k];
+    if (k === 0) return top;
+    if (k === w - 1) return INK;
+    if (k === w - 2) return DUSK;
+    if (k === w - 3) return VIOLET;
+    return LILAC;
+  }
+
+  function blade(b, P, o) {
+    const { tail, head, w: maxW } = o, peel = o.peel || 0, fd = o.fade || 0, cr = o.cracks || [];
+    if (head <= tail) return;
+    const steps = Math.ceil((head - tail) * 240);
+    const offAt = t => peel * (0.35 + 0.65 * t);
+    const prof = o.crescent
+      ? s => Math.pow(Math.sin(Math.PI * s), 0.7)
+      : s => Math.pow(Math.sin(Math.PI * Math.pow(s, 1.5)), 0.85);
+    const wAt = s => Math.max(1, Math.round(maxW * prof(s)));
+    const inCrack = t => cr.some(c => Math.abs(t - c) < 0.02);
+    const segJag = t => { let n = 0; for (const c of cr) if (t > c) n++; return n % 2; };
+
+    for (let i = 0; i <= steps; i++) {
+      const s = i / steps, t = tail + (head - tail) * s;
+      if (inCrack(t)) continue;
+      const g = geo(P, t), w = wAt(s), off = offAt(t) + segJag(t);
+      for (let kk = 0; kk < w; kk += 0.5)
+        put(b, g.x + g.nx * (off + kk), g.y + g.ny * (off + kk), fade(band(Math.floor(kk), w, s, o.hot), fd));
+    }
+    if (o.comp) { // thin companion stroke outside the blade
+      const [c0, c1] = o.comp; let last = -1, cnt = 0;
+      for (let i = 0; i <= steps; i++) {
+        const t = tail + (head - tail) * i / steps;
+        if (t < c0 || t > c1 || inCrack(t)) continue;
+        const g = geo(P, t), off = offAt(t) + segJag(t) + maxW + 1, q = (t - c0) / (c1 - c0);
+        const px = Math.round(g.x + g.nx * off), py = Math.round(g.y + g.ny * off), key = py * W + px;
+        if (key !== last) { last = key; cnt++; if (cnt % 5 !== 4) put(b, px, py, fade(q < 0.2 || q > 0.8 ? DUSK : VIOLET, fd)); }
+      }
+    }
+    if (o.ticks) for (const [tt, len] of o.ticks) {
+      if (tt < tail || tt > head) continue;
+      const g = geo(P, tt), off = offAt(tt) + wAt((tt - tail) / (head - tail)) + 1.5;
+      for (let j = 0; j < len; j++)
+        put(b, g.x + g.nx * off - g.tx * j, g.y + g.ny * off - g.ty * j, fade([LILAC, VIOLET, DUSK, DUSK][j], fd));
+    }
+    if (o.echo) {
+      let last = -1, cnt = 0;
+      for (let i = 0; i <= steps; i++) {
+        const s = i / steps; if (s < 0.15 || s > 0.95) continue;
+        const t = tail + (head - tail) * s, g = geo(P, t), off = offAt(t) - o.echo;
+        const px = Math.round(g.x + g.nx * off), py = Math.round(g.y + g.ny * off), key = py * W + px;
+        if (key !== last) { last = key; cnt++; if (cnt % 3 !== 0) put(b, px, py, fade(DUSK, fd)); }
+      }
+    }
+    if (o.glint) for (const c of cr) { // flash in each fracture + outward spike
+      const g = geo(P, c), off = offAt(c), w = wAt((c - tail) / (head - tail));
+      put(b, g.x + g.nx * off, g.y + g.ny * off, FLASH);
+      put(b, g.x + g.nx * (off + w + 1), g.y + g.ny * (off + w + 1), LILAC);
+      put(b, g.x + g.nx * (off + w + 2), g.y + g.ny * (off + w + 2), VIOLET);
+    }
+    if (o.burst) for (const t of o.burst) { // radial impact ticks
+      const g = geo(P, t), off = offAt(t) + segJag(t) + wAt((t - tail) / (head - tail)) + 2;
+      for (let j = 0; j < 3; j++) put(b, g.x + g.nx * (off + j), g.y + g.ny * (off + j), [LILAC, VIOLET, DUSK][j]);
+    }
+  }
+
+  // ---------- slivers & sparks (drawn through a plot fn for whole-or-nothing commits) ----------
+  function sliver(p, bx, by, deg, L, w, fd, hot) {
+    const r = deg * Math.PI / 180, dx = Math.cos(r), dy = Math.sin(r);
+    let nx = -dy, ny = dx;
+    if (nx + ny > 0) { nx = -nx; ny = -ny; } // lit facet faces up-left
+    p(bx - dx, by - dy, fade(w > 1 ? INK : SHADE, fd));
+    for (let s = 0; s <= L; s += 0.5) {
+      const f = L ? s / L : 1, x = bx + dx * s, y = by + dy * s;
+      p(x, y, fade(f > 0.88 ? (hot ? FLASH : PALE) : f > 0.3 ? LILAC : VIOLET, fd));
+      if (w >= 2 && f > 0.12 && f < 0.6) p(x + nx, y + ny, fade(f < 0.35 ? LILAC : PALE, fd));
+      if (w === 2 && f < 0.3) p(x - nx, y - ny, fade(SHADE, fd));
+      if (w >= 3 && f < 0.5) p(x - nx, y - ny, fade(DUSK, fd));
+    }
+  }
+
+  function spark(p, x, y, stage, diag) {
+    if (stage === 0) {
+      p(x, y, FLASH);
+      p(x, y - 1, PALE); p(x, y - 2, LILAC); p(x, y - 3, VIOLET);
+      p(x, y + 1, PALE); p(x, y + 2, LILAC); p(x, y + 3, VIOLET);
+      p(x - 1, y, LILAC); p(x - 2, y, DUSK);
+      p(x + 1, y, LILAC); p(x + 2, y, DUSK);
+    } else if (stage === 1) {
+      p(x, y, PALE);
+      const arms = diag ? [[-1, -1], [1, -1], [-1, 1], [1, 1]] : [[0, -1], [0, 1], [-1, 0], [1, 0]];
+      for (const [ax, ay] of arms) p(x + ax, y + ay, diag ? VIOLET : LILAC);
+    } else {
+      p(x, y, [PALE, LILAC, VIOLET, DUSK][Math.min(stage - 2, 3)]);
+    }
+  }
+
+  // [x, y, vx, vy, startFrame, life, big, diagonal] — every spark ends by frame 14
+  const SPARKS = [
+    [19, 45, -2, -1, 0, 2, 0, 0], [45, 45, 2, -1, 0, 2, 0, 0],
+    [12, 46, -2, -2, 1, 4, 1, 0], [52, 46, 2, -2, 1, 4, 1, 0],
+    [20, 56, -1, 1, 2, 3, 0, 1], [44, 56, 1, 1, 2, 4, 0, 0], [8, 40, -1, 0, 2, 3, 0, 1],
+    [54, 20, 2, -2, 2, 4, 1, 0],
+    [16, 20, -2, -1, 3, 4, 1, 0], [48, 8, 1, -1, 3, 4, 0, 1], [58, 38, 1, 1, 3, 3, 0, 0],
+    [60, 28, 0, 0, 4, 3, 0, 1],
+    [14, 10, 0, 0, 5, 2, 0, 0], [28, 57, 0, 0, 5, 3, 0, 1],
+    [52, 14, 0, 0, 6, 2, 0, 0], [44, 10, 0, 0, 7, 1, 0, 1],
+    [32, 56, 0, 1, 8, 3, 1, 0],
+    [10, 44, -2, -1, 9, 4, 1, 0], [55, 44, 2, -1, 9, 4, 1, 0],
+    [46, 12, 2, -2, 10, 3, 0, 1], [17, 14, -2, -2, 10, 3, 0, 1],
+    [58, 24, 1, 0, 11, 3, 0, 0], [6, 26, -1, 0, 11, 3, 0, 0], [40, 60, 1, 1, 11, 2, 0, 1],
+    [22, 60, 0, 0, 12, 3, 0, 0], [50, 58, 0, 0, 13, 2, 0, 1], [12, 32, 0, 0, 13, 2, 0, 0]
+  ];
+
+  // ---------- choreography tables ----------
+  const RP = [[43, 48], [57, 33], [46, 8]], LP = [[21, 47], [6, 31], [19, 10]];
+  const SPLIT = { cracks: [36], shift: si => (si ? { dx: 1, dy: -1 } : { dx: 0, dy: 0 }) };
+  const CRES_A = [
+    { rx: 10, T: 2, hot: 1 },
+    { rx: 17, T: 4, hot: 1, back: 1, tips: 1 },
+    { rx: 22, T: 5, hot: 1, back: 1, tips: 1 },
+    { rx: 24, T: 4, back: 1, tips: 1 },
+    { rx: 25, T: 3, fade: 1, back: 1 },
+    { rx: 25, T: 2, fade: 1, back: 1 },
+    { rx: 24, T: 2, fade: 2, dash: 4 },
+    { rx: 23, T: 1, fade: 2, dash: 3 }
+  ].map(c => ({ ...c, ...SPLIT }));
+  const SL_A = [
+    null,
+    { R: { tail: 0, head: .35, w: 3, hot: 1 }, L: { tail: 0, head: .2, w: 2, hot: 1 } },
+    { R: { tail: .02, head: .75, w: 4, peel: 1, hot: 1, ticks: [[.4, 3]] }, L: { tail: 0, head: .58, w: 4, hot: 1 } },
+    { R: { tail: .04, head: 1, w: 5, peel: 1, crescent: 1, hot: 1, comp: [.22, .86], ticks: [[.5, 3], [.72, 4]] },
+      L: { tail: .02, head: .96, w: 5, crescent: 1, hot: 1, comp: [.18, .8], ticks: [[.42, 3], [.66, 3]] } },
+    { R: { tail: .5, head: 1, w: 4, peel: 3, fade: 1, echo: 3, comp: [.62, .92], ticks: [[.8, 3]] },
+      L: { tail: .38, head: 1, w: 4, peel: 2, echo: 3, comp: [.55, .9], ticks: [[.62, 3]] } },
+    { R: { tail: .78, head: 1, w: 3, peel: 5, fade: 2 }, L: { tail: .68, head: 1, w: 3, peel: 4, fade: 1 } },
+    { R: { tail: .92, head: 1, w: 2, peel: 6, fade: 3 }, L: { tail: .87, head: 1, w: 2, peel: 5, fade: 3 } },
+    null
+  ];
+  const IMPACT_R = { tail: .04, head: 1, w: 5, crescent: 1, hot: 1, cracks: [.3, .52, .76], glint: 1,
+                     burst: [.16, .4, .64, .88], comp: [.2, .9] };
+  const IMPACT_L = { tail: .02, head: .96, w: 5, crescent: 1, hot: 1, cracks: [.26, .5, .72], glint: 1,
+                     burst: [.12, .38, .6, .84], comp: [.16, .86] };
+
+  // Slivers born along each fractured crescent, fanning outward (0° = right, negative = up).
+  const SH_R = { t: [.08, .22, .36, .5, .64, .78, .92], ang: [38, 20, 6, -8, -24, -42, -62],
+                 sp: [14, 18, 10, 12, 15, 20, 17], L: [4, 6, 5, 6, 5, 7, 5], w: [2, 3, 2, 3, 2, 3, 2],
+                 spin: [6, -5, 7, -6, 5, -7, 6] };
+  const SH_L = { t: [.1, .24, .37, .5, .63, .77, .9], ang: [145, 158, 176, 190, 206, 220, 244],
+                 sp: [16, 12, 11, 14, 17, 15, 19], L: [5, 5, 6, 4, 6, 5, 7], w: [2, 2, 3, 2, 3, 2, 3],
+                 spin: [-6, 7, -5, 6, -7, 5, -6] };
+  function shardSet(P, T) {
+    return T.t.map((t, i) => {
+      const g = geo(P, t), ox = g.x + g.nx * 2, oy = g.y + g.ny * 2;
+      const r = T.ang[i] * Math.PI / 180, dx = Math.cos(r), dy = Math.sin(r);
+      const lim = (o, d) => d > 0.01 ? (HI - 1 - o) / d : d < -0.01 ? (o - LO - 1) / -d : Infinity;
+      const room = Math.max(0, Math.min(lim(ox, dx), lim(oy, dy)) - T.L[i] - 1);
+      return { ox, oy, dx, dy, ang: T.ang[i], d: Math.min(T.sp[i], room), L: T.L[i], w: T.w[i], spin: T.spin[i], hot: i % 2 === 0 };
+    });
+  }
+  const SHARDS = [...shardSet(RP, SH_R), ...shardSet(LP, SH_L)];
+  const TRAVF = [0, .28, .52, .7, .83, .92, .98], SLS = [0, 1, 1, .85, .7, .5, .25], SFADE = [0, 0, 0, 1, 1, 2, 3];
+  const CR_S = {
+    T: [5, 5, 4, 3, 2, 1, 1], fade: [0, 0, 0, 1, 2, 3, 3],
+    spread: [0, 2, 4, 6, 8, 9, 10], lift: [0, -1, -2, -2, -1, 0, 1],
+    shrink: [1, 1, .9, .75, .6, .42, .28], dash: [0, 0, 0, 0, 0, 0, 2]
+  };
+
+  function apparition(b, f) {
+    crescent(b, CRES_A[f]);
+    const s = SL_A[f];
+    if (s) { blade(b, RP, s.R); blade(b, LP, s.L); }
+  }
+
+  function shatter(b, a) {
+    if (a >= 7) return; // frame 15: fully transparent
+    crescent(b, {
+      rx: 23, T: CR_S.T[a], fade: CR_S.fade[a], hot: a < 2, back: a === 0, tips: a < 3,
+      cracks: [18, 27, 36, 45], shrink: CR_S.shrink[a], dash: CR_S.dash[a],
+      shift: (si, um) => ({
+        dx: Math.round(um * CR_S.spread[a]),
+        dy: Math.round(CR_S.lift[a] * (0.6 + Math.abs(um))) + (Math.abs(um) < 0.2 ? a >> 1 : 0) - (si % 2)
+      })
+    });
+    if (a === 0) { blade(b, RP, IMPACT_R); blade(b, LP, IMPACT_L); return; }
+    SHARDS.forEach((s, i) => {
+      const d = s.d * TRAVF[a], L = Math.max(1, Math.round(s.L * SLS[a]));
+      const w = a <= 3 ? s.w : a <= 5 ? Math.max(1, s.w - 1) : 1;
+      group(b, p => sliver(p, s.ox + s.dx * d, s.oy + s.dy * d, s.ang + s.spin * a, L, w, SFADE[a], a === 1 && s.hot));
+      if (a >= 4 && i % 2 === 0) { // dissolving chips left behind
+        const cd = d * 0.6, side = ((i >> 1) % 2 ? 1 : -1) * 2;
+        group(b, p => p(s.ox + s.dx * cd - s.dy * side, s.oy + s.dy * cd + s.dx * side, [VIOLET, DUSK, SHADE][a - 4]));
+      }
+    });
+  }
+
+  function buildFrame(i) {
+    const b = makeBuf();
+    if (i < 8) apparition(b, i); else shatter(b, i - 8);
+    for (const [x, y, vx, vy, f0, life, big, diag] of SPARKS) {
+      const age = i - f0;
+      if (age < 0 || age >= life) continue;
+      group(b, p => spark(p, x + vx * age, y + vy * age, age + (big ? 0 : 1), diag));
+    }
+    return b;
+  }
+
+  // ---------- contract ----------
+  function toImageData(ctx, b) {
+    const im = ctx.createImageData(W, H), d = im.data;
+    for (let p = 0; p < W * H; p++) {
+      const c = b[p]; if (!c) continue;
+      const [r, g, bl] = RGB[c];
+      d[p * 4] = r; d[p * 4 + 1] = g; d[p * 4 + 2] = bl; d[p * 4 + 3] = 255;
+    }
+    return im;
+  }
+  const norm = index => (((Math.floor(Number(index) || 0)) % N) + N) % N;
+  const frameName = i => 'double-team-fx_' + String(i).padStart(2, '0') + '.png';
+
+  function renderFrame(index, canvas) {
+    const i = norm(index);
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, W, H);
+    ctx.putImageData(toImageData(ctx, buildFrame(i)), 0, 0);
+    return canvas;
+  }
+
+  function exportFrames() {
+    const out = [];
+    for (let i = 0; i < N; i++) {
+      const c = renderFrame(i, document.createElement('canvas'));
+      out.push({ name: frameName(i), dataUrl: c.toDataURL('image/png') });
+    }
+    return out;
+  }
+
+  function exportSheet() {
+    const sheet = document.createElement('canvas');
+    sheet.width = W * N; sheet.height = H;
+    const sctx = sheet.getContext('2d');
+    sctx.imageSmoothingEnabled = false;
+    sctx.clearRect(0, 0, sheet.width, sheet.height);
+    const frames = [];
+    for (let i = 0; i < N; i++) {
+      sctx.putImageData(toImageData(sctx, buildFrame(i)), i * W, 0);
+      frames.push({ index: i, name: frameName(i), phase: PHASE[i], rect: { x: i * W, y: 0, w: W, h: H },
+                    durationMs: MS, pivot: { x: PIVOT.x, y: PIVOT.y } });
+    }
+    const name = 'double-team-fx_sheet.png';
+    return {
+      name, dataUrl: sheet.toDataURL('image/png'),
+      metadata: {
+        name, image: name, kind: 'sprite', size: { w: W * N, h: H }, frameWidth: W, frameHeight: H,
+        frameCount: N, frameDurationMs: MS, loop: true, pivot: { x: PIVOT.x, y: PIVOT.y },
+        clearArea: { ...BOX }, transparentBorderPx: 1, alpha: 'binary',
+        palette: HEX.slice(1), paletteNote: 'shared Psychic OBJ palette, ordered dark to bright; index 0 transparent',
+        segments: { apparition: [0, 7], shatter: [8, 15] }, frames
+      }
+    };
+  }
+
+  window.pixelArt = {
+    meta: { width: W, height: H, frameCount: N, frameDurationMs: MS, kind: 'sprite', pivot: { x: PIVOT.x, y: PIVOT.y } },
+    renderFrame, exportFrames, exportSheet
+  };
+
+  // ---------- preview UI (separate from export canvases) ----------
+  const cache = [], stats = [];
+  for (let i = 0; i < N; i++) {
+    cache.push(renderFrame(i, document.createElement('canvas')));
+    const b = buildFrame(i); let px = 0, box = 0, flash = 0, edge = 0;
+    for (let p = 0; p < W * H; p++) if (b[p]) {
+      px++;
+      if (b[p] === FLASH) flash++;
+      const x = p % W, y = (p / W) | 0;
+      if (x >= BOX.x && x < BOX.x + BOX.w && y >= BOX.y && y < BOX.y + BOX.h) box++;
+      if (!inSafe(x, y)) edge++;
+    }
+    stats.push({ px, box, flash, edge });
+  }
+
+  const view = document.getElementById('view'), vctx = view.getContext('2d');
+  const strip = document.getElementById('strip'), sctx = strip.getContext('2d');
+  const playBtn = document.getElementById('play'), guide = document.getElementById('guide');
+  const status = document.getElementById('status');
+  const SC = 6;
+  let cur = 0, playing = true, acc = 0, last = performance.now(), drawn = -1, guideDrawn = null;
+
+  function draw() {
+    if (drawn === cur && guideDrawn === guide.checked) return;
+    drawn = cur; guideDrawn = guide.checked;
+    vctx.imageSmoothingEnabled = false;
+    vctx.fillStyle = '#111014';
+    vctx.fillRect(0, 0, view.width, view.height);
+    vctx.drawImage(cache[cur], 0, 0, W * SC, H * SC);
+    if (guide.checked) {
+      vctx.save();
+      vctx.lineWidth = 1;
+      vctx.strokeStyle = 'rgba(156,74,213,.55)'; vctx.setLineDash([4, 4]);
+      vctx.strokeRect(BOX.x * SC + .5, BOX.y * SC + .5, BOX.w * SC - 1, BOX.h * SC - 1);
+      vctx.strokeStyle = 'rgba(115,49,156,.5)'; vctx.setLineDash([2, 6]);
+      vctx.strokeRect(LO * SC + .5, LO * SC + .5, (HI - LO + 1) * SC - 1, (HI - LO + 1) * SC - 1);
+      vctx.setLineDash([]); vctx.strokeStyle = 'rgba(255,238,255,.8)';
+      const px = PIVOT.x * SC + SC / 2, py = PIVOT.y * SC + SC / 2;
+      vctx.beginPath(); vctx.moveTo(px - 8, py); vctx.lineTo(px + 8, py); vctx.moveTo(px, py - 8); vctx.lineTo(px, py + 8); vctx.stroke();
+      vctx.restore();
+    }
+    sctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < N; i++) {
+      const cx = (i % 8) * 128, cy = Math.floor(i / 8) * 128;
+      sctx.fillStyle = (i + Math.floor(i / 8)) % 2 ? '#15131a' : '#111014';
+      sctx.fillRect(cx, cy, 128, 128);
+      sctx.drawImage(cache[i], cx, cy, 128, 128);
+      if (i === cur) { sctx.strokeStyle = '#c583f6'; sctx.lineWidth = 2; sctx.strokeRect(cx + 1, cy + 1, 126, 126); }
+    }
+    const s = stats[cur];
+    status.textContent = `frame ${String(cur).padStart(2, '0')}/${N - 1} · ${cur < 8 ? 'apparition' : 'shatter'} · ${PHASE[cur]} · ` +
+      `${s.px} px · ${s.flash} flash px · ${s.box} px in clear box · ${s.edge} px on border · ${playing ? 'playing' : 'paused'}`;
+  }
+
+  function tick(now) {
+    const dt = now - last; last = now;
+    if (playing) {
+      acc += dt; if (acc > 1000) acc = 0;
+      while (acc >= MS) { acc -= MS; cur = (cur + 1) % N; }
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  const setPlaying = p => { playing = p; acc = 0; playBtn.textContent = p ? 'Pause' : 'Play'; drawn = -1; };
+  const step = d => { setPlaying(false); cur = (cur + d + N) % N; drawn = -1; };
+
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+  playBtn.onclick = () => setPlaying(!playing);
+  guide.onchange = () => { drawn = -1; };
+  strip.onclick = e => {
+    const r = strip.getBoundingClientRect();
+    const x = (e.clientX - r.left) * strip.width / r.width, y = (e.clientY - r.top) * strip.height / r.height;
+    const i = Math.floor(y / 128) * 8 + Math.floor(x / 128);
+    if (i >= 0 && i < N) { setPlaying(false); cur = i; drawn = -1; }
+  };
+  window.addEventListener('keydown', e => {
+    if (e.target && e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.code === 'ArrowLeft') step(-1);
+    else if (e.code === 'ArrowRight') step(1);
+  });
+
+  function download(name, href) {
+    const a = document.createElement('a');
+    a.href = href; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  document.getElementById('dlSheet').onclick = () => { const s = exportSheet(); download(s.name, s.dataUrl); };
+  document.getElementById('dlMeta').onclick = () => {
+    const s = exportSheet();
+    download('double-team-fx_sheet.json', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s.metadata, null, 2)));
+  };
+  document.getElementById('dlFrames').onclick = () => {
+    exportFrames().forEach((f, i) => setTimeout(() => download(f.name, f.dataUrl), i * 150));
+  };
+
+  draw();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

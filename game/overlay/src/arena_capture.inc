@@ -6,6 +6,8 @@ struct CaptureState {
     u8 state, sprite, shadow, marker, shakes, message, ready, manual;
     u8 trainerFrame, hudMessage, hudVisible, hudReady, heldLatch;
     u16 hudStock;
+    u16 hudMove;
+    u8 hudPP,hudNotice;
     u16 age, notice;
     s16 aimX, aimY, startX, startY, velocityX, velocityY;
     s32 previousX, previousY;
@@ -41,20 +43,35 @@ static void CaptureMessage(u8 message, u16 frames)
 static void CaptureHud(void)
 {
     u8 text[20];
-    bool8 visible=sCapture.notice && !sArena.paused;
+    bool8 visible=!sArena.paused;
+    bool8 notice=sCapture.notice!=0;
     u16 stock=CountTotalItemQuantityInBag(ITEM_POKE_BALL);
-    if(sCapture.hudReady && sCapture.hudVisible==visible
-        && (!visible || (sCapture.hudMessage==sCapture.message && sCapture.hudStock==stock)))return;
+    u16 move=gBattleMons[0].moves[sArena.bodies[0].moveSlot];
+    u8 pp=gBattleMons[0].pp[sArena.bodies[0].moveSlot];
+    if(sCapture.hudReady && sCapture.hudVisible==visible && sCapture.hudNotice==notice
+        && sCapture.hudMessage==sCapture.message && sCapture.hudStock==stock
+        && sCapture.hudMove==move && sCapture.hudPP==pp)return;
+    sCapture.hudMove=move;sCapture.hudPP=pp;sCapture.hudNotice=notice;
     sCapture.hudReady=TRUE;sCapture.hudVisible=visible;
     sCapture.hudMessage=sCapture.message;sCapture.hudStock=stock;
     if (!visible) ClearWindowTilemap(2);
     else
     {
-        CpuFastFill(0x99999999,gWindows[2].tileData,30*2*32);
-        PrintWindow(2,5,1,sCaptureMessages[sCapture.message],4);
-        ConvertIntToDecimalStringN(StringCopy(text,sCaptureCount),
-            CountTotalItemQuantityInBag(ITEM_POKE_BALL),STR_CONV_MODE_LEFT_ALIGN,3);
-        PrintWindow(2,185,1,text,7);
+        CpuFastFill(0,gWindows[2].tileData,30*2*32);
+        WindowRect(2,5,7,230,9,11);
+        WindowRect(2,6,7,228,1,1);
+        if(notice)
+        {
+            HudTinyWindow(2,9,10,sCaptureMessages[sCapture.message],4,36);
+            ConvertIntToDecimalStringN(StringCopy(text,sCaptureCount),stock,STR_CONV_MODE_LEFT_ALIGN,3);
+            HudTinyWindow(2,192,10,text,4,9);
+        }
+        else
+        {
+            HudTinyWindow(2,9,10,gMoveNames[gBattleMons[0].moves[sArena.bodies[0].moveSlot]],4,16);
+            ConvertIntToDecimalStringN(StringCopy(text,sHudPPLabel),gBattleMons[0].pp[sArena.bodies[0].moveSlot],STR_CONV_MODE_LEFT_ALIGN,2);
+            HudTinyWindow(2,81,10,text,4,5);
+        }
         PutWindowTilemap(2);
     }
     CopyWindowToVram(2,COPYWIN_FULL);
@@ -103,7 +120,7 @@ static void CaptureInit(void)
     sCapture.shadow=CreateSprite(&sShadowTemplate,8,118,10);
     sCapture.marker=CreateSprite(&sAimTemplate,120,40,0);
     sCapture.ready=sCapture.sprite!=MAX_SPRITES&&sCapture.shadow!=MAX_SPRITES&&sCapture.marker!=MAX_SPRITES
-        && !(gBattleTypeFlags & BATTLE_TYPE_FIRST_BATTLE);
+        && !(gBattleTypeFlags & (BATTLE_TYPE_FIRST_BATTLE | BATTLE_TYPE_TRAINER));
     sCapture.previousX=sArena.bodies[1].x;sCapture.previousY=sArena.bodies[1].y;
     if(sCapture.sprite!=MAX_SPRITES)
     {
@@ -164,7 +181,7 @@ static void CaptureInput(void)
         if(!--sCapture.notice)sArena.hudDirty=TRUE;
     if(sArena.paused || sArena.resultTimer || !sCapture.ready)return;
     if(sCapture.state==ARENA_CAPTURE_IDLE && held && !sCapture.heldLatch
-        && !player->shotTimer && !player->actionLife && !player->dash && !sArena.toss.phase)
+        && !player->shotTimer && !player->actionLife && !player->dash)
     {
         sCapture.heldLatch=TRUE;
         if(!CaptureCanThrow())return;
@@ -366,6 +383,8 @@ static void CaptureTrainer(void)
         }
     }
     CalcCenterToCornerVec(sprite,sprite->oam.shape,sprite->oam.size,sprite->oam.affineMode);
+    // Dummy animation has ended: refresh hardware bits after changing the pose.
+    RefreshTrainerFacing(sprite);
     sCapture.trainerFrame=frame;
 }
 

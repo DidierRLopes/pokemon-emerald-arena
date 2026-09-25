@@ -13,6 +13,7 @@
 #include "arena_physics.h"
 #include "arena_terrain.h"
 #include "arena_render.h"
+#include "arena_psychic.h"
 #include "event_object_movement.h"
 #include "graphics.h"
 #include "constants/event_objects.h"
@@ -21,6 +22,7 @@
 #include "constants/weather.h"
 #include "battle.h"
 #include "battle_main.h"
+#include "battle_setup.h"
 #include "bg.h"
 #include "data.h"
 #include "decompress.h"
@@ -49,6 +51,8 @@
 #include "constants/battle_move_effects.h"
 #include "constants/heal_locations.h"
 #include "constants/items.h"
+#include "constants/trainers.h"
+#include "constants/hold_effects.h"
 #include "constants/moves.h"
 #include "constants/rgb.h"
 #include "constants/songs.h"
@@ -82,6 +86,7 @@ struct ArenaBody
     u8 actionLife, actionAge, connected, terrainMask,manualAim;
     s16 knockX,knockY;
     u16 burnClock;
+    u16 weatherClock;
     u8 statusActions;
 };
 
@@ -89,10 +94,11 @@ struct ArenaShot
 {
     s32 x, y, vx, vy;
     u16 move;
-    u8 side, sprite, life, direction, age;
+    u8 side, sprite, life, direction, age, elementMask;
     u8 trail[2];
 };
 
+// DidierRLopes, PR #1: original throw choreography/state.
 struct ArenaToss
 {
     s32 damage;
@@ -104,7 +110,6 @@ struct ArenaToss
     u8 priority[2], animation[2], direction[2], hold[2];
     u8 phase, timer, attacker, shake, fatal, space, blackout;
 };
-
 struct ArenaState
 {
     struct ArenaBody bodies[2];
@@ -124,6 +129,33 @@ struct ArenaState
 };
 
 static EWRAM_DATA struct ArenaState sArena = {};
+// Persistent environment within one encounter, including native party switches.
+static EWRAM_DATA bool8 sEnvironmentInitialized=FALSE;
+static EWRAM_DATA u8 sFlameReach[2]={},sFlameElementMask[2]={};
+// starts, active ticks, native hit opportunities, prop hits, peak reach.
+EWRAM_DATA u32 gArenaFlameTelemetry[5]={};
+static bool8 PsychicBusy(u8 side);
+static bool8 PsychicStart(u8 side,s32 targetX,s32 targetY);
+static void PsychicReset(void);
+static void TickPsychic(void);
+static void DrawPsychicAuras(void);
+static void ElementsInit(void);
+static void ElementsResetBattle(void);
+static void ElementsTick(void);
+static void ElementsDraw(void);
+static bool8 SpecialBusy(u8 side);
+static void DiveStart(u8 side,u16 move);
+static bool8 SpecialInvulnerable(u8 side);
+static bool8 WarpStart(u8 side);
+static bool8 TossStart(u8 side);
+static void SpecialReset(void);
+static void SpecialHide(void);
+static void SpecialTick(void);
+static void SpecialDraw(void);
+static bool8 TossActive(void);
+extern u32 gArenaWarpTossTelemetry[8];
+static bool8 ElementReact(struct ArenaShot *shot);
+static bool8 ElementMotion(u8 side,s32 dx,s32 dy);
 static EWRAM_DATA u32 sMonFrameTiles[2][512] = {};
 static EWRAM_DATA bool8 sDemoRequested = FALSE;
 EWRAM_DATA struct RealtimeArenaTelemetry gRealtimeArenaTelemetry = {};
@@ -140,8 +172,6 @@ EWRAM_DATA bool8 gRealtimeArenaQuietResult = FALSE;
 EWRAM_DATA struct ArenaResultTelemetry gArenaResultTelemetry = {};
 EWRAM_DATA struct ArenaIntroTelemetry gArenaIntroTelemetry = {};
 EWRAM_DATA u16 gArenaRenderTelemetry[8] = {};
-static EWRAM_DATA u16 sHudHp[2]={},sHudMaxHp[2]={};
-static EWRAM_DATA u8 sHudReady=0,sHudSlot=0,sHudPP=0;
 static EWRAM_DATA u8 sHudRecovery=0;
 static EWRAM_DATA bool8 sMoveMenuReady=FALSE;
 
@@ -151,8 +181,6 @@ static const struct BgTemplate sArenaBgs[] =
       .screenSize = 0, .paletteMode = 0, .priority = 0, .baseTile = 0 },
     { .bg = 1, .charBaseIndex = 1, .mapBaseIndex = 30,
       .screenSize = 0, .paletteMode = 1, .priority = 2, .baseTile = 0 },
-    // Space backdrop for a finishing Seismic Toss. Its tiles sit in the free
-    // VRAM behind the stage art (tile 192 of char block 3); hidden otherwise.
     { .bg = 2, .charBaseIndex = 3, .mapBaseIndex = 29,
       .screenSize = 0, .paletteMode = 0, .priority = 2, .baseTile = 0 }
 };
@@ -164,16 +192,17 @@ static const struct WindowTemplate sArenaWindows[] =
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 0,
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 1 },
     { .bg = 0, .tilemapLeft = 1, .tilemapTop = 6,
-      .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 61 },
+      .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 91 },
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
-      .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 313 },
+      .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 343 },
     DUMMY_WIN_TEMPLATE
 };
 static const u16 sArenaPalette[16] =
 {
     RGB(3, 6, 9), RGB(4, 9, 12), RGB(6, 13, 15), RGB(10, 20, 19),
     RGB(29, 31, 29), RGB(8, 29, 23), RGB(31, 14, 8), RGB(29, 24, 9),
-    RGB(12, 15, 17), RGB(2, 3, 6), RGB(31, 31, 31)
+    RGB(12, 15, 17), RGB(2, 3, 6), RGB(31, 31, 31),
+    RGB(3, 6, 9), RGB(2, 6, 9)
 };
 static const u32 sShotTiles[8] =
 {
@@ -236,7 +265,6 @@ static const u8 sTextPaused[] = _("ARROWS: PICK MOVE   START: PLAY");
 static const u8 sTextPP[] = _(" PP ");
 static const u8 sMoveDirections[4][7] = {_("UP"),_("RIGHT"),_("DOWN"),_("LEFT")};
 static const u8 sMoveKinds[6][8] = {_("CLASSIC"),_("HIT"),_("DASH"),_("SHOT"),_("STATUS"),_("BOOST")};
-static const u8 sTextShortPP[] = _("P");
 #if ARENA_LAB
 static const u8 sDemoName[] = _("GERMAN");
 #else
@@ -249,7 +277,7 @@ static const struct {u16 species;u8 level;} sPracticeRivals[] =
 {
     {SPECIES_EEVEE,36}, {SPECIES_BLASTOISE,36}, {SPECIES_SCIZOR,15},
     {SPECIES_BLAZIKEN,20}, {SPECIES_DRAGONITE,30}, {SPECIES_CHARIZARD,36},
-    {SPECIES_SCEPTILE,43}
+    {SPECIES_SCEPTILE,43}, {SPECIES_RAYQUAZA,60}, {SPECIES_MEWTWO,66}
 };
 static EWRAM_DATA u8 sPracticeRival = 0;
 
@@ -279,6 +307,8 @@ static void AiChooseGoal(void);
 static s32 Abs(s32 n) { return n < 0 ? -n : n; }
 static s32 Clamp(s32 n, s32 lo, s32 hi) { return n < lo ? lo : n > hi ? hi : n; }
 
+#include "arena_double_team.inc"
+
 static bool8 SupportedMove(u16 move)
 {
     return ArenaMoves_Get(move) != NULL;
@@ -302,7 +332,8 @@ static bool8 SupportedBattler(u8 side)
     u32 i;
     // Only tested native damage, stat changes and burns enter the arena.
     // Other status/turn/item mechanics retain the complete classic battle.
-    if (gBattleMons[side].item || (gBattleMons[side].status1 & ~STATUS1_BURN)
+    if ((gBattleMons[side].item && GetItemHoldEffect(gBattleMons[side].item) != HOLD_EFFECT_RESTORE_HP)
+        || (gBattleMons[side].status1 & ~STATUS1_BURN)
         || (gBattleMons[side].status2 & ~(STATUS2_FOCUS_ENERGY|STATUS2_DEFENSE_CURL))
         || gStatuses3[side] || gBattleMons[side].hp == 0 || FirstMove(side, TRUE) == MAX_MON_MOVES)
         return FALSE;
@@ -344,6 +375,10 @@ static bool8 SupportedBattler(u8 side)
     case ABILITY_EARLY_BIRD: // Sleep actions/statuses remain classic.
     case ABILITY_ILLUMINATE: // Encounter-rate ability; no in-battle effect.
     case ABILITY_HYPER_CUTTER: // ChangeStatBuffs keeps its Attack protection.
+    case ABILITY_PRESSURE: // Fire charges an extra PP for opposing targeted actions.
+    case ABILITY_AIR_LOCK: // Weather encounters are still excluded by Eligible().
+    case ABILITY_SAND_VEIL:
+    case ABILITY_CLOUD_NINE:
         return TRUE;
     case ABILITY_STATIC:
     case ABILITY_EFFECT_SPORE:
@@ -362,6 +397,8 @@ static bool8 SupportedBattler(u8 side)
 
 void RealtimeArena_ResetBattle(void)
 {
+    ElementsResetBattle();
+    sEnvironmentInitialized=FALSE;
     memset(&sArena, 0, sizeof(sArena));
     gRealtimeArenaTelemetry.active = FALSE;
     gRealtimeArenaRestoringFaint = FALSE;
@@ -379,8 +416,8 @@ static bool8 Eligible(void)
     if (gArenaLabMailbox.classic) return FALSE;
 #endif
     // FIRST_BATTLE is still a 1v1 with a real starter and native return script.
-    if (sArena.classic || gBattlersCount != 2 || (gBattleTypeFlags & ~(BATTLE_TYPE_FIRST_BATTLE | BATTLE_TYPE_IS_MASTER))
-        || gBattleWeather || gAbsentBattlerFlags
+    if (sArena.classic || gBattlersCount != 2 || (gBattleTypeFlags & ~(BATTLE_TYPE_FIRST_BATTLE | BATTLE_TYPE_IS_MASTER | BATTLE_TYPE_TRAINER))
+        || gAbsentBattlerFlags
         || !SupportedBattler(0) || !SupportedBattler(1))
         return FALSE;
     return TRUE;
@@ -490,13 +527,6 @@ static void HudRect(u32 x,u32 top,u32 width,u32 height,u32 color)
     WindowRect(0,x,top,width,height,color);
 }
 
-static u32 HudTextWidth(const u8 *text)
-{
-    u32 width=0,n=0;
-    while(*text!=EOS&&n++<32)width+=gFontSmallLatinGlyphWidths[*text++];
-    return width;
-}
-
 static void PrintPopup(u32 x, u32 y, const u8 *text, u8 color)
 {
     PrintWindow(1,x,y,text,color);
@@ -520,52 +550,14 @@ static u8 RecoveryPips(void)
     return 8-min(8,body->cooldown*8/max(1,p?p->recovery:30));
 }
 
+#include "arena_hud.inc"
+
 static void DrawHud(void)
 {
     u32 side;
     u8 text[64];
     u8 *end;
-    // Tile-aligned clears avoid thousands of slow per-pixel writes every tick.
-    if(!sHudReady)CpuFastFill(0x99999999, gWindows[0].tileData, 30 * 2 * 32);
-    for (side = 0; side < 2; side++)
-    {
-        u32 x = side ? 126 : 6;
-        const struct BattlePokemon *mon = &gBattleMons[side];
-        if(!sHudReady||(!side&&sHudSlot!=sArena.bodies[0].moveSlot))
-        {
-            StringCopy(text,side?gSpeciesNames[mon->species]:gMoveNames[mon->moves[sArena.bodies[0].moveSlot]]);
-            if(!side)
-            {
-                u32 length=StringLength(text);
-                while(length&&HudTextWidth(text)>49)text[--length]=EOS;
-            }
-            HudRect(x,0,side?75:49,12,9);
-            Print(x,0,text,side?6:5);
-        }
-        if (!side)
-        {
-            u8 pp = mon->pp[sArena.bodies[0].moveSlot];
-            if(!sHudReady||pp!=sHudPP)
-            {
-                end=StringCopy(text,sTextShortPP);
-                ConvertIntToDecimalStringN(end,pp,STR_CONV_MODE_LEFT_ALIGN,2);
-                HudRect(60,0,20,12,9);Print(60,0,text,pp>5?7:6);
-            }
-            sHudPP=pp;sHudSlot=sArena.bodies[0].moveSlot;
-        }
-        if(!sHudReady||sHudHp[side]!=mon->hp||sHudMaxHp[side]!=mon->maxHP)
-        {
-            HudRect(x,12,108,3,8);HudRect(x,12,mon->hp*108/mon->maxHP,3,side?6:5);
-            end=ConvertIntToDecimalStringN(text,mon->hp,STR_CONV_MODE_LEFT_ALIGN,3);*end++=CHAR_SLASH;
-            ConvertIntToDecimalStringN(end,mon->maxHP,STR_CONV_MODE_LEFT_ALIGN,3);
-            HudRect(x+76,0,32,12,9);Print(x+76,0,text,4);
-            sHudHp[side]=mon->hp;sHudMaxHp[side]=mon->maxHP;
-        }
-    }
-    sHudRecovery=RecoveryPips();
-    HudRect(6,15,49,1,8);
-    HudRect(6,15,sHudRecovery*49/8,1,sHudRecovery==8?5:7);
-    sHudReady=TRUE;
+    DrawStatusHud();
     if (sArena.paused)
     {
         if(!sMoveMenuReady)
@@ -617,12 +609,34 @@ static void LoadAimMarker(void)
 }
 
 #define TRAINER_TAG 0xA7A0
+static void RefreshTrainerFacing(struct Sprite *sprite)
+{
+    sprite->oam.matrixNum=(sprite->oam.matrixNum&7)|(sprite->hFlip?8:0);
+}
 // Read-only test evidence: sprite ids, shadow ids, palette slots, graphics ids.
 EWRAM_DATA u8 gArenaTrainerTelemetry[8] = {};
 static const struct OamData sTrainerOam =
 {
     .shape = SPRITE_SHAPE(16x32), .size = SPRITE_SIZE(16x32), .priority = 1
 };
+
+static u8 OpponentGraphics(void)
+{
+    u8 pic = gTrainers[gTrainerBattleOpponent_A].trainerPic;
+    if (pic >= TRAINER_PIC_ELITE_FOUR_SIDNEY && pic <= TRAINER_PIC_LEADER_WINONA)
+        return OBJ_EVENT_GFX_SIDNEY + pic - TRAINER_PIC_ELITE_FOUR_SIDNEY;
+    switch (pic)
+    {
+    case TRAINER_PIC_HIKER: return OBJ_EVENT_GFX_HIKER;
+    case TRAINER_PIC_BUG_CATCHER: return OBJ_EVENT_GFX_BUG_CATCHER;
+    case TRAINER_PIC_SWIMMER_M: return OBJ_EVENT_GFX_SWIMMER_M;
+    case TRAINER_PIC_SWIMMER_F: return OBJ_EVENT_GFX_SWIMMER_F;
+    case TRAINER_PIC_LEADER_JUAN: return OBJ_EVENT_GFX_JUAN;
+    case TRAINER_PIC_CHAMPION_WALLACE: return OBJ_EVENT_GFX_WALLACE;
+    case TRAINER_PIC_STEVEN: return OBJ_EVENT_GFX_STEVEN;
+    default: return OBJ_EVENT_GFX_BOY_1;
+    }
+}
 
 static void CreateSidelineTrainers(void)
 {
@@ -631,10 +645,11 @@ static void CreateSidelineTrainers(void)
     for (i = 0; i < 2; i++)
     {
         bool8 female = (gSaveBlock2Ptr->playerGender != 0) ^ (i != 0);
-        u8 graphicsId = female ? OBJ_EVENT_GFX_MAY_NORMAL : OBJ_EVENT_GFX_BRENDAN_NORMAL;
+        u8 graphicsId = i && (gBattleTypeFlags & BATTLE_TYPE_TRAINER) ? OpponentGraphics()
+            : female ? OBJ_EVENT_GFX_MAY_NORMAL : OBJ_EVENT_GFX_BRENDAN_NORMAL;
         const struct ObjectEventGraphicsInfo *info = GetObjectEventGraphicsInfo(graphicsId);
         struct SpriteSheet sheet = {info->images[2].data, 256, TRAINER_TAG + i};
-        struct SpritePalette pal = {female ? gObjectEventPal_May : gObjectEventPal_Brendan, TRAINER_TAG + i};
+        struct SpritePalette pal = {ArenaObjectPalette(info->paletteTag), TRAINER_TAG + i};
         struct SpriteTemplate template =
         {
             .tileTag = TRAINER_TAG + i, .paletteTag = TRAINER_TAG + i,
@@ -657,7 +672,9 @@ static void CreateSidelineTrainers(void)
             FreeSpritePaletteByTag(TRAINER_TAG + i);
             continue;
         }
+        // The source side pose faces west; left trainer must face east.
         gSprites[id].hFlip = !i;
+        RefreshTrainerFacing(&gSprites[id]);
         shadow = CreateSprite(&sShadowTemplate, x, y + 13, 13);
         gArenaTrainerTelemetry[i] = id;
         gArenaTrainerTelemetry[2+i] = shadow;
@@ -667,11 +684,14 @@ static void CreateSidelineTrainers(void)
 }
 
 #include "arena_capture.inc"
+#include "arena_biomes.inc"
 #include "arena_toss.inc"
+#include "arena_sendout.inc"
 
 static void CB2_ArenaInit(void)
 {
     u32 i;
+    gRealtimeArenaQuietResult = FALSE;
     SetVBlankCallback(NULL);
     SetHBlankCallback(NULL);
     ScanlineEffect_Stop();
@@ -679,6 +699,8 @@ static void CB2_ArenaInit(void)
     FreeAllWindowBuffers();
     ResetTasks();
     ResetSpriteData();
+    DecoyReset();
+    SpecialReset();
     ArenaRender_Reset();
     FreeAllSpritePalettes();
     gReservedSpritePaletteCount = 2;
@@ -686,20 +708,31 @@ static void CB2_ArenaInit(void)
     ResetBgsAndClearDma3BusyFlags(0);
     InitBgsFromTemplates(0, sArenaBgs, ARRAY_COUNT(sArenaBgs));
     InitWindows(sArenaWindows);
-    sHudReady=FALSE;
+    sHudCached=FALSE;
     DeactivateAllTextPrinters();
-    SetGpuReg(REG_OFFSET_BLDCNT, 0);
-    SetGpuReg(REG_OFFSET_BLDALPHA, 0);
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG0 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG1 | BLDCNT_TGT2_OBJ);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(12,4));
     SetGpuReg(REG_OFFSET_BLDY, 0);
-    LoadPalette(sForestPalette, 0, sizeof(sForestPalette));
-    LoadPalette(sArenaPalette, 0, sizeof(sArenaPalette));
-    LoadBgTiles(1, sForestTiles, sizeof(sForestTiles), 0);
-    LoadBgTilemap(1, sForestMap, sizeof(sForestMap), 0);
+    LoadArenaBiome();
     LoadBgTiles(2, sSpaceTiles, sizeof(sSpaceTiles), 192);
     LoadBgTilemap(2, sSpaceMap, sizeof(sSpaceMap), 0);
+    LoadPalette(sArenaPalette, 0, sizeof(sArenaPalette));
     DrawStage();
     ArenaNav_Init();
-    ArenaPhysics_Init();
+    if(!sEnvironmentInitialized)
+    {
+        ArenaPhysics_Init();
+        sEnvironmentInitialized=TRUE;
+    }
+    else
+    {
+        // A party change must not respawn broken cover or erase wet ground.
+        for(i=0;i<ARENA_OBSTACLES;i++)
+        {
+            gArenaProps[i].reserved=0;
+            ArenaNav_SetObstacle(i,!gArenaProps[i].broken);
+        }
+    }
     LoadSpriteSheet(&sShotSheet);
     LoadSpritePalette(&sShotPalettes[0]);
     LoadSpritePalette(&sShotPalettes[1]);
@@ -708,9 +741,14 @@ static void CB2_ArenaInit(void)
     ArenaFeedback_Init();
     ArenaMoveFx_Init();
     ArenaTerrain_Init();
+    ElementsInit();
+    memset(sFlameReach,0,sizeof(sFlameReach));
+    memset(sFlameElementMask,0,sizeof(sFlameElementMask));
+    memset(gArenaFlameTelemetry,0,sizeof(gArenaFlameTelemetry));
+    PsychicReset();
+    ArenaPsychicFx_Init(gBattleMons[0].species==SPECIES_MEWTWO||gBattleMons[1].species==SPECIES_MEWTWO);
     memset(sArena.bodies, 0, sizeof(sArena.bodies));
     memset(sArena.shots, 0, sizeof(sArena.shots));
-    memset(&sArena.toss, 0, sizeof(sArena.toss));
     memset(&gArenaSpriteTelemetry, 0, sizeof(gArenaSpriteTelemetry));
     memset(&gArenaCombatTelemetry, 0, sizeof(gArenaCombatTelemetry));
     memset(&gArenaMoveTelemetry, 0, sizeof(gArenaMoveTelemetry));
@@ -754,7 +792,10 @@ static void CB2_ArenaInit(void)
         body->facing = i ? FACE_DOWN : FACE_UP;
         body->moveSlot = FirstMove(i, TRUE);
         body->cooldown = i ? 30 : 15;
-        body->sprite = CreateSprite(&template, body->x / Q, body->y / Q, 0);
+        // Lapras' source canvas has an asymmetric swimming-body registration.
+        // Restore its feet anchor after fitting every original pixel into OBJ.
+        body->sprite = CreateSprite(&template, body->x / Q,
+            body->y / Q-(gBattleMons[i].species==SPECIES_LAPRAS?11:0), 0);
         body->shadow = CreateSprite(&sShadowTemplate, body->x / Q, body->y / Q + 8, 10);
         gSprites[body->sprite].oam.paletteNum = i;
         gSprites[body->sprite].affineAnimPaused = TRUE;
@@ -803,6 +844,7 @@ static void CB2_ArenaInit(void)
     DrawHud();
     PutWindowTilemap(0);
     CopyWindowToVram(0, COPYWIN_FULL);
+    SendoutInit();
     AnimateSprites();BuildOamBuffer();
     SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_MODE_0 | DISPCNT_OBJ_1D_MAP | DISPCNT_OBJ_ON);
     ShowBg(0);
@@ -834,6 +876,7 @@ static void MoveDelta(u8 side, s32 dx, s32 dy)
     struct ArenaBody *body = &sArena.bodies[side];
     struct ArenaBody *other = &sArena.bodies[side ^ 1];
     s32 x, y;
+    if(ElementMotion(side,dx,dy))return;
     body->moving = dx || dy;
     if (dx || dy) body->facing = Facing(dx, dy);
     x = Clamp(body->x + dx, ARENA_MIN_X * Q, ARENA_MAX_X * Q);
@@ -870,7 +913,16 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
     len = max(Abs(dx), Abs(dy)) + min(Abs(dx), Abs(dy)) / 2;
     if (!len) { dx = Q; len = Q; }
     body->attackX = dx * Q / len; body->attackY = dy * Q / len;
-    if (profile->kind == ARENA_MOVE_PROJECTILE)
+    if(profile->move==MOVE_FLAMETHROWER)
+    {
+        static const s16 dirs[8][2]={{0,256},{181,181},{256,0},{181,-181},{0,-256},{-181,-181},{-256,0},{-181,181}};
+        body->attackX=dirs[body->shotFacing][0];body->attackY=dirs[body->shotFacing][1];
+        sFlameElementMask[side]=sFlameReach[side]=0;
+        gArenaFlameTelemetry[0]++;
+    }
+    if (profile->kind == ARENA_MOVE_PROJECTILE
+        && !(profile->move==MOVE_PSYCHIC && gBattleMons[side].species==SPECIES_MEWTWO
+             && PsychicStart(side,targetX,targetY)))
     {
         for (i = 0; i < SHOTS_COUNT; i++) if (!sArena.shots[i].life) break;
         if (i == SHOTS_COUNT) return;
@@ -883,6 +935,7 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
         sArena.shots[i].side = side; sArena.shots[i].move = profile->move;
         sArena.shots[i].life = profile->range * Q / profile->speed;
         sArena.shots[i].direction = body->shotFacing; sArena.shots[i].age = 0;
+        sArena.shots[i].elementMask=0;
         // Decorative water stream segments share the head's tiles. They have
         // no hitboxes and can never multiply native damage or PP costs.
         {
@@ -890,7 +943,7 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
             for(t=0;t<2;t++)
             {
                 sArena.shots[i].trail[t]=MAX_SPRITES;
-                if(profile->move==MOVE_WATER_GUN)
+                if(profile->move==MOVE_WATER_GUN||profile->move==MOVE_SURF||profile->move==MOVE_ICY_WIND||profile->move==MOVE_SHOCK_WAVE)
                 {
                     u8 sprite=ArenaMoveFx_CreateBolt(profile,body->x/Q,body->y/Q,body->shotFacing,i);
                     sArena.shots[i].trail[t]=sprite;
@@ -901,7 +954,13 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
     }
     body->actionLife = profile->active;
     body->actionAge = 0; body->connected = FALSE; body->terrainMask=0;
-    pp = --gBattleMons[side].pp[slot];
+    // Pressure applies on commitment, even if the projectile misses or hits
+    // cover. Self-targeted buffs do not target the opponent. Clamp the last PP.
+    pp = gBattleMons[side].pp[slot];
+    if (gBattleMons[side ^ 1].ability == ABILITY_PRESSURE
+        && gBattleMoves[profile->move].target != MOVE_TARGET_USER && pp > 1)
+        pp--;
+    gBattleMons[side].pp[slot] = --pp;
     SetMonData(side ? &gEnemyParty[gBattlerPartyIndexes[side]] : &gPlayerParty[gBattlerPartyIndexes[side]],
         MON_DATA_PP1 + slot, &pp);
     body->cooldown = profile->recovery + (side ? Clamp(8-gBattleMons[1].level/8,2,8) : 0);
@@ -909,8 +968,13 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
     gArenaCombatTelemetry.lastMove[side] = profile->move;
     if(!gBattleMoves[profile->move].power && body->statusActions<255)body->statusActions++;
     sArena.hudDirty = TRUE;
-    PlaySE(profile->move == MOVE_SEISMIC_TOSS ? SE_M_VITAL_THROW
-        : profile->move == MOVE_WATER_GUN ? SE_M_BUBBLE_BEAM
+    PlaySE(profile->move == MOVE_PSYCHIC ? SE_M_PSYBEAM
+        : profile->move == MOVE_SHADOW_BALL ? SE_M_PSYBEAM2
+        : profile->move == MOVE_DRAGON_CLAW ? SE_M_SCRATCH
+        : profile->move == MOVE_CRUNCH ? SE_M_BITE
+        : profile->move == MOVE_WATER_GUN || profile->move == MOVE_SURF ? SE_M_BUBBLE_BEAM
+        : profile->move == MOVE_ICY_WIND ? SE_M_ICY_WIND
+        : profile->move == MOVE_SHOCK_WAVE ? SE_M_THUNDERBOLT
         : profile->move == MOVE_FLAMETHROWER ? SE_M_FLAMETHROWER
         : profile->visual == ARENA_VIS_EMBER ? SE_M_EMBER
         : profile->move == MOVE_ROCK_THROW ? SE_M_ROCK_THROW
@@ -930,7 +994,7 @@ static void BeginShot(u8 side, s32 targetX, s32 targetY)
     struct ArenaBody *body = &sArena.bodies[side];
     const struct ArenaMoveProfile *profile = ArenaMoves_Get(gBattleMons[side].moves[body->moveSlot]);
     s32 dx,dy,len;
-    if (!profile || body->shotTimer || !gBattleMons[side].pp[body->moveSlot]) return;
+    if (!profile || body->shotTimer || PsychicBusy(side) || SpecialBusy(side) || !gBattleMons[side].pp[body->moveSlot]) return;
     body->shotSlot = body->moveSlot;
     body->aimX = targetX; body->aimY = targetY;
     body->shotFacing = Facing(targetX - body->x, targetY - body->y);
@@ -995,6 +1059,7 @@ static void TickPlayer(void)
     struct ArenaBody *body = &sArena.bodies[0];
     s32 dx = (JOY_HELD(DPAD_RIGHT) != 0) - (JOY_HELD(DPAD_LEFT) != 0);
     s32 dy = (JOY_HELD(DPAD_DOWN) != 0) - (JOY_HELD(DPAD_UP) != 0);
+    if(SpecialBusy(0))return;
     if (body->dashCooldown) body->dashCooldown--;
     if (sArena.dashBuffer && !body->dashCooldown && !body->actionLife)
     {
@@ -1021,8 +1086,8 @@ static void TickPlayer(void)
         // A alone aims at the rival. D-pad + A gives explicit directional
         // aim, including destructible cover. This is still the same four moves.
         body->manualAim=dx||dy;
-        BeginShot(0,dx||dy?body->x+dx*200*Q:sArena.bodies[1].x,
-                    dx||dy?body->y+dy*200*Q:sArena.bodies[1].y);
+        BeginShot(0,dx||dy?body->x+dx*200*Q:DecoyAim(1,FALSE),
+                    dx||dy?body->y+dy*200*Q:DecoyAim(1,TRUE));
         sArena.attackBuffer = 0;
     }
 }
@@ -1052,7 +1117,7 @@ static void AiChooseGoal(void)
     struct ArenaBody *body = &sArena.bodies[1];
     const struct ArenaMoveProfile *p = ArenaMoves_Get(gBattleMons[1].moves[body->moveSlot]);
     s32 preferred = p->kind == ARENA_MOVE_MELEE ? 24 : p->kind == ARENA_MOVE_RUSH ? p->range-22
-        : p->kind == ARENA_MOVE_CONE ? 40 : 70+sArena.style*8;
+        : p->move == MOVE_FLAMETHROWER ? 76 : p->kind == ARENA_MOVE_CONE ? 40 : 70+sArena.style*8;
     s32 best = 0x7FFFFFFF;
     u32 i;
     if (p->kind == ARENA_MOVE_PROJECTILE && gBattleMons[1].hp * 3 < gBattleMons[1].maxHP) preferred += 12;
@@ -1189,6 +1254,8 @@ static void AiChooseMove(s32 distance)
             bool8 useful=change && (change>0?gBattleMons[1].statStages[stat]<8:gBattleMons[0].statStages[stat]>4);
             if((move==MOVE_LEER||move==MOVE_TAIL_WHIP||move==MOVE_SCREECH||move==MOVE_HOWL)&&!hasPhysical)useful=FALSE;
             if(move==MOVE_FOCUS_ENERGY)useful=hasPhysical&&!(gBattleMons[1].status2&STATUS2_FOCUS_ENERGY);
+            if(move==MOVE_DOUBLE_TEAM)useful=!sDecoys[1].life;
+            if(move==MOVE_TELEPORT)useful=distance<60;
             // One setup action, then pressure. Repeated buffs should not turn
             // early wild encounters into several seconds of waiting around.
             if(hasAttack && sArena.bodies[1].statusActions)useful=FALSE;
@@ -1205,6 +1272,7 @@ static void TickEnemy(void)
     struct ArenaBody *body = &sArena.bodies[1];
     s32 dx, dy, len;
     body->moving = FALSE;
+    if(SpecialBusy(1))return;
     if (body->cooldown && !body->shotTimer && !body->actionLife) body->cooldown--;
     if (sArena.goalTimer) sArena.goalTimer--;
     if (body->shotTimer) return;
@@ -1226,6 +1294,12 @@ static void TickEnemy(void)
         sArena.previous = sArena.observed;
         sArena.observed.x = sArena.bodies[0].x / Q;
         sArena.observed.y = sArena.bodies[0].y / Q;
+        if(sDecoys[0].life && sDecoys[0].age>=24)
+        {
+            sArena.observed.x=sDecoys[0].x;
+            sArena.observed.y=sDecoys[0].y;
+            gArenaDecoyTelemetry[4]++;
+        }
         gArenaAiTelemetry.decisions++;
         distance = ArenaNav_Distance(body->x/Q,body->y/Q,sArena.observed.x,sArena.observed.y);
         if(!body->cooldown)AiChooseMove(distance);
@@ -1256,11 +1330,21 @@ static void TickEnemy(void)
     if (len > Q) MoveDelta(1, dx * Speed(1) / len, dy * Speed(1) / len);
 }
 
+static void ApplyResolvedHit(u8 side,u16 move,s32 damage);
 static void ApplyMoveHit(u8 side,u16 move)
 {
     const struct ArenaMoveProfile *profile=ArenaMoves_Get(move);
     u8 targetSide=profile->kind==ARENA_MOVE_SELF?side:side^1;
     struct ArenaBody *target=&sArena.bodies[targetSide];
+    s32 damage;
+    if(move!=MOVE_TELEPORT&&move!=MOVE_DOUBLE_TEAM&&SpecialInvulnerable(targetSide))
+    {gArenaWarpTossTelemetry[7]++;return;}
+    if(move==MOVE_TELEPORT){WarpStart(side);return;}
+    if(move==MOVE_DOUBLE_TEAM)
+    {
+        if(!DecoyStart(side))ArenaFeedback_Impact(side,target->x/Q,target->y/Q,0,ARENA_FEEDBACK_MISS);
+        return;
+    }
     if(!gBattleMoves[move].power)
     {
         u8 stat=STAT_ATK;bool8 self;
@@ -1271,16 +1355,14 @@ static void ApplyMoveHit(u8 side,u16 move)
             worked?(move==MOVE_FOCUS_ENERGY?ARENA_FEEDBACK_CRIT:ARENA_FEEDBACK_STAT):ARENA_FEEDBACK_MISS);
         return;
     }
-    ApplyResolvedHit(side,move,RealtimeArena_ResolveDamage(side,targetSide,move));
+    damage=RealtimeArena_ResolveDamage(side,targetSide,move);
+    ApplyResolvedHit(side,move,damage);
 }
 
-// Apply one already-resolved native damage result: HP, drain, knockback,
-// secondary effects, feedback and the faint result. Seismic Toss resolves at
-// the grab and applies here at the impact.
+// Also used by Seismic Toss: accuracy is decided at the grab, HP at landing.
 static void ApplyResolvedHit(u8 side,u16 move,s32 damage)
 {
-    const struct ArenaMoveProfile *profile=ArenaMoves_Get(move);
-    u8 targetSide=profile->kind==ARENA_MOVE_SELF?side:side^1;
+    u8 targetSide=side^1;
     struct ArenaBody *target=&sArena.bodies[targetSide];
     if(damage>0)
     {
@@ -1353,6 +1435,28 @@ static void ApplyResolvedHit(u8 side,u16 move,s32 damage)
     }
 }
 
+#include "arena_psychic.inc"
+#include "arena_elements.inc"
+#include "arena_warp_toss.inc"
+
+static void DrawPsychicAuras(void)
+{
+    u32 side,i,n=0;
+    for(i=0;i<3;i++)if(sRockShadows[i]!=MAX_SPRITES)gSprites[sRockShadows[i]].invisible=TRUE;
+    for(i=0;i<ARENA_OBSTACLES&&n<3;i++)
+        if(gArenaPsychicRocks[i].state)
+        {
+            const struct ArenaPsychicRock *r=&gArenaPsychicRocks[i];
+            if(sRockShadows[n]!=MAX_SPRITES)
+            {struct Sprite *s=&gSprites[sRockShadows[n]];s->x=r->x/Q;s->y=r->y/Q+8;s->invisible=sArena.paused;}
+            n++;
+        }
+    for(side=0;side<2;side++)
+        if(sPsychic[side].active)
+            ArenaMoveFx_Psychic(side,sArena.bodies[side].x/Q,sArena.bodies[side].y/Q-8,
+                min(23,sPsychic[side].age/4),!sArena.paused);
+}
+
 static void HitTerrain(u8 index,const struct ArenaMoveProfile*p,s16 ix,s16 iy)
 {
     u32 before=gArenaPhysicsTelemetry.broken;
@@ -1371,6 +1475,17 @@ static void TickActions(void)
         bool8 hit=FALSE;
         if(!body->actionLife)continue;
         p=ArenaMoves_Get(gBattleMons[side].moves[body->shotSlot]);
+        if(p->move==MOVE_DIG||p->move==MOVE_FLY)
+        {
+            if(!body->connected){body->connected=TRUE;DiveStart(side,p->move);}
+            continue;
+        }
+        if(p->move==MOVE_SEISMIC_TOSS)
+        {
+            if(!body->connected){body->connected=TRUE;TossStart(side);}
+            if(body->actionLife){body->actionAge++;body->actionLife--;}
+            continue;
+        }
         if(p->kind==ARENA_MOVE_SELF)
         {
             if(!body->connected){body->connected=TRUE;ApplyMoveHit(side,p->move);}
@@ -1388,6 +1503,61 @@ static void TickActions(void)
             MoveDelta(side,dx,dy);
             if(!(body->actionAge%3))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
             hit=ArenaMoves_SegmentHit(oldX,oldY,body->x/Q,body->y/Q,target->x/Q,target->y/Q,p->radius);
+        }
+        else if(p->move==MOVE_FLAMETHROWER)
+        {
+            u32 j;
+            u8 reach=min(p->range,min(20+body->actionAge*7,body->actionLife*11));
+            s16 obstacle;
+            // A sustained, aim-locked cone. Cover stops the jet until it breaks.
+            // One PP and one native damage resolution, NOT damage every frame.
+            obstacle=ArenaNav_FirstObstacle(oldX,oldY,oldX+body->attackX*reach/Q,oldY+body->attackY*reach/Q,1);
+            if(obstacle>=0)
+            {
+                const struct ArenaRect *r=&gArenaObstacles[obstacle];
+                s16 nearX=body->attackX>0?r->left-1:r->right+1;
+                s16 nearY=body->attackY>0?r->top-1:r->bottom+1;
+                s16 alongX=body->attackX?(nearX-oldX)*Q/body->attackX:0;
+                s16 alongY=body->attackY?(nearY-oldY)*Q/body->attackY:0;
+                // Eight aim directions let us intersect the AABB analytically;
+                // avoid thirty full visibility scans on every GBA frame.
+                reach=min(reach,max(4,max(alongX,alongY)));
+                if(!(body->terrainMask&(1<<obstacle)))
+                {
+                    body->terrainMask|=1<<obstacle;
+                    ArenaPhysics_Hit(obstacle,body->attackX*4,body->attackY*4,3);
+                    ArenaFeedback_Embers(oldX+body->attackX*reach/Q,oldY+body->attackY*reach/Q,body->attackX,body->attackY);
+                    gArenaFlameTelemetry[3]++;
+                }
+            }
+            sFlameReach[side]=reach;gArenaFlameTelemetry[1]++;
+            gArenaFlameTelemetry[4]=max(gArenaFlameTelemetry[4],reach);
+            for(j=0;j<ARENA_OBSTACLES;j++)if(!(body->terrainMask&(1<<j))&&ArenaNav_IsSolid(j))
+            {
+                const struct ArenaRect *r=&gArenaObstacles[j];
+                s16 x=(r->left+r->right)/2,y=(r->top+r->bottom)/2;
+                if(ArenaMoves_InCone(x-oldX,y-oldY,body->attackX,body->attackY,reach,3)
+                    &&ArenaNav_FirstObstacle(oldX,oldY,x,y,0)==j)
+                {
+                    body->terrainMask|=1<<j;
+                    ArenaPhysics_Hit(j,body->attackX*4,body->attackY*4,3);
+                    ArenaFeedback_Embers(x,y,body->attackX,body->attackY);gArenaFlameTelemetry[3]++;
+                }
+            }
+            for(j=0;j<ELEMENT_COUNT;j++)
+            {
+                struct ArenaSurface *surface=&sSurfaces[j];
+                if(surface->kind&&ArenaMoves_InCone(surface->x-oldX,surface->y-oldY,body->attackX,body->attackY,reach+8,3)
+                    &&ArenaNav_LineClear(oldX,oldY,surface->x,surface->y,0))
+                {
+                    struct ArenaShot heat={0};
+                    heat.move=MOVE_FLAMETHROWER;heat.x=surface->x*Q;heat.y=surface->y*Q;
+                    heat.elementMask=sFlameElementMask[side];ElementReact(&heat);
+                    sFlameElementMask[side]=heat.elementMask;
+                }
+            }
+            if(!(body->actionAge%9))ArenaFeedback_Embers(oldX+body->attackX*reach/Q,oldY+body->attackY*reach/Q-8,body->attackX,body->attackY);
+            hit=ArenaMoves_InCone((target->x-body->x)/Q,(target->y-body->y)/Q,body->attackX,body->attackY,reach,3);
         }
         else if(p->kind==ARENA_MOVE_MELEE||p->kind==ARENA_MOVE_CONE)
         {
@@ -1409,13 +1579,28 @@ static void TickActions(void)
             hit=ArenaMoves_InCone((target->x-body->x)/Q,(target->y-body->y)/Q,
                                   body->attackX,body->attackY,range,p->cone);
         }
+        if(!body->connected && gBattleMoves[p->move].power && sDecoys[side^1].life)
+        {
+            struct ArenaDecoy*d=&sDecoys[side^1];
+            bool8 decoyHit=FALSE;
+            if(p->kind==ARENA_MOVE_RUSH)
+                decoyHit=DecoySegment(side^1,oldX,oldY,body->x/Q,body->y/Q,p->radius);
+            else if(d->age>=24 && (p->kind==ARENA_MOVE_CONE||p->kind==ARENA_MOVE_MELEE))
+            {
+                u8 range=p->move==MOVE_FLAMETHROWER?sFlameReach[side]:p->kind==ARENA_MOVE_CONE?min(p->range,24+body->actionAge*4):p->range;
+                if(ArenaMoves_InCone(d->x-body->x/Q,d->y-body->y/Q,body->attackX,body->attackY,range,p->cone)
+                    &&ArenaNav_LineClear(body->x/Q,body->y/Q,d->x,d->y,2)
+                    &&(!hit||target->dash||ArenaNav_Distance(oldX,oldY,d->x,d->y)<ArenaNav_Distance(oldX,oldY,target->x/Q,target->y/Q)))
+                {DecoyBreak(side^1);decoyHit=TRUE;}
+            }
+            if(decoyHit)body->connected=TRUE;
+        }
         if(hit&&!body->connected&&!target->dash
             &&ArenaNav_LineClear(body->x/Q,body->y/Q,target->x/Q,target->y/Q,2))
         {
             body->connected=TRUE;
-            if(p->move==MOVE_SEISMIC_TOSS)TossBegin(side);
-            else ApplyMoveHit(side,p->move);
-            if(!body->actionLife)continue;
+            if(p->move==MOVE_FLAMETHROWER)gArenaFlameTelemetry[2]++;
+            ApplyMoveHit(side,p->move);
         }
         body->actionAge++;body->actionLife--;
     }
@@ -1455,10 +1640,13 @@ static void TickShots(void)
             continue;
         }
         shot->x += shot->vx; shot->y += shot->vy;
-        if (ArenaMoves_SegmentHit(oldX,oldY,shot->x/Q,shot->y/Q,target->x/Q,target->y/Q,p->radius) && !target->dash && !TossAirborne(shot->side^1))
+        if(ElementReact(shot)){DestroyShot(shot);continue;}
+        if(DecoySegment(shot->side^1,oldX,oldY,shot->x/Q,shot->y/Q,p->radius))
+        {DestroyShot(shot);continue;}
+        if (ArenaMoves_SegmentHit(oldX,oldY,shot->x/Q,shot->y/Q,target->x/Q,target->y/Q,p->radius) && !target->dash)
         {
-            ApplyMoveHit(shot->side,shot->move);
-            shot->life = 1;
+            if(SpecialInvulnerable(shot->side^1))gArenaWarpTossTelemetry[7]++;
+            else{ApplyMoveHit(shot->side,shot->move);shot->life = 1;}
         }
         if (shot->x < 3 * Q || shot->x > 237 * Q || shot->y < 19 * Q || shot->y > 157 * Q) shot->life = 1;
         if (--shot->life == 0) DestroyShot(shot);
@@ -1485,6 +1673,7 @@ static void TickPhysics(void)
     for(side=0;side<2;side++)
     {
         struct ArenaBody *body=&sArena.bodies[side];
+        if(SpecialBusy(side))continue;
         if(sArena.lastBlast!=gArenaPhysicsTelemetry.blastSerial)
         {
             s32 dx=body->x/Q-gArenaPhysicsTelemetry.blastX;
@@ -1539,18 +1728,19 @@ static void CB2_Arena(void)
     bool8 frozen = FALSE;
     u32 stamp=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228,phaseStamp=stamp,now;
     u32 gap=gMain.vblankCounter1-gArenaFrameTelemetry.lastVBlank;
+    if(sSendout.active){gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;SendoutTick();return;}
     gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;
     gArenaFrameTelemetry.updates++;
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
-    if (JOY_NEW(SELECT_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (JOY_NEW(SELECT_BUTTON) && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
     if (JOY_NEW(START_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
         DrawStage();
         sArena.hudDirty = TRUE;
     }
-    CaptureInput();
+    if(!SpecialBusy(0)&&!SpecialBusy(1))CaptureInput();
     if(sArena.paused)
     {
         u16 keys=gMain.newKeys&DPAD_ANY;
@@ -1569,36 +1759,78 @@ static void CB2_Arena(void)
         gRealtimeArenaTelemetry.frames++;
         if (sArena.resultTimer)
         {
-            if (TossActive()) TossTick();
+            SpecialTick();
             if (--sArena.resultTimer == 0) { ArenaExit(TRUE); return; }
         }
         else
         {
             BufferPlayerActions();
-            if(CaptureLocked() || ((sCapture.state==ARENA_CAPTURE_AIM || sCapture.state==ARENA_CAPTURE_THROW) && sArena.frame%3)) frozen=TRUE;
+            if(TossActive()){SpecialTick();TickShots();frozen=TRUE;}
+            else if(CaptureLocked() || ((sCapture.state==ARENA_CAPTURE_AIM || sCapture.state==ARENA_CAPTURE_THROW) && sArena.frame%3)) frozen=TRUE;
             else if (sArena.hitstop) { sArena.hitstop--; frozen = TRUE; }
             else
             {
+                DecoyTick();
+                SpecialTick();
                 TickPhysics();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[0]=now-phaseStamp;phaseStamp=now;
-                if (TossActive())
-                {
-                    // Both bodies belong to the throw; projectiles already in
-                    // flight keep moving and pass beneath the airborne pair.
-                    TossTick();
-                    now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
-                    gArenaFrameTelemetry.scanlines[1]=now-phaseStamp;phaseStamp=now;
-                    TickShots();
-                }
-                else
-                {
                 if(sCapture.state!=ARENA_CAPTURE_AIM)TickPlayer();
                 TickEnemy();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[1]=now-phaseStamp;phaseStamp=now;
-                TickPendingShots(); TickActions(); TickShots();
+                TickPendingShots(); TickActions(); TickShots(); TickPsychic();
+                if(!sArena.resultTimer)ElementsTick();
                 TickBurn();
+                for (i = 0; i < 2 && !sArena.resultTimer; i++)
+                {
+                    struct BattlePokemon *mon = &gBattleMons[i];
+                    struct ArenaBody *body = &sArena.bodies[i];
+                    if (++body->weatherClock >= 300)
+                    {
+                        u16 damage = 0;
+                        body->weatherClock = 0;
+                        if (gBattleMons[0].ability == ABILITY_AIR_LOCK || gBattleMons[1].ability == ABILITY_AIR_LOCK
+                            || gBattleMons[0].ability == ABILITY_CLOUD_NINE || gBattleMons[1].ability == ABILITY_CLOUD_NINE) continue;
+                        if ((gBattleWeather & B_WEATHER_SANDSTORM) && !IS_BATTLER_OF_TYPE(i, TYPE_ROCK)
+                            && !IS_BATTLER_OF_TYPE(i, TYPE_GROUND)
+                            && !IS_BATTLER_OF_TYPE(i, TYPE_STEEL) && mon->ability != ABILITY_SAND_VEIL)
+                            damage = max(1, mon->maxHP / 16);
+                        if ((gBattleWeather & B_WEATHER_HAIL) && !IS_BATTLER_OF_TYPE(i, TYPE_ICE))
+                            damage = max(1, mon->maxHP / 16);
+                        if ((gBattleWeather & B_WEATHER_RAIN) && mon->ability == ABILITY_RAIN_DISH)
+                            mon->hp = min(mon->maxHP, mon->hp + max(1, mon->maxHP / 16));
+                        damage = min(damage, mon->hp);
+                        mon->hp -= damage;
+                        SetMonData(i ? &gEnemyParty[gBattlerPartyIndexes[i]] : &gPlayerParty[gBattlerPartyIndexes[i]], MON_DATA_HP, &mon->hp);
+                        if (damage) ArenaFeedback_Impact(i, body->x/Q, body->y/Q, damage, ARENA_FEEDBACK_DAMAGE);
+                        sArena.hudDirty = TRUE;
+                        if (!mon->hp)
+                        {
+                            sArena.resultTimer=12; sArena.lastAttacker=i^1; sArena.lastTarget=i;
+                            gArenaResultTelemetry.started=gMain.vblankCounter1;
+                        }
+                    }
+                }
+                // Oran/Sitrus use their original Gen III HP thresholds and
+                // values. Consume once, persist to the actual party, and never
+                // resurrect a fainted Pokemon. No turn menu is needed.
+                for (i = 0; i < 2; i++)
+                {
+                    struct BattlePokemon *mon = &gBattleMons[i];
+                    if (mon->hp && mon->hp <= mon->maxHP / 2
+                        && GetItemHoldEffect(mon->item) == HOLD_EFFECT_RESTORE_HP)
+                    {
+                        u16 item = mon->item;
+                        struct Pokemon *party = i ? &gEnemyParty[gBattlerPartyIndexes[i]] : &gPlayerParty[gBattlerPartyIndexes[i]];
+                        mon->hp = min(mon->maxHP, mon->hp + GetItemHoldEffectParam(item));
+                        gBattleStruct->usedHeldItems[i] = item;
+                        mon->item = ITEM_NONE;
+                        SetMonData(party, MON_DATA_HELD_ITEM, &mon->item);
+                        SetMonData(party, MON_DATA_HP, &mon->hp);
+                        sArena.hudDirty = TRUE;
+                        PlaySE(SE_M_MORNING_SUN);
+                    }
                 }
             }
         }
@@ -1614,22 +1846,23 @@ static void CB2_Arena(void)
         struct ArenaBody *body = &sArena.bodies[i];
         const struct ArenaMoveProfile *profile=ArenaMoves_Get(gBattleMons[i].moves[body->shotTimer?body->shotSlot:body->moveSlot]);
         struct Sprite *sprite = &gSprites[body->sprite];
-        sprite->x = body->x / Q; sprite->y = body->y / Q;
+        sprite->x = body->x / Q;
+        sprite->y = body->y / Q-(gBattleMons[i].species==SPECIES_LAPRAS?11:0);
         gSprites[body->shadow].x = sprite->x;
-        gSprites[body->shadow].y = sprite->y + 8;
+        gSprites[body->shadow].y = body->y / Q + 8;
         gSprites[body->shadow].invisible = gBattleMons[i].hp == 0;
         if (!sArena.paused && !frozen)
             sprite->x2 = i && sArena.aiState == AI_AIM ? ((sArena.frame & 2) ? 1 : -1) : 0;
         if (body->art)
         {
-            u8 animation = body->shotTimer ? profile->animation : body->moving ? ARENA_ANIM_WALK : ARENA_ANIM_IDLE;
-            u8 direction = body->shotTimer ? body->shotFacing : body->facing;
+            u8 animation = PsychicBusy(i) ? ARENA_ANIM_SPECIAL : body->shotTimer ? profile->animation : body->moving ? ARENA_ANIM_WALK : ARENA_ANIM_IDLE;
+            u8 direction = body->shotTimer || PsychicBusy(i) ? body->shotFacing : body->facing;
             const struct ArenaSpriteAnimation *anim;
             u8 frame;
             u16 tick=body->animClock/Q;
-            bool8 holdPose = FALSE;
-            if (TossActive()) holdPose = TossPose(i, &animation, &direction);
-            anim = &body->art->animations[animation];
+            bool8 holdPose=FALSE;
+            if(TossActive())holdPose=TossPose(i,&animation,&direction);
+            anim=&body->art->animations[animation];
             if (body->animation != animation)
             {
                 body->animation = animation; body->animClock = 0; body->drawnFrame = 255;
@@ -1637,7 +1870,9 @@ static void CB2_Arena(void)
             if(body->shotTimer)
                 tick=body->shotElapsed<profile->windup?body->shotElapsed*anim->hitTick/profile->windup:
                     anim->hitTick+(body->shotElapsed-profile->windup)*(anim->totalTicks-anim->hitTick-1)/(profile->active+8);
-            else if (holdPose) tick = anim->hitTick;
+            if(PsychicBusy(i))tick=anim->hitTick;
+            if(holdPose)tick=anim->hitTick;
+            sprite->y2=PsychicBusy(i)?-3-Sin(sPsychic[i].age*4,2):0;
             frame = ArenaSprites_Frame(anim,tick);
             if (body->drawnFrame != frame || body->drawnDirection != direction)
             {
@@ -1664,16 +1899,10 @@ static void CB2_Arena(void)
         // alternating invisible frames. Dust now communicates the dash.
         sprite->invisible = sArena.resultTimer && !gBattleMons[i].hp;
         gSprites[body->shadow].invisible = sprite->invisible;
-        if (TossActive())
-        {
-            // The drawn body leaves the ground; its shadow marks the landing.
-            if (TossPresent(i, sprite)) sprite->invisible = TRUE;
-            TossAffine(i, sprite);
-        }
         BlendPalette(OBJ_PLTT_ID(i), 16, body->flash ? body->flash + 3 : 0, RGB_WHITE);
         if (body->flash && !sArena.paused && !frozen) body->flash--;
         gRealtimeArenaTelemetry.x[i] = sprite->x;
-        gRealtimeArenaTelemetry.y[i] = sprite->y;
+        gRealtimeArenaTelemetry.y[i] = body->y / Q;
         gRealtimeArenaTelemetry.speed[i] = Speed(i);
         gArenaAiTelemetry.facing[i] = body->facing;
         gArenaCombatTelemetry.cooldown[i] = body->cooldown;
@@ -1685,25 +1914,40 @@ static void CB2_Arena(void)
         gArenaMoveTelemetry.range[i]=profile->range;
         gArenaMoveTelemetry.active[i]=body->actionLife;
         gArenaMoveTelemetry.actionMove[i]=profile->move;
-        ArenaMoveFx_Action(i,profile,body->x/Q,body->y/Q,body->shotFacing,body->actionAge,body->actionLife!=0,sArena.paused);
+        ArenaMoveFx_Action(i,profile,body->x/Q,body->y/Q,body->shotFacing,body->actionAge,
+            body->actionLife!=0&&profile->move!=MOVE_DOUBLE_TEAM&&profile->move!=MOVE_TELEPORT&&profile->move!=MOVE_SEISMIC_TOSS&&profile->move!=MOVE_DIG&&profile->move!=MOVE_FLY,sArena.paused);
+        ArenaMoveFx_Flame(i,body->x/Q,body->y/Q-8,body->shotFacing,body->actionAge,sFlameReach[i],
+            profile->move==MOVE_FLAMETHROWER&&body->actionLife&&!sArena.paused&&!sArena.resultTimer);
+    }
+    {
+        u8 warmth=0;
+        for(i=0;i<2;i++)
+        {
+            struct ArenaBody *b=&sArena.bodies[i];
+            if(b->actionLife&&gBattleMons[i].moves[b->shotSlot]==MOVE_FLAMETHROWER)
+                warmth=max(warmth,b->actionAge<8?4:b->actionLife<10?1:2);
+        }
+        // Brief warm light on the scenery only, never the HUD or HP palettes.
+        BlendPalette(16,240,sArena.paused?0:warmth,RGB(31,16,4));
     }
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
     gArenaFrameTelemetry.scanlines[3]=now-phaseStamp;phaseStamp=now;
     gArenaCombatTelemetry.aimBlocked = !ArenaNav_LineClear(sArena.bodies[0].x/Q,
-        sArena.bodies[0].y/Q, sArena.bodies[1].x/Q, sArena.bodies[1].y/Q, 2);
+        sArena.bodies[0].y/Q, DecoyAim(1,FALSE)/Q, DecoyAim(1,TRUE)/Q, 2);
     gArenaCombatTelemetry.aimVisible = !sArena.paused && !sArena.resultTimer
         && sCapture.state==ARENA_CAPTURE_IDLE
         && !(sArena.bodies[0].shotTimer?sArena.bodies[0].manualAim:JOY_HELD(DPAD_ANY))
         && (JOY_HELD(A_BUTTON) || sArena.bodies[0].shotTimer);
-    gSprites[sArena.aimSprite].x = sArena.bodies[1].x / Q;
-    gSprites[sArena.aimSprite].y = sArena.bodies[1].y / Q;
+    gSprites[sArena.aimSprite].x = DecoyAim(1,FALSE) / Q;
+    gSprites[sArena.aimSprite].y = DecoyAim(1,TRUE) / Q;
     gSprites[sArena.aimSprite].invisible = !gArenaCombatTelemetry.aimVisible;
     gSprites[sArena.aimSprite].oam.paletteNum = IndexOfSpritePaletteTag(SHOT_TAG
         + (gArenaCombatTelemetry.aimBlocked ? 1 : sArena.bodies[0].cooldown ? 2 : 0));
     gSprites[sArena.cueSprite].x = sArena.bodies[1].x / Q;
     gSprites[sArena.cueSprite].y = sArena.bodies[1].y / Q + 14;
     gSprites[sArena.cueSprite].invisible = sArena.aiState != AI_AIM || sArena.resultTimer;
-    TossDraw();
+    DecoyDraw();
+    SpecialDraw();
     CaptureDraw();
     gArenaAiTelemetry.state = sArena.aiState;
     gArenaAiTelemetry.goalX = sArena.goal.x; gArenaAiTelemetry.goalY = sArena.goal.y;
@@ -1712,6 +1956,9 @@ static void CB2_Arena(void)
     gRealtimeArenaTelemetry.selectedMove = sArena.bodies[0].moveSlot;
     ArenaFeedback_Update(sArena.paused, frozen && !CaptureLocked());
     ArenaTerrain_Draw(sArena.paused,frozen);
+    ElementsDraw();
+    DrawPsychicAuras();
+    ArenaPsychicFx_Draw(sArena.paused,frozen);
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
     gArenaRenderTelemetry[0]=now-phaseStamp;
     gArenaFeedbackTelemetry.hitstop = sArena.hitstop;
@@ -1745,6 +1992,8 @@ static void ArenaExit(bool8 fainted)
 {
     u32 i;
     CaptureReset();
+    DecoyHide();
+    SpecialHide();
     // Finish the ORIGINAL battle scripts behind the arena image. No classic
     // scene reconstruction just to say "fainted" and animate an EXP bar.
     // Interactive choices explicitly restore the native UI if needed.
@@ -1779,7 +2028,9 @@ static void ArenaExit(bool8 fainted)
     }
     FreeAllWindowBuffers();
     sArena.active = FALSE;
-    sArena.classic = TRUE;
+    // SELECT opens the original party selector in trainer arenas, then
+    // returns here after the switch. It never enables a turn-based attack.
+    sArena.classic = !(gBattleTypeFlags & BATTLE_TYPE_TRAINER);
     gRealtimeArenaTelemetry.active = FALSE;
     gRealtimeArenaTelemetry.exits++;
     gRealtimeArenaTelemetry.lastExitFainted = FALSE;
@@ -1845,8 +2096,6 @@ bool8 RealtimeArena_SetupDemo(void)
     for (i = 0; i < ARRAY_COUNT(team); i++)
         CreateMon(&gPlayerParty[i], team[i].species, team[i].level,
                   20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
-    // Charizard's Emerald tutor move replaces Rage, which has no arena profile.
-    SetMonMoveSlot(&gPlayerParty[0], MOVE_SEISMIC_TOSS, 0);
     for (i = 0; i < ARRAY_COUNT(box); i++)
         CreateBoxMonAt(0, i, box[i].species, box[i].level,
                        20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);

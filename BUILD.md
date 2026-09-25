@@ -48,11 +48,13 @@ node tools/build-installer.mjs --check
 node --test tests/*.test.mjs
 ```
 
-The 0.6.0 release gate runs 23 suites against real ARM code in mGBA: existing
+The earlier 0.6.0 release gate ran 23 suites against real ARM code in mGBA: existing
 combat and capture checks, starter families, early encounters, new moves,
 stat effects, burns, visuals and performance. Saves and full test evidence remain private.
 Host C tests for navigation, physics, geometry and numbers are included in the
 overlay; compile them with their `*_HOST` macros and sanitizers.
+The 0.8.0 integrated build passed 87 checks, plus shipping-build boot and combat checks.
+See [release verification](RELEASE.md) for the tested scope.
 
 The public installer verifies every source PNG, every converted graphics block
 and the final ROM hash. Release boot and local reconstruction are tested
@@ -70,4 +72,4 @@ node tools/package-release.mjs /path/outside/this/repo/new-release-directory
 
 Packaging uses an explicit five-file allowlist. It refuses to overwrite an
 existing archive and emits `SHA256SUMS.txt`. The original ROM is never an input
-to packaging. Version 0.6.0 includes arena captures, 92 sprite sets and 44 move profiles.
+to ZIP packaging. Version 0.8.0 includes arena captures and 98 sprite sets.

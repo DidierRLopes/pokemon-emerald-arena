@@ -1,4 +1,24 @@
-# Unreleased
+# Emerald Arena 0.8.0
+
+[Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0-full.bps) · [Watch the four moves](media/emerald-arena-four-moves.mp4)
+
+- Dig, Fly and Teleport join the arena. Hide underground, dive from above or blink away from attacks.
+- Didier Lopes' Seismic Toss from [PR #1](https://github.com/GBurgardt/pokemon-emerald-arena/pull/1), including the space-orbit finisher and persistent crater.
+- Double Team decoys, psychic rock throws, larger flames and water/ice interactions.
+- Trainer send-outs and single trainer battles in five environments, with matching breakable objects.
+- 98 animated Pokémon. Double, link and unsupported encounters still use classic battles.
+
+Back up your in-game save before updating. Do not reuse emulator save states.
+
+### Verification
+
+87 checks passed on the integrated lab build, including the four moves, combat regression and palette restoration in all five environments. Didier's original PR was also built and tested separately (8 checks). The shipping build cold-boots without the test mailbox and passes native encounter, send-out, movement, attack and party-checksum checks. This is not a full-adventure or physical-GBA validation.
+
+The clean source rebuild, web/CLI installer and full BPS reconstruction all produce the same release. All 16 installer checks pass. Sprite registration is preserved without cropping opaque pixels.
+
+Release ROM SHA-256: `8eefc295d6de396e5a1726d4909b582cf89b053917c74fe6bb66cf72827fbd24`.
+
+## Seismic Toss contribution notes
 
 - Seismic Toss joins the arena as a throw: a connected grab carries the target
   straight up off the screen, then the attacker dives back down head first
@@ -8,10 +28,6 @@
   the globe once and dives back for the slam. Damage is the native level-based
   script, resolved at the grab so misses and Ghost immunity whiff instead of
   playing the full throw. Wild Pokémon with the move use it too.
-- The practice Charizard knows Seismic Toss (its Emerald tutor move) in place
-  of Rage, which had no arena profile. 45 adapted moves.
-- Verified headlessly in mGBA: player and enemy throws deal exactly the user's
-  level, pausing mid-throw, Ghost targets, and a knockout on impact.
 
 # Emerald Arena 0.6.0
 

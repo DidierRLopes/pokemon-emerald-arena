@@ -28,4 +28,5 @@ void ArenaPhysics_Init(void);
 // Environment strength is independent of Pokemon HP/XP; one event per cast.
 void ArenaPhysics_Hit(u8 index,s16 impulseX,s16 impulseY,u8 strength);
 void ArenaPhysics_Update(void);
+void ArenaPhysics_ShatterAt(u8 index,s16 x,s16 y,s16 ix,s16 iy);
 #endif

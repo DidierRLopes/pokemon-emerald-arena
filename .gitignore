@@ -10,5 +10,7 @@ dist/
 *.ss1
 *.4bpp
 *.gbapal
+!game/overlay/graphics/arena/**/*.4bpp
+!game/overlay/graphics/arena/**/*.gbapal
 workspace/
 .DS_Store

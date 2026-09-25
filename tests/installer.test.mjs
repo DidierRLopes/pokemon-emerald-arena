@@ -41,12 +41,12 @@ test('release rejects wrong ROM before any network access',async()=>{
   await assert.rejects(prepareRom(new Uint8Array(10),manifest,Buffer.from(patch,'base64'),()=>{},async()=>{fetched=true;}));
   assert.equal(fetched,false);
   assert.equal(await digest(Buffer.from(patch,'base64')),manifest.patch_sha256);
-  assert.equal(manifest.species.length,92);
-  assert.equal(manifest.version,'0.6.0');
-  assert.equal(manifest.target_sha256,'47b2b0442cd619a4428ff5be95f5b914160aebdc0815a711fe6144a76e837b2c');
+  assert.equal(manifest.species.length,98);
+  assert.equal(manifest.version,'0.8.0');
+  assert.equal(manifest.target_sha256,'8eefc295d6de396e5a1726d4909b582cf89b053917c74fe6bb66cf72827fbd24');
   assert.equal(manifest.target_size,33554432);
   assert.ok(manifest.species.every(s=>s.sprite_format==='tile-dictionary-v1'));
-  assert.deepEqual(manifest.species.filter(s=>s.animations.some(a=>a.scale===2)).map(s=>s.name).sort(),['GYARADOS','WAILORD']);
+  assert.deepEqual(manifest.species.filter(s=>s.animations.some(a=>a.scale===2)).map(s=>s.name).sort(),['ARTICUNO','GYARADOS','RAYQUAZA','WAILORD','ZAPDOS']);
 });
 test('tile dictionary preserves every byte and first-occurrence order',()=>{
   const raw=Uint8Array.from({length:4096},(_,i)=>Math.floor(i/32)%3);
@@ -72,4 +72,16 @@ test('large sprites require explicit reduction and never silent cropping',()=>{
   assert.ok(chunks[0].bytes.subarray(dv.getUint32(0,true)).every(b=>b===0x11));
   mon.animations[0].scale=1;assert.throws(()=>packSpriteSet(mon,sheets),/cropping/);
   mon.animations[0].scale=3;assert.throws(()=>packSpriteSet(mon,sheets),/scale/);
+});
+
+test('sprite registration preserves opaque pixels and rejects invalid offsets',()=>{
+  const rgba=new Uint8Array(80*64*8*4);
+  for(let d=0;d<8;d++){const i=((d*64+32)*80+5)*4;rgba[i]=248;rgba[i+3]=255;}
+  const sheets=new Map([['shifted',{width:80,height:512,rgba}]]);
+  const mon={palette_offset:0,animations:[{sha256:'shifted',width:80,height:64,frames:1,offset:32,frame_offset:[4,0]}]};
+  const chunks=packSpriteSet(mon,sheets);
+  assert.equal(chunks[0].bytes.filter(x=>x!==0).length,8);
+  mon.animations[0].frame_offset=[0,0];assert.throws(()=>packSpriteSet(mon,sheets),/cropping/);
+  mon.animations[0].frame_offset=[17,0];assert.throws(()=>packSpriteSet(mon,sheets),/registration/);
+  mon.animations[0].frame_offset=[0.5,0];assert.throws(()=>packSpriteSet(mon,sheets),/registration/);
 });

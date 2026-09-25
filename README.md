@@ -2,7 +2,7 @@
 
 Pokémon Emerald with real time battles. Inside the original GBA game.
 
-[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Installation guide](PLAY.md)
+[**Download Emerald Arena**](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0.zip) · [Installation guide](PLAY.md)
 
 [**Follow development on Twitter / X**](https://x.com/germanburgardt) for new previews, progress and updates.
 
@@ -16,9 +16,9 @@ Pokémon Emerald with real time battles. Inside the original GBA game.
 
 [Playing on an AYN Thor · 16 seconds](https://github.com/GBurgardt/pokemon-emerald-arena/raw/refs/heads/main/media/emerald-arena-ayn-thor.mp4)
 
-New in 0.6.0: all three Hoenn starter families, more early-route Pokémon and
-44 adapted moves. **Poké Balls are included**: hold **L + R** to aim, release
-to throw. [Watch a catch · 22 seconds](media/emerald-arena-pokeballs.mp4).
+New in 0.8.0: Dig, Fly, Teleport and Seismic Toss, plus Double Team, elemental
+terrain and trainer send-outs. [Watch the four new moves · 46 seconds](media/emerald-arena-four-moves.mp4).
+Seismic Toss was contributed by [Didier Lopes](https://github.com/DidierRLopes) in [PR #1](https://github.com/GBurgardt/pokemon-emerald-arena/pull/1).
 [Changes](RELEASE.md) · [Recording details](media/README.md).
 
 ## Start playing
@@ -40,7 +40,7 @@ For a quick try on a fresh save, press **SELECT** on **NEW GAME** to skip the in
 - Catch wild Pokémon and keep them in your team or PC.
 - Keep your team's HP, PP, experience and saves.
 
-Supported wild battles use the arena automatically; trainer, double, link and unsupported battles stay classic.
+Supported wild and single trainer battles use the arena automatically. Double, link and unsupported battles stay classic.
 [Supported Pokémon, moves and limits](PLAY.md#current-scope).
 
 ## Controls

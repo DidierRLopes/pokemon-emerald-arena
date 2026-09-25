@@ -143,6 +143,12 @@ void ArenaFeedback_Wall(s16 x, s16 y)
     Particle(x,y,170,-150,10,2);
 }
 
+void ArenaFeedback_Embers(s16 x,s16 y,s16 dx,s16 dy)
+{
+    Particle(x-2,y-4,dx/2-100,dy/2-140,24,0);
+    Particle(x+3,y-2,dx/2+100,dy/2-200,20,1);
+}
+
 void ArenaFeedback_Dust(s16 x, s16 y, bool8 dash)
 {
     Particle(x-3,y+7,-60,-25,dash ? 14 : 9,2);

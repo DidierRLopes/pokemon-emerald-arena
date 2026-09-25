@@ -47,6 +47,17 @@ int main(void)
     }
     assert(gArenaPhysicsTelemetry.broken==7&&gArenaPhysicsTelemetry.solidMask==0);
     assert(gArenaPhysicsTelemetry.recycled>0&&gArenaPhysicsTelemetry.live==0);
+    reset();
+    gArenaProps[0].reserved=1;ArenaNav_SetObstacle(0,0);
+    ArenaPhysics_Hit(0,800,0,3);
+    assert(!gArenaProps[0].broken&&gArenaProps[0].hp==3);
+    ArenaPhysics_ShatterAt(0,70,100,800,0);
+    assert(gArenaProps[0].broken&&!gArenaProps[0].reserved&&!ArenaNav_IsSolid(0));
+    assert(gArenaPhysicsTelemetry.spawned==8&&gArenaPhysicsTelemetry.broken==1);
+    for(i=0;i<8;i++)assert(gArenaFragments[i].x==70*256&&gArenaFragments[i].y==100*256);
+    ArenaPhysics_ShatterAt(0,100,100,0,0);
+    assert(gArenaPhysicsTelemetry.spawned==8&&gArenaPhysicsTelemetry.broken==1);
+    puts("PASS: reserved stones ignore ground hits, shatter at real impact, consume once");
     puts("PASS: material strength, solid removal, rebound, delayed blast, chain, determinism, bounded pool and rest");
     return 0;
 }

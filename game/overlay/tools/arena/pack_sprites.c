@@ -67,9 +67,14 @@ int main(int argc, char **argv)
 {
     struct Sheet sheets[8] = {0};
     unsigned char pal_bytes[32];
-    int count, i, dir, frame, x, y, scale;
+    int count, i, dir, frame, x, y, scale, ox=0, oy=0;
     if (argc < 8 || (argc-3)%5 || (argc-3)/5 > 8) fail("palette scale [output png width height frames]...");
     scale=atoi(argv[2]);if(scale!=1&&scale!=2)fail("Scale must be 1 or 2");
+    // Explicit, constant registration offset across every pose/direction.
+    // This fits asymmetrically padded originals without shrinking or cropping.
+    if(strchr(argv[2],','))
+        if(sscanf(argv[2],"%d,%d,%d",&scale,&ox,&oy)!=3 || abs(ox)>16 || abs(oy)>16)
+            fail("Invalid source registration offset");
     count = (argc-3)/5;
     for (i = 0; i < count; ++i)
     {
@@ -99,7 +104,7 @@ int main(int argc, char **argv)
                     {
                         const unsigned char *pixel = s->rgba + ((dir*s->fh+y)*s->image.width + frame*s->fw+x)*4;
                         unsigned index = color_index(pixel);
-                        int tx = x/scale + 32 - s->fw/scale/2, ty = y/scale + 32 - s->fh/scale/2;
+                        int tx = x/scale + 32 - s->fw/scale/2 + ox, ty = y/scale + 32 - s->fh/scale/2 + oy;
                         size_t offset;
                         if (!index) continue;
                         if (tx < 0 || tx >= 64 || ty < 0 || ty >= 64) fail("Opaque pixels exceed 64x64: refusing to crop art");

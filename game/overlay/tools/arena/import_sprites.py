@@ -2,7 +2,8 @@
 """Fetch pinned originals; compile their pixels/timing into GBA assets.
 
 Original dimensions are preserved except explicit integer scale entries in the
-catalog (Gyarados/Wailord: 2x nearest-neighbor reduction). Nothing is cropped.
+catalog (Gyarados/Wailord: 2x nearest-neighbor reduction). Constant frame_offset
+entries register asymmetrically padded originals across all poses. Nothing is cropped.
 
 No ROMs and no generated image artwork. All downloaded/compiled data is private
 and ignored by Git. Authorship and source hashes accompany every import.
@@ -81,7 +82,7 @@ def main():
             animations.append(dict(name=motion, actual=actual, png=str(png),
                 width=int(node.findtext('FrameWidth')), height=int(node.findtext('FrameHeight')),
                 durations=durations, hit_frame=int(node.findtext('HitFrame', str(len(durations)//2) if motion == 'Attack' else '0')),
-                scale=scale,sha256=hashlib.sha256(png.read_bytes()).hexdigest()))
+                scale=scale,frame_offset=mon.get('frame_offset',[0,0]),sha256=hashlib.sha256(png.read_bytes()).hexdigest()))
         print('Fetched/cached ' + species + ': 5 poses, 8 directions', flush=True)
         return dict(dex=dex,species=species,credits=credits.read_text(),animations=animations,
                     fixture_level=mon['level'], xml_sha256=hashlib.sha256(xml.read_bytes()).hexdigest(),
@@ -104,7 +105,10 @@ def main():
     for bundle in bundles:
         dex, species = bundle['dex'], bundle['species']
         palette = OUT / (dex + '.gbapal')
-        argv = [str(packer), str(palette), str(bundle['animations'][0]['scale'])]
+        a0=bundle['animations'][0]
+        offset=a0['frame_offset']
+        assert len(offset)==2 and all(isinstance(x,int) and abs(x)<=16 for x in offset)
+        argv = [str(packer), str(palette), ','.join(map(str,[a0['scale'],*offset]))]
         for a in bundle['animations']:
             a['binary'] = str(OUT / (dex + '-' + a['name'] + '.4bpp'))
             argv += [a['binary'], a['png'], str(a['width']), str(a['height']), str(len(a['durations']))]

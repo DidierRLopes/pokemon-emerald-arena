@@ -12,6 +12,7 @@
 #include "pokedex.h"
 #include "pokemon_storage_system.h"
 #include "save.h"
+#include "sound.h"
 #include "script.h"
 #include "script_pokemon_util.h"
 #include "constants/items.h"
@@ -19,12 +20,20 @@
 #include "constants/species.h"
 #include "constants/heal_locations.h"
 #include "constants/vars.h"
+#include "constants/songs.h"
+#include "constants/trainers.h"
+#include "constants/battle_setup.h"
+#include "field_player_avatar.h"
+#include "constants/opponents.h"
 
 // Only included in the separate arena_lab.gba development build.
 // Commands are consumed in the real overworld, never halfway through a menu.
 EWRAM_DATA struct ArenaLabMailbox gArenaLabMailbox = {};
 EWRAM_DATA u32 gArenaLabCaptureAudit[10] = {};
 extern const u8 EventScript_ArenaLabBattle[];
+extern const u8 EventScript_ArenaLabTrainerReturn[];
+static EWRAM_DATA u8 sTrainerFixture[16];
+static const u8 sTrainerFixtureDefeat[] = _("Good battle!");
 
 void ArenaLab_Tick(void)
 {
@@ -39,6 +48,7 @@ void ArenaLab_Tick(void)
     switch (command)
     {
     case 1:
+    case 18:
         if (gArenaLabMailbox.species == 0 || gArenaLabMailbox.species >= NUM_SPECIES
             || gArenaLabMailbox.level == 0 || gArenaLabMailbox.level > MAX_LEVEL)
         {
@@ -46,6 +56,25 @@ void ArenaLab_Tick(void)
             break;
         }
         CreateScriptedWildMon(gArenaLabMailbox.species, gArenaLabMailbox.level, ITEM_NONE);
+        if(command==18)
+        {
+            // Disposable demonstration encounter. Legal species-specific moves,
+            // native stats/PP, unchanged AI and damage. Never in release.
+            u32 i;
+            u16 move;
+            switch(gArenaLabMailbox.species)
+            {
+            case SPECIES_CHARIZARD: move=MOVE_FLAMETHROWER; break;
+            case SPECIES_HARIYAMA: move=MOVE_TACKLE; break;
+            case SPECIES_BLASTOISE: move=MOVE_WATER_GUN; break;
+            case SPECIES_MEWTWO: move=MOVE_PSYCHIC; break;
+            case SPECIES_SCEPTILE: move=MOVE_LEAF_BLADE; break;
+            default: gArenaLabMailbox.result=2; break;
+            }
+            if(gArenaLabMailbox.result)break;
+            for(i=0;i<MAX_MON_MOVES;i++)SetMonMoveSlot(&gEnemyParty[0],i?MOVE_NONE:move,i);
+            if(gArenaLabMailbox.species==SPECIES_SCEPTILE)SetMonMoveSlot(&gEnemyParty[0],MOVE_DOUBLE_TEAM,1);
+        }
         ScriptContext_SetupScript(EventScript_ArenaLabBattle);
         break;
     case 2:
@@ -179,6 +208,87 @@ void ArenaLab_Tick(void)
             }
         break;
     }
+    case 17:
+    {
+        // Disposable themed team. Native move assignment initializes PP.
+        u32 i;
+        for(i=0;i<PARTY_SIZE;i++)
+        {
+            u16 species=GetMonData(&gPlayerParty[i],MON_DATA_SPECIES);
+            if(species==SPECIES_BLASTOISE)SetMonMoveSlot(&gPlayerParty[i],MOVE_SURF,0);
+            if(species==SPECIES_BLASTOISE)SetMonMoveSlot(&gPlayerParty[i],MOVE_ICY_WIND,1);
+            if(species==SPECIES_LAPRAS)
+            {
+                u8 ability=1; // Its native Shell Armor, not disabled Water Absorb.
+                SetMonData(&gPlayerParty[i],MON_DATA_ABILITY_NUM,&ability);
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_WATER_GUN,0);
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_ICY_WIND,1);
+            }
+            if(species==SPECIES_ARTICUNO)SetMonMoveSlot(&gPlayerParty[i],MOVE_ICY_WIND,0);
+            if(species==SPECIES_RAICHU||species==SPECIES_ZAPDOS)SetMonMoveSlot(&gPlayerParty[i],MOVE_SHOCK_WAVE,0);
+            if(species==SPECIES_CHARIZARD)SetMonMoveSlot(&gPlayerParty[i],MOVE_FLAMETHROWER,0);
+            if(species==SPECIES_CHARIZARD)SetMonMoveSlot(&gPlayerParty[i],MOVE_SEISMIC_TOSS,1);
+            if(species==SPECIES_CHARIZARD)SetMonMoveSlot(&gPlayerParty[i],MOVE_FLY,2);
+            if(species==SPECIES_MEWTWO)
+            {
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_PSYCHIC,0);
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_TELEPORT,1);
+            }
+            if(species==SPECIES_SCEPTILE)
+            {
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_LEAF_BLADE,0);
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_DOUBLE_TEAM,1);
+                SetMonMoveSlot(&gPlayerParty[i],MOVE_DIG,2);
+            }
+        }
+        break;
+    }
+    case 16:
+        SetPlayerAvatarTransitionFlags(PLAYER_AVATAR_FLAG_SURFING);
+        UpdatePlayerAvatarTransitionState();
+        break;
+    case 15:
+        // Disposable map fixtures use the game's normal warp. Environment
+        // detection remains production code; never write gBattleEnvironment.
+        switch (gArenaLabMailbox.species)
+        {
+        case 0: SetWarpDestination(MAP_GROUP(MAP_PETALBURG_WOODS),MAP_NUM(MAP_PETALBURG_WOODS),-1,15,20); break;
+        case 1: SetWarpDestination(MAP_GROUP(MAP_ROUTE124),MAP_NUM(MAP_ROUTE124),-1,17,10); break;
+        case 2: SetWarpDestination(MAP_GROUP(MAP_GRANITE_CAVE_1F),MAP_NUM(MAP_GRANITE_CAVE_1F),-1,36,11); break;
+        case 3: SetWarpDestination(MAP_GROUP(MAP_ROUTE111),MAP_NUM(MAP_ROUTE111),-1,20,65); break;
+        case 4: SetWarpDestination(MAP_GROUP(MAP_RUSTBORO_CITY_GYM),MAP_NUM(MAP_RUSTBORO_CITY_GYM),-1,5,12); break;
+        default: gArenaLabMailbox.result=2; break;
+        }
+        if (!gArenaLabMailbox.result) DoWarp();
+        break;
+    case 14:
+    {
+        // Start an actual trainer party via the original setup and completion
+        // callbacks. Only available in a disposable lab; never fabricates a KO.
+        u32 text=(u32)sTrainerFixtureDefeat;
+        u16 trainer=gArenaLabMailbox.species;
+        if(!trainer || trainer>=TRAINERS_COUNT)
+        {gArenaLabMailbox.result=2;break;}
+        memset(sTrainerFixture,0,sizeof(sTrainerFixture));
+        sTrainerFixture[0]=TRAINER_BATTLE_SINGLE_NO_INTRO_TEXT;
+        sTrainerFixture[1]=trainer;sTrainerFixture[2]=trainer>>8;
+        sTrainerFixture[5]=text;sTrainerFixture[6]=text>>8;
+        sTrainerFixture[7]=text>>16;sTrainerFixture[8]=text>>24;
+        // The return script is a releaseall/end sequence, copied as opcodes.
+        sTrainerFixture[9]=EventScript_ArenaLabTrainerReturn[0];
+        sTrainerFixture[10]=EventScript_ArenaLabTrainerReturn[1];
+        BattleSetup_ConfigureTrainerBattle(sTrainerFixture);
+        ScriptContext_SetupScript(EventScript_ArenaLabTrainerReturn);
+        LockPlayerFieldControls();
+        BattleSetup_StartTrainerBattle();
+        break;
+    }
+    case 13:
+        // Audio recording fixture only. No game or party mutation, no release mailbox.
+        if(gArenaLabMailbox.species != MUS_VS_RAYQUAZA && gArenaLabMailbox.species != MUS_ROUTE101)
+        {gArenaLabMailbox.result=2;break;}
+        PlayBGM(gArenaLabMailbox.species);
+        break;
     case 12:
         // Legal HM fixture in a disposable party. Native compatibility and
         // move assignment, never arbitrary battle HP/PP/XP manipulation.

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flamethrower FX · 64×64 × 8 · GBA</title>
+<style>
+  html,body{margin:0;background:#26261e;color:#e9e3c6;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace}
+  body{display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}
+  h1{font-size:14px;margin:0;letter-spacing:1px;color:#f8c848}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  #view{width:384px;height:384px;border:2px solid #0e0e0a}
+  #sheet{max-width:100%;border:2px solid #0e0e0a}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  button{font:inherit;background:#46452f;color:#f2ecd2;border:1px solid #0e0e0a;padding:5px 10px;cursor:pointer}
+  button:hover{background:#5c5a3a}
+  button.on{background:#8a5a24}
+  #info,#check{color:#bdb896;text-align:center}
+  #check.ok{color:#c8e090}
+  #check.bad{color:#f89028}
+</style>
+</head>
+<body>
+<h1>FLAMETHROWER PLUME — 64×64 · 8 FRAMES · 80 MS</h1>
+<canvas id="view" width="384" height="384"></canvas>
+<div class="bar">
+  <button id="prev">◀ Prev</button>
+  <button id="play">Pause</button>
+  <button id="next">Next ▶</button>
+  <span id="info">frame 0 / 7</span>
+</div>
+<div class="bar">
+  <button class="bg on" data-bg="#6f7242">Olive</button>
+  <button class="bg" data-bg="#86ac40">Arena green</button>
+  <button class="bg" data-bg="#3c5a2a">Forest shade</button>
+</div>
+<canvas id="sheet" width="1024" height="128"></canvas>
+<div class="bar">
+  <button id="dlSheet">Download spritesheet PNG</button>
+  <button id="dlMeta">Download metadata JSON</button>
+  <button id="dlFrames">Download frames PNG</button>
+</div>
+<div id="check">validating…</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---- Contract constants -------------------------------------------------
+  const W = 64, H = 64, N = 8, MS = 80;
+  const PIVOT = { x: 4, y: 32 };
+  const MARGIN_MIN = 4, MARGIN_MAX = 59;
+  const PAL = ['#702c28', '#ac3820', '#e85820', '#f89028', '#f8c848', '#fff0a0', '#fff8d0'];
+  const RGB = PAL.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const TH = [0.10, 0.20, 0.32, 0.46, 0.60, 0.76]; // heat -> palette index 0..6
+  const TAU = Math.PI * 2;
+
+  const smooth = (a, b, x) => {
+    const s = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return s * s * (3 - 2 * s);
+  };
+
+  // ---- Deterministic noise (periodic along flow axis for a perfect loop) --
+  function hash3(a, b, c) {
+    let h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ Math.imul(c | 0, 0x1b873593);
+    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+    h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+    h ^= h >>> 15;
+    return (h >>> 0) / 4294967296;
+  }
+
+  function noise(x, y, period, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    let fx = x - ix, fy = y - iy;
+    fx = fx * fx * (3 - 2 * fx);
+    fy = fy * fy * (3 - 2 * fy);
+    const x0 = ((ix % period) + period) % period, x1 = (x0 + 1) % period;
+    const a = hash3(x0, iy, seed), b = hash3(x1, iy, seed);
+    const c = hash3(x0, iy + 1, seed), d = hash3(x1, iy + 1, seed);
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  }
+
+  // ---- Flame field ---------------------------------------------------------
+  // Flow coordinate g stretches downstream, so features grow and accelerate
+  // as they travel right. Each octave shifts by exactly its period in 8 frames.
+  function field(f) {
+    const ph = f / N;
+    const lv = new Int8Array(W * H).fill(-1);
+    for (let y = MARGIN_MIN; y <= MARGIN_MAX; y++) {
+      for (let x = MARGIN_MIN; x <= MARGIN_MAX; x++) {
+        const t = (x - 4) / 55;
+        const s = Math.min(1, t / 0.62), ss = s * s * (3 - 2 * s);
+        const w = (2 + 18 * Math.pow(ss, 0.85)) * (1 - 0.2 * smooth(0.8, 1, t));
+        const cy = 32 + Math.sin(t * 5 - ph * TAU) * 1.8 * t * t;
+        const dy = y - cy, v = dy / w, r = Math.abs(v);
+        if (r > 1.6) continue;
+
+        const g = 6 * Math.log(1 + x / 12);
+        const gs = g + 0.9 * r; // edges lag the core: chevron flow
+        const nA = noise(gs - f, v * 2.2 + 11, 8, 1);
+        const nB = noise(2 * gs - 2 * f, v * 4.5 + 23, 16, 2);
+        const nC = noise(4 * gs - 4 * f, v * 9 + 37, 32, 3);
+        const turb = (nA - 0.5) + (nB - 0.5) * 0.5 + (nC - 0.5) * 0.25;
+
+        let h = 1 - r + turb * (0.35 + 0.6 * t);
+        h -= Math.max(0, r - 1) * 1.5;
+        h -= Math.pow(smooth(0.72, 1, t), 1.2);
+        // transparent channels streaming through the outer wisps
+        const nH = noise(3 * gs - 3 * f, v * 6 + 61, 24, 6);
+        h -= Math.max(0, 0.32 - nH) * 3 * smooth(0.55, 0.9, r) * smooth(0.25, 0.5, t);
+        if (h <= 0) continue;
+
+        const nS = noise(g - f + 0.3 * r, v * 7 + 51, 8, 4); // streaming core streaks
+        const T = h * (1.22 - 0.62 * Math.pow(t, 1.3))
+          + (nS - 0.5) * 0.35 * Math.max(0, 1 - r)
+          + (nB - 0.5) * 0.12
+          + 0.15 * (1 - smooth(0, 0.25, t));
+
+        let L = 0;
+        for (const th of TH) if (T >= th) L++;
+
+        // dark red folds rolling inside the orange tongues
+        if (t > 0.2 && r > 0.3 && L >= 2 && L <= 4) {
+          const nF = noise(2 * gs - 2 * f, v * 3.5 + 71, 16, 5);
+          if (Math.abs(nF - 0.5) < 0.035) L = Math.max(0, L - 2);
+        }
+        lv[y * W + x] = L;
+      }
+    }
+    return lv;
+  }
+
+  // Replace pixels that match none of their 4 neighbours: keeps clusters crisp.
+  function despeckle(lv) {
+    const out = lv.slice();
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x, c = lv[i];
+        const n = [lv[i - 1], lv[i + 1], lv[i - W], lv[i + W]];
+        if (n.includes(c)) continue;
+        let best = n[0], bc = 0;
+        for (const a of n) {
+          let cnt = 0;
+          for (const b of n) if (b === a) cnt++;
+          if (cnt > bc || (cnt === bc && Math.abs(a - c) < Math.abs(best - c))) { best = a; bc = cnt; }
+        }
+        out[i] = best;
+      }
+    }
+    return out;
+  }
+
+  function put(lv, x, y, L) {
+    if (x < MARGIN_MIN || x > MARGIN_MAX || y < MARGIN_MIN || y > MARGIN_MAX || L < 0) return;
+    const i = y * W + x;
+    if (lv[i] < L) lv[i] = L;
+  }
+
+  // Embers: fixed seeds, speeds 3 or 6 px/frame over a 24 px lane -> loops in 8 frames.
+  function embers(lv, f) {
+    for (let i = 0; i < 16; i++) {
+      const a = hash3(i, 1, 77), b = hash3(i, 2, 77), c = hash3(i, 3, 77);
+      const d = hash3(i, 4, 77), e = hash3(i, 5, 77), k = hash3(i, 6, 77);
+      const spd = a < 0.55 ? 3 : 6;
+      const p = (Math.floor(b * 24) + f * spd) % 24;
+      const x = 35 + p;
+      const side = c < 0.5 ? -1 : 1;
+      const y = Math.round(32 + side * (12 + d * 10 + p * (0.1 + e * 0.3)));
+      const L = p < 8 ? 5 : p < 16 ? 4 : 3;
+      put(lv, x, y, L);
+      if (spd === 6 || k < 0.5) put(lv, x - 1, y, L - 2); // trail behind, reads as rightward motion
+    }
+  }
+
+  function frameLevels(index) {
+    const f = ((Math.floor(index) % N) + N) % N;
+    let lv = field(f);
+    lv = despeckle(despeckle(lv));
+    embers(lv, f);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x < MARGIN_MIN || x > MARGIN_MAX || y < MARGIN_MIN || y > MARGIN_MAX) lv[y * W + x] = -1;
+    }
+    return lv;
+  }
+
+  function frameImage(index) {
+    const lv = frameLevels(index);
+    const img = new ImageData(W, H);
+    const d = img.data;
+    for (let i = 0; i < W * H; i++) {
+      const L = lv[i];
+      if (L < 0) continue; // stays fully transparent
+      const c = RGB[L];
+      d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+    }
+    return img;
+  }
+
+  // ---- window.pixelArt contract -------------------------------------------
+  function renderFrame(index, canvas) {
+    const cv = canvas || document.createElement('canvas');
+    if (cv.width !== W) cv.width = W;
+    if (cv.height !== H) cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, W, H);
+    ctx.putImageData(frameImage(index), 0, 0);
+    return cv;
+  }
+
+  const frameName = i => `flamethrower_${String(i).padStart(2, '0')}.png`;
+
+  function exportFrames() {
+    const out = [];
+    for (let i = 0; i < N; i++) {
+      const c = document.createElement('canvas');
+      renderFrame(i, c);
+      out.push({ name: frameName(i), dataUrl: c.toDataURL('image/png') });
+    }
+    return out;
+  }
+
+  function sheetMetadata(name) {
+    return {
+      image: name,
+      format: 'png',
+      kind: 'sprite',
+      size: { w: W * N, h: H },
+      frameWidth: W,
+      frameHeight: H,
+      frameCount: N,
+      frameDurationMs: MS,
+      loop: true,
+      alpha: 'binary',
+      direction: 'right',
+      palette: PAL.slice(),
+      frames: Array.from({ length: N }, (_, i) => ({
+        name: frameName(i),
+        index: i,
+        x: i * W, y: 0, w: W, h: H,
+        durationMs: MS,
+        pivot: { x: PIVOT.x, y: PIVOT.y },
+        pivotNormalized: { x: PIVOT.x / W, y: PIVOT.y / H }
+      }))
+    };
+  }
+
+  function exportSheet() {
+    const name = 'flamethrower_sheet.png';
+    const c = document.createElement('canvas');
+    c.width = W * N; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (let i = 0; i < N; i++) ctx.putImageData(frameImage(i), i * W, 0);
+    return { name, dataUrl: c.toDataURL('image/png'), metadata: sheetMetadata(name) };
+  }
+
+  window.pixelArt = {
+    meta: { width: W, height: H, frameCount: N, frameDurationMs: MS, kind: 'sprite' },
+    palette: PAL.slice(),
+    pivot: { x: PIVOT.x, y: PIVOT.y },
+    renderFrame,
+    exportFrames,
+    exportSheet
+  };
+
+  // ---- Preview (separate canvases; exports never see the background) -----
+  const frames = Array.from({ length: N }, (_, i) => renderFrame(i, document.createElement('canvas')));
+  const view = document.getElementById('view'), vctx = view.getContext('2d');
+  const sheet = document.getElementById('sheet'), sctx = sheet.getContext('2d');
+  const info = document.getElementById('info');
+  const playBtn = document.getElementById('play');
+  let bg = '#6f7242', cur = 0, playing = true, acc = 0, last = performance.now();
+
+  function draw() {
+    vctx.imageSmoothingEnabled = false;
+    vctx.fillStyle = bg;
+    vctx.fillRect(0, 0, view.width, view.height);
+    vctx.drawImage(frames[cur], 0, 0, W * 6, H * 6);
+
+    sctx.imageSmoothingEnabled = false;
+    sctx.fillStyle = bg;
+    sctx.fillRect(0, 0, sheet.width, sheet.height);
+    for (let i = 0; i < N; i++) sctx.drawImage(frames[i], i * 128, 0, 128, 128);
+    sctx.fillStyle = '#1a1a12';
+    for (let i = 1; i < N; i++) sctx.fillRect(i * 128, 0, 1, 128);
+    sctx.strokeStyle = '#fff0a0';
+    sctx.lineWidth = 2;
+    sctx.strokeRect(cur * 128 + 1, 1, 126, 126);
+
+    info.textContent = `frame ${cur} / ${N - 1} · ${MS} ms`;
+  }
+
+  function step(d) { cur = (cur + d + N) % N; draw(); }
+
+  function tick(now) {
+    if (playing) {
+      acc += now - last;
+      while (acc >= MS) { acc -= MS; cur = (cur + 1) % N; draw(); }
+    }
+    last = now;
+    requestAnimationFrame(tick);
+  }
+
+  function setPlaying(p) { playing = p; acc = 0; playBtn.textContent = p ? 'Pause' : 'Play'; }
+
+  document.getElementById('prev').onclick = () => { setPlaying(false); step(-1); };
+  document.getElementById('next').onclick = () => { setPlaying(false); step(1); };
+  playBtn.onclick = () => setPlaying(!playing);
+  document.querySelectorAll('button.bg').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('button.bg').forEach(o => o.classList.remove('on'));
+      b.classList.add('on');
+      bg = b.dataset.bg;
+      draw();
+    };
+  });
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+    else if (e.code === 'ArrowLeft') { setPlaying(false); step(-1); }
+    else if (e.code === 'ArrowRight') { setPlaying(false); step(1); }
+  });
+
+  function download(name, url) {
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  document.getElementById('dlSheet').onclick = () => {
+    const s = exportSheet(); download(s.name, s.dataUrl);
+  };
+  document.getElementById('dlMeta').onclick = () => {
+    const s = exportSheet();
+    download('flamethrower_sheet.json',
+      'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s.metadata, null, 2)));
+  };
+  document.getElementById('dlFrames').onclick = () => {
+    exportFrames().forEach((fr, i) => setTimeout(() => download(fr.name, fr.dataUrl), i * 150));
+  };
+
+  // ---- Self-check: palette, binary alpha, margins, root pixel --------------
+  function validate() {
+    const allowed = new Set(RGB.map(c => c.join(',')));
+    const used = new Set();
+    let minX = W, maxX = -1, minY = H, maxY = -1, problems = [];
+    for (let i = 0; i < N; i++) {
+      const c = document.createElement('canvas');
+      renderFrame(i, c);
+      if (c.width !== W || c.height !== H) problems.push(`f${i} size`);
+      const d = c.getContext('2d').getImageData(0, 0, W, H).data;
+      for (let p = 0; p < W * H; p++) {
+        const a = d[p * 4 + 3];
+        if (a === 0) continue;
+        if (a !== 255) { problems.push(`f${i} alpha ${a}`); break; }
+        const key = `${d[p * 4]},${d[p * 4 + 1]},${d[p * 4 + 2]}`;
+        if (!allowed.has(key)) { problems.push(`f${i} color ${key}`); break; }
+        used.add(key);
+        const x = p % W, y = (p / W) | 0;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      if (d[(PIVOT.y * W + PIVOT.x) * 4 + 3] !== 255) problems.push(`f${i} root empty`);
+    }
+    if (minX < MARGIN_MIN || maxX > MARGIN_MAX || minY < MARGIN_MIN || maxY > MARGIN_MAX) problems.push('margin');
+    const el = document.getElementById('check');
+    const summary = `${N} frames · ${W}×${H} · palette ${used.size}/${PAL.length} · bbox x${minX}..${maxX} y${minY}..${maxY}`;
+    el.className = problems.length ? 'bad' : 'ok';
+    el.textContent = problems.length ? `✗ ${problems.join(', ')} — ${summary}` : `✓ binary alpha, fixed palette only — ${summary}`;
+  }
+
+  draw();
+  validate();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

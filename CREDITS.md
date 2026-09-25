@@ -30,3 +30,8 @@
 Independent, unofficial experiment. Requires your own ROM.
 The new code's license does not grant rights to Pokémon or third-party assets.
 See the terms and credits of each linked project.
+# Seismic Toss contribution
+
+Didier Lopes ([DidierRLopes](https://github.com/DidierRLopes), [@didier_lopes](https://x.com/didier_lopes)) built the Seismic Toss grab, ascent, space orbit, dive and crater in [PR #1](https://github.com/GBurgardt/pokemon-emerald-arena/pull/1). His original implementation and procedural art generator are retained, with compatibility changes for the newer arena, effects and biomes.
+
+Dig and Fly suggested by [@MatheusLynar](https://x.com/MatheusLynar). Teleport suggested by [@Modmaster22](https://x.com/Modmaster22).

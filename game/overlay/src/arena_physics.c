@@ -79,13 +79,29 @@ void ArenaPhysics_Hit(u8 index,s16 ix,s16 iy,u8 strength)
     struct ArenaProp *p;
     if(index>=ARENA_OBSTACLES||!strength)return;
     p=&gArenaProps[index];
-    if(p->broken||p->fuse)return;
+    if(p->broken||p->fuse||p->reserved)return;
     p->flash=6;p->revision++;gArenaPhysicsTelemetry.impacts++;
     if(p->hp>strength)p->hp-=strength;
     else if(p->kind==ARENA_PROP_POD){p->hp=0;p->fuse=12;}
     else Break(index,ix,iy);
     gArenaPhysicsTelemetry.hp[index]=p->hp;
     gArenaPhysicsTelemetry.fuse[index]=p->fuse;
+}
+// Telekinesis consumes the real obstacle, but its fragments originate at the
+// actual impact, never at the old ground position. Bounded shared debris pool.
+void ArenaPhysics_ShatterAt(u8 index,s16 x,s16 y,s16 ix,s16 iy)
+{
+    u8 i;
+    struct ArenaProp *p;
+    if(index>=ARENA_OBSTACLES)return;
+    p=&gArenaProps[index];
+    if(p->broken)return;
+    p->broken=1;p->hp=0;p->reserved=0;p->fuse=0;p->revision++;
+    ArenaNav_SetObstacle(index,0);
+    gArenaPhysicsTelemetry.hp[index]=0;
+    gArenaPhysicsTelemetry.solidMask&=~(1<<index);
+    gArenaPhysicsTelemetry.broken++;
+    for(i=0;i<8;i++)Fragment(p->kind,x,y,ix,iy);
 }
 void ArenaPhysics_Update(void)
 {
