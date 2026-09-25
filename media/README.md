@@ -92,3 +92,8 @@ MP4 SHA-256: `c26fa29e1f65f437649167493231d2cbe9accfdcb940fc8eb1ef3952611422db`.
 GIF SHA-256: `1ec74faa603fada8802cb62ff0bc7aa83b98be2f8357cd98766bed6f590ca4e4`.
 
 Original game, music and character credits: [CREDITS.md](../CREDITS.md).
+# Substitute and Smokescreen
+
+[Watch the 23-second clip](emerald-arena-cover-smoke.mp4). Walk into Drake's room, enter the original trainer encounter, use Substitute and Smokescreen, then finish Shelgon with Flamethrower. This shows one opponent, not a full Elite Four victory.
+
+Recorded from the native game with a disposable prepared team. Music and effects are game audio. The capture predates Ghost phasing; release 0.9.0 includes it alongside these moves.

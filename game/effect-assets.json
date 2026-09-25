@@ -14,5 +14,16 @@
   "game/overlay/graphics/arena/double-team/effect.4bpp": "853bcbb914ed7e50dc89bfe4966d0608b421df9d0d5d5480aca565e9eb6ec0aa",
   "game/overlay/graphics/arena/double-team/palette.gbapal": "96da0f6790f33a0301ee3e80de46e38a618e44791836464147b44b64830a3ceb",
   "game/overlay/graphics/arena/warp-toss/effect.4bpp": "252e79823bc8a438a7595d48582645b2cfc16150a7783622337bf0b0384c090b",
-  "game/overlay/graphics/arena/dig-fly/effect.4bpp": "7d00fa20d637d6e93ae74838c8aca1936205b6c3e9b37b26ee36a232a4593afa"
+  "game/overlay/graphics/arena/dig-fly/effect.4bpp": "7d00fa20d637d6e93ae74838c8aca1936205b6c3e9b37b26ee36a232a4593afa",
+  "game/overlay/graphics/arena/cover-smoke/cave.4bpp": "14b5de4ca8962768c3c7bef833fff03fc55bd665e669ff57fdc5295b547a67db",
+  "game/overlay/graphics/arena/cover-smoke/coast.4bpp": "f7b163985aa8e990e7d7b4d854acc8a9a7f0bf69de95b1b0722be8643f0edc24",
+  "game/overlay/graphics/arena/cover-smoke/desert.4bpp": "20a85666aa4e38a862a17c0c71ae2427608a4a9754397c8fe828953951ed3ff9",
+  "game/overlay/graphics/arena/cover-smoke/doll-cave.4bpp": "a68652f91daf66a30a9892e67d19bd7b33cf28dd0f05540ba4120e8ce5cca9d6",
+  "game/overlay/graphics/arena/cover-smoke/doll-coast.4bpp": "9e2b9c529b40b4ba2a1ea0e5efdfa4ed3ee33d92d3e91bb73372120f3cc8a698",
+  "game/overlay/graphics/arena/cover-smoke/doll-desert.4bpp": "f6e6e21924b06b3bf4d624db793805cdd2576be7485b3648ed3e3d69e614ee12",
+  "game/overlay/graphics/arena/cover-smoke/doll-effect.4bpp": "7e5a32a816559c584d8e7a3cf4001fc8bec9a8207f702f7abf757ba5ef76db0f",
+  "game/overlay/graphics/arena/cover-smoke/doll-gym.4bpp": "eb04b23b2edbed76477776a4e4d3994cc4afb934cba33407053a4bd5c2f2ec5c",
+  "game/overlay/graphics/arena/cover-smoke/effect.4bpp": "e274ff15404cfb17767a3771e9722a75ca4cbe2d01210e395899f33fe527eeb5",
+  "game/overlay/graphics/arena/cover-smoke/gym.4bpp": "6f353a88b57ee3da522add9b2cbcf117f8c8a22d5fccc548fec50b98a5473d3a",
+  "game/overlay/graphics/arena/cover-smoke/palette.gbapal": "7d3f4ac7a418fd623bee1de11ff916baa3cdb6f047e278690179b499f83ca9cd"
 }

@@ -1,4 +1,23 @@
-# Unreleased
+# Emerald Arena 0.9.0
+
+[Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.9.0/Emerald-Arena-0.9.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.9.0/Emerald-Arena-0.9.0-full.bps) · [Gameplay](media/emerald-arena-cover-smoke.mp4)
+
+- Substitute creates movable, breakable cover at a quarter of your maximum HP.
+- Smokescreen briefly blocks sight and enemy tracking.
+- Gengar and Shelgon bring the animated roster to 100 Pokémon.
+- Ghost phasing contributed by [Didier Lopes in PR #2](https://github.com/GBurgardt/pokemon-emerald-arena/pull/2). His original commit is retained.
+
+Back up your in-game save before updating. Do not reuse emulator save states.
+
+### Verification
+
+21 Substitute/Smokescreen checks and 16 Ghost checks passed in the integrated ROM. Native lab, combat, capture, five environments, trainer victory/XP and move-picker checks passed too. All 36,344 animation frames across 100 Pokémon pass the C decoder.
+
+The clean public-source build, installer and full BPS reconstruction match byte for byte. All 16 installer and four landing checks pass. The shipping ROM cold-boots without a test mailbox; native encounter, send-out, movement, PP and party checksums were verified. This is not full-adventure or physical-GBA validation.
+
+Release ROM SHA-256: `8af469970aaf60fb711dd22caac2af80a238ce0e48859969f22e22152fd05226`.
+
+### Ghost movement
 
 - Ghost types phase through the arena walls and through the objects inside
   it: walking or dodging out through any edge brings them back in from the

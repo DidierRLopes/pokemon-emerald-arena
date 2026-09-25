@@ -1,9 +1,12 @@
 # Credits
 
+- [Didier Lopes](https://github.com/DidierRLopes): Ghost phasing and Gengar in [PR #2](https://github.com/GBurgardt/pokemon-emerald-arena/pull/2), alongside his earlier Seismic Toss contribution. Original commits retained.
+- [@Modmaster22](https://x.com/Modmaster22/status/2103410909779517678): movable Substitute idea. [@JuniorMc22](https://x.com/JuniorMc22/status/2103344165358813579): Smokescreen visibility idea.
+
 - [pret/pokeemerald](https://github.com/pret/pokeemerald):
   Pokémon Emerald decompilation and reconstruction.
 - [PMDCollab/SpriteCollab](https://github.com/PMDCollab/SpriteCollab):
-  animation sources, metadata and individual credits for the 92 Pokémon.
+  animation sources, metadata and individual credits for the 100 Pokémon.
   Pin: `d25607ff4746957df10bdb78db090887cd94f1f8`.
   The installer manifest preserves each species' credit file. The original
   sheets credit CHUNSOFT and individual PMDCollab contributors. The web installer downloads and converts these locally.

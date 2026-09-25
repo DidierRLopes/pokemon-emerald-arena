@@ -208,6 +208,28 @@ void ArenaLab_Tick(void)
             }
         break;
     }
+    case 20:
+        // Private recording setup only. The real Sidney map script starts
+        // the encounter; his party, attacks and outcomes remain untouched.
+        FlagClear(gArenaLabMailbox.species ? FLAG_DEFEATED_ELITE_4_DRAKE : FLAG_DEFEATED_ELITE_4_SIDNEY);
+        VarSet(VAR_ELITE_4_STATE, gArenaLabMailbox.species ? 4 : 1);
+        gSaveBlock2Ptr->optionsTextSpeed=OPTIONS_TEXT_SPEED_FAST;
+        if(gArenaLabMailbox.species)
+            SetWarpDestination(MAP_GROUP(MAP_EVER_GRANDE_CITY_DRAKES_ROOM),MAP_NUM(MAP_EVER_GRANDE_CITY_DRAKES_ROOM),-1,6,10);
+        else
+            SetWarpDestination(MAP_GROUP(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM),MAP_NUM(MAP_EVER_GRANDE_CITY_SIDNEYS_ROOM),-1,6,10);
+        DoWarp();
+        break;
+    case 19:
+    {
+        // Legal tutor/learnset loadout for a disposable Charizard, not release.
+        if(GetMonData(&gPlayerParty[0],MON_DATA_SPECIES)!=SPECIES_CHARIZARD){gArenaLabMailbox.result=2;break;}
+        SetMonMoveSlot(&gPlayerParty[0],MOVE_SUBSTITUTE,0);
+        SetMonMoveSlot(&gPlayerParty[0],MOVE_SMOKESCREEN,1);
+        SetMonMoveSlot(&gPlayerParty[0],MOVE_FLAMETHROWER,2);
+        SetMonMoveSlot(&gPlayerParty[0],MOVE_WING_ATTACK,3);
+        break;
+    }
     case 17:
     {
         // Disposable themed team. Native move assignment initializes PP.

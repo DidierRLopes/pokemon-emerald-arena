@@ -91,6 +91,7 @@ static bool8 TossStart(u8 side)
     {gArenaWarpTossTelemetry[3]++;ArenaFeedback_Wall(b->x/Q,b->y/Q);return FALSE;}
     if(sDecoys[side^1].life&&sDecoys[side^1].age>=24)
     {DecoyBreak(side^1);gArenaWarpTossTelemetry[3]++;return FALSE;}
+    if(CoverSegment(side,MOVE_SEISMIC_TOSS,b->x/Q,b->y/Q,t->x/Q,t->y/Q,8))return FALSE;
     TossBegin(side);
     return TossActive();
 }

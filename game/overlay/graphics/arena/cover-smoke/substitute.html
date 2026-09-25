@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Emerald Arena — Substitute doll v2 (16 frames)</title>
+<style>
+:root{--bg:#0e1416;--panel:#162024;--line:#085850;--txt:#e8e0d0;--mut:#9ab0a8;--acc:#509860}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:13px/1.45 ui-monospace,Menlo,Consolas,monospace}
+header{padding:12px 18px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:16px}
+header p{margin:4px 0 0;color:var(--mut)}
+main{display:flex;flex-wrap:wrap;gap:18px;padding:18px;align-items:flex-start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+.scales{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+figure{margin:0}
+figcaption{color:var(--mut);margin-top:4px;font-size:11px}
+#c1{width:64px;height:64px;border:1px solid #085850}
+#c4{width:256px;height:256px;border:1px solid #085850}
+#c8{width:512px;height:512px;border:1px solid #085850}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+button,select{background:#085850;color:var(--txt);border:1px solid #207860;border-radius:4px;padding:5px 10px;font:inherit;cursor:pointer}
+button:hover,select:hover{background:#207860}
+input[type=range]{width:260px;accent-color:#509860}
+#label{color:var(--acc)}
+#strip{display:grid;grid-template-columns:repeat(8,128px);gap:4px;margin-top:12px}
+#strip figure{cursor:pointer}
+#strip canvas{width:128px;height:128px;outline:1px solid #085850}
+#strip canvas.sel{outline:2px solid #e89850}
+pre{white-space:pre-wrap;color:var(--mut);max-height:300px;overflow:auto;margin:10px 0 0;font-size:11px;background:#10181a;padding:8px;border-radius:4px}
+.hint{color:var(--mut);font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Emerald Arena — Substitute doll v2 · 16 frames · 64×64 · transparent</h1>
+  <p>Hand-placed native-size plush (~24×26 px), three-quarter view facing up/right · pivot (32,44) on every frame · 8-color gym palette + binary alpha · Smokescreen from v1 is untouched and not re-exported here.</p>
+</header>
+<main>
+  <section class="panel">
+    <div class="scales">
+      <figure><canvas id="c8" width="512" height="512"></canvas><figcaption>8×</figcaption></figure>
+      <div>
+        <figure><canvas id="c4" width="256" height="256"></canvas><figcaption>4×</figcaption></figure>
+        <figure style="margin-top:12px"><canvas id="c1" width="64" height="64"></canvas><figcaption>1× (native)</figcaption></figure>
+      </div>
+    </div>
+    <div class="row">
+      <button id="prev">◀ Prev</button>
+      <button id="play">Pause</button>
+      <button id="next">Next ▶</button>
+      <input type="range" id="frame" min="0" max="15" value="0">
+      <span id="label"></span>
+    </div>
+    <div class="row">
+      <label>Sequence <select id="seq">
+        <option value="show">showcase (arrive → idle → hit → idle → break)</option>
+        <option value="all">all 0–15</option>
+        <option value="idle">idle loop 4–7</option>
+        <option value="hit">hit 8–11 + idle</option>
+      </select></label>
+      <label>Preview bg <select id="bg">
+        <option value="gym">gym floor teal</option>
+        <option value="forest">forest grass</option>
+        <option value="checker">checker</option>
+      </select></label>
+      <label><input type="checkbox" id="guides" checked> guides (pivot, idle box, fx box)</label>
+    </div>
+    <div class="hint">Space = play/pause · ←/→ = step · backgrounds and guides are preview-only; exports are transparent.</div>
+  </section>
+  <section class="panel">
+    <div>All 16 frames (2×)</div>
+    <div id="strip"></div>
+    <div class="row">
+      <button id="dlSheet">Download spritesheet PNG</button>
+      <button id="dlMeta">Download metadata JSON</button>
+      <button id="dlFrames">Download 16 frame PNGs</button>
+    </div>
+    <pre id="check"></pre>
+  </section>
+</main>
+<script>
+(function(){
+'use strict';
+const W=64,H=64,N=16,PX=32,PY=44;
+const PAL_HEX=['#080810','#002028','#003838','#085850','#207860','#509860','#804820','#e89850'];
+const PAL=PAL_HEX.map(h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]);
+// O outline, D deep shadow, S shadow, m body mid-dark, M body mid, H body highlight, b belly shade, B belly warm
+const C={'.':0,O:1,D:2,S:3,m:4,M:5,H:6,b:7,B:8};
+const DUR=[80,80,90,120, 180,140,120,160, 60,90,100,150, 90,90,110,150];
+const ANIMS={
+  substitute_arrive:{from:0,to:3,loop:false},
+  substitute_idle:{from:4,to:7,loop:true},
+  substitute_hit:{from:8,to:11,loop:false},
+  substitute_break:{from:12,to:15,loop:false}
+};
+function animOf(i){for(const k in ANIMS){if(i>=ANIMS[k].from&&i<=ANIMS[k].to)return k;}return '';}
+function nameOf(i){return 'substitute_'+String(i).padStart(2,'0');}
+
+// ---------- the doll, hand-placed at native size ----------
+// grid col 0 -> x=20, bottom row 25 -> y=43 (feet rest on y=44)
+const BASE=[
+  '..........OO..OO........',
+  '.........OHMOOHMOO......',
+  '........OHHHHHHMMMO.....',
+  '.......OMHHHHHMMMMmO....',
+  '.......OMHHHHMMMOMMmO...',
+  '.......OMHHHHMMMOMHHMO..',
+  '.......OmMMMMMMMMMMMSO..',
+  '.......OmmMMMMMMMDDDmO..',
+  '........OmmmMMMMMMmmO...',
+  '........OmSSSSOOOOOO....',
+  '.......OHHMMmbbbbO......',
+  '......OMHSMMmbBBbmO.....',
+  '.OO..OMHHSMmbBBBbOO.....',
+  'OHMO.OMHMMMmbBBBOHMO....',
+  'OHMmOMHHMMMmbBBBbOO.....',
+  'OMMmOMHMMMmmbBBbbmO.....',
+  'OMmOMHHMMMmbBBBbbmSO....',
+  'OmmOMHMMMmmbbSHHMMmO....',
+  'OmSOMMMMmmmbSMHHMMMmO...',
+  'OSSOmMMmmmSSmMHHMMMMmO..',
+  '.OOOmMMmmmSSmMMMMMmmSO..',
+  '...OmMMmmSSSSSmMMHHMMmO.',
+  '...OmmmmSSSSDSmMMMMMMmO.',
+  '....OSmmmSSSDDmmmmmmmSO.',
+  '.....ODSSSSSDDSSSSSSSDO.',
+  '......OOOOOOOOOOOOOOOO..'
+];
+const GX=20,GBOT=43;
+
+function outlineFix(b){
+  const add=[];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x,v=b[i];
+    if(!v||v===1)continue;
+    if(x===0||y===0||x===W-1||y===H-1||!b[i-1]||!b[i+1]||!b[i-W]||!b[i+W])add.push(i);
+  }
+  add.forEach(i=>{b[i]=1;});
+}
+// opt: eye open|blink|shut, mouth open, seam open, drop [rows], head dx (rows 0-9), neck dx (rows 10-11)
+function dollBuf(opt){
+  opt=opt||{};
+  const rows=BASE.map((s,i)=>({i:i,c:s.split('')}));
+  const set=(r,c,ch)=>{rows[r].c[c]=ch;};
+  if(opt.eye==='blink'){set(4,16,'M');set(5,15,'O');set(5,16,'O');}
+  else if(opt.eye==='shut'){set(4,16,'M');set(4,15,'O');set(5,16,'O');set(6,15,'O');}
+  if(opt.mouth==='open'){set(8,17,'D');set(8,18,'D');}
+  if(opt.seam==='open'){set(10,9,'B');set(11,9,'B');set(12,9,'B');}
+  const drop=opt.drop||[];
+  const kept=rows.filter(r=>drop.indexOf(r.i)<0);
+  const b=new Uint8Array(W*H),n=kept.length;
+  kept.forEach((r,k)=>{
+    const y=GBOT-(n-1-k);
+    const dx=r.i<=9?(opt.head||0):(r.i<=11?(opt.neck||0):0);
+    r.c.forEach((ch,col)=>{
+      const v=C[ch];if(!v)return;
+      const x=GX+col+dx;
+      if(x<0||x>=W||y<0||y>=H)return;
+      b[y*W+x]=v;
+    });
+  });
+  outlineFix(b);
+  return b;
+}
+
+// ---------- effects (write only into empty pixels: never hide the doll) ----------
+function stamp(b,x0,y0,rows){
+  for(let j=0;j<rows.length;j++)for(let k=0;k<rows[j].length;k++){
+    const v=C[rows[j][k]];if(!v)continue;
+    const x=x0+k,y=y0+j;if(x<0||y<0||x>=W||y>=H)continue;
+    const i=y*W+x;if(!b[i])b[i]=v;
+  }
+}
+function puff(b,cx,cy,r){
+  const inside=(x,y)=>{const dx=x+0.5-cx,dy=y+0.5-cy;return dx*dx+dy*dy<=r*r;};
+  const out=[];
+  for(let y=Math.floor(cy-r-1);y<=Math.ceil(cy+r+1);y++)for(let x=Math.floor(cx-r-1);x<=Math.ceil(cx+r+1);x++){
+    if(x<0||y<0||x>=W||y>=H||!inside(x,y))continue;
+    const edge=!inside(x-1,y)||!inside(x+1,y)||!inside(x,y-1)||!inside(x,y+1);
+    let v;
+    if(edge)v=C.S;
+    else{const s=-((x+0.5-cx)*0.6+(y+0.5-cy)*0.8)/r;v=s>0.3?C.H:s>-0.35?C.M:C.m;}
+    out.push([y*W+x,v]);
+  }
+  out.forEach(p=>{b[p[0]]=p[1];});
+}
+const SPARK=['.B.','BBB','.B.'];
+const DOT=['B'];
+const IMPACT=['..O..','.OBO.','OBBBO','.OBO.','..O..'];
+const IMPACT_S=['.B.','B.B','.B.'];
+const TUFT_L=['.BB.','BBBB','bBBb','.bb.'];
+const TUFT_M=['.B.','BBB','.b.'];
+const TUFT_S=['B','b'];
+const BIT_G=['H','m'];
+
+// ---------- break-apart ----------
+// seeds in grid coords: [col,row,vx,vy]
+const FRAG=[[13,4,-1,-2],[19,6,2,-2],[8,12,-2,-1],[14,13,1,-1],[1,16,-3,0],[7,21,-2,0],[15,18,2,0],[18,23,3,0]];
+function dollBreak(b,t){
+  const base=dollBuf({eye:'shut',seam:'open'});
+  const sd=FRAG.map(s=>({x:GX+s[0]+0.5,y:18+s[1]+0.5,vx:s[2],vy:s[3]}));
+  const own=new Int8Array(W*H).fill(-1);
+  for(let i=0;i<W*H;i++){
+    if(!base[i])continue;
+    const x=i%W+0.5,y=((i/W)|0)+0.5;let best=0,bd=1e9;
+    sd.forEach((s,k)=>{const d=(x-s.x)*(x-s.x)+(y-s.y)*(y-s.y);if(d<bd){bd=d;best=k;}});
+    own[i]=best;
+  }
+  const R=[0,99,3.2,1.6][t];
+  const alive=t===3?[0,3,7]:t===2?[0,1,2,3,4,6,7]:[0,1,2,3,4,5,6,7];
+  const keep=new Int8Array(W*H).fill(-1);
+  for(let i=0;i<W*H;i++){
+    const k=own[i];if(k<0||alive.indexOf(k)<0)continue;
+    const s=sd[k],x=i%W+0.5,y=((i/W)|0)+0.5;
+    if(Math.hypot(x-s.x,y-s.y)<=R)keep[i]=k;
+  }
+  sd.forEach((s,k)=>{
+    let maxY=-1;
+    for(let i=0;i<W*H;i++)if(keep[i]===k)maxY=Math.max(maxY,(i/W)|0);
+    if(maxY<0)return;
+    const ox=s.vx*t;
+    const oy=Math.min(s.vy*t+(t>1?t-1:0),43-maxY);
+    for(let i=0;i<W*H;i++){
+      if(keep[i]!==k)continue;
+      const x=i%W,y=(i/W)|0;
+      let edge=false,outside=false;
+      [[x-1,y],[x+1,y],[x,y-1],[x,y+1]].forEach(q=>{
+        if(q[0]<0||q[1]<0||q[0]>=W||q[1]>=H){edge=true;outside=true;return;}
+        const n=q[1]*W+q[0];
+        if(keep[n]!==k){edge=true;if(!base[n])outside=true;}
+      });
+      const v=edge?(outside?C.O:C.B):base[i];
+      const tx=x+ox,ty=y+oy;
+      if(tx<0||ty<0||tx>=W||ty>=H)continue;
+      b[ty*W+tx]=v;
+    }
+  });
+}
+
+// ---------- frame choreography ----------
+function copyInto(dst,src){for(let i=0;i<W*H;i++)if(src[i])dst[i]=src[i];}
+function buildFrame(f){
+  const b=new Uint8Array(W*H);
+  switch(f){
+    // 0-3 magical arrival puff resolving into the plush
+    case 0:
+      puff(b,28,40.5,3);puff(b,36,41,3);puff(b,32,38,4);
+      stamp(b,31,30,SPARK);
+      break;
+    case 1:
+      puff(b,22,41,3);puff(b,42,41,3);puff(b,26,37,5);puff(b,38,37,5);puff(b,32,40,5);puff(b,32,32,6);
+      stamp(b,19,25,SPARK);stamp(b,44,23,SPARK);stamp(b,33,21,DOT);
+      break;
+    case 2:
+      copyInto(b,dollBuf({drop:[16]}));
+      puff(b,15,39,3);puff(b,49,37,3);puff(b,47,24,2);
+      stamp(b,15,29,SPARK);stamp(b,50,28,DOT);stamp(b,38,14,DOT);
+      break;
+    case 3:
+      copyInto(b,dollBuf({}));
+      stamp(b,14,30,DOT);stamp(b,50,26,DOT);stamp(b,47,40,DOT);
+      break;
+    // 4-7 subtle breath idle with a blink
+    case 4: copyInto(b,dollBuf({}));break;
+    case 5: copyInto(b,dollBuf({drop:[16]}));break;
+    case 6: copyInto(b,dollBuf({drop:[16],eye:'blink'}));break;
+    case 7: copyInto(b,dollBuf({}));break;
+    // 8-11 hit: compression and tilt away from the opponent, feet grounded, recovery
+    case 8:
+      copyInto(b,dollBuf({drop:[15,17],head:-2,neck:-1,eye:'shut',mouth:'open'}));
+      stamp(b,42,21,IMPACT);stamp(b,48,18,DOT);stamp(b,49,17,DOT);stamp(b,48,28,DOT);stamp(b,49,29,DOT);
+      break;
+    case 9:
+      copyInto(b,dollBuf({drop:[16],head:-1,eye:'shut'}));
+      stamp(b,44,19,IMPACT_S);stamp(b,50,16,DOT);
+      break;
+    case 10:
+      copyInto(b,dollBuf({head:1,eye:'blink'}));
+      break;
+    case 11:
+      copyInto(b,dollBuf({}));
+      break;
+    // 12-15 seam gives way: warm fluff and small green fragments fading out
+    case 12:
+      copyInto(b,dollBuf({drop:[16],eye:'shut',seam:'open'}));
+      stamp(b,21,23,TUFT_M);stamp(b,25,19,TUFT_S);
+      break;
+    case 13:
+      dollBreak(b,1);
+      stamp(b,17,19,TUFT_L);stamp(b,46,17,TUFT_M);stamp(b,28,12,TUFT_S);
+      break;
+    case 14:
+      dollBreak(b,2);
+      stamp(b,15,15,TUFT_M);stamp(b,48,12,TUFT_S);stamp(b,25,10,TUFT_S);
+      break;
+    case 15:
+      dollBreak(b,3);
+      stamp(b,14,11,TUFT_S);stamp(b,49,10,DOT);stamp(b,17,40,BIT_G);
+      break;
+  }
+  return b;
+}
+const BUFS=[];
+function getBuf(i){if(!BUFS[i])BUFS[i]=buildFrame(i);return BUFS[i];}
+function toImageData(buf){
+  const id=new ImageData(W,H),d=id.data;
+  for(let i=0;i<W*H;i++){
+    const v=buf[i];if(!v)continue;
+    const c=PAL[v-1];d[i*4]=c[0];d[i*4+1]=c[1];d[i*4+2]=c[2];d[i*4+3]=255;
+  }
+  return id;
+}
+
+window.pixelArt={
+  meta:{width:W,height:H,frameCount:N,frameDurationMs:100,kind:'sprite'},
+  renderFrame:function(index,canvas){
+    const i=(((index|0)%N)+N)%N;
+    const c=canvas||document.createElement('canvas');
+    if(c.width!==W)c.width=W;
+    if(c.height!==H)c.height=H;
+    const ctx=c.getContext('2d');
+    ctx.imageSmoothingEnabled=false;
+    ctx.clearRect(0,0,W,H);
+    ctx.putImageData(toImageData(getBuf(i)),0,0);
+    return c;
+  },
+  exportFrames:function(){
+    const c=document.createElement('canvas'),out=[];
+    for(let i=0;i<N;i++){window.pixelArt.renderFrame(i,c);out.push({name:nameOf(i)+'.png',dataUrl:c.toDataURL('image/png')});}
+    return out;
+  },
+  exportSheet:function(){
+    const c=document.createElement('canvas');c.width=W*N;c.height=H;
+    const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,c.width,c.height);
+    const frames=[];
+    for(let i=0;i<N;i++){
+      ctx.putImageData(toImageData(getBuf(i)),i*W,0);
+      frames.push({index:i,name:nameOf(i),rect:{x:i*W,y:0,w:W,h:H},durationMs:DUR[i],pivot:{x:PX,y:PY},animation:animOf(i)});
+    }
+    const name='substitute_doll_v2_sheet.png';
+    return {name:name,dataUrl:c.toDataURL('image/png'),metadata:{
+      image:name,version:2,size:{w:W*N,h:H},frameWidth:W,frameHeight:H,frameCount:N,layout:'horizontal',
+      alpha:'binary (0 or 255)',palette:PAL_HEX.slice(),pivot:{x:PX,y:PY},
+      idleBounds:{x0:20,y0:18,x1:44,y1:44},effectBounds:{x0:12,y0:10,x1:52,y1:48},
+      note:'Replaces Substitute frames only; Smokescreen v1 frames unchanged and not included.',
+      frames:frames,animations:JSON.parse(JSON.stringify(ANIMS))
+    }};
+  }
+};
+
+// ---------- preview UI ----------
+const $=id=>document.getElementById(id);
+const FC=[];for(let i=0;i<N;i++)FC.push(window.pixelArt.renderFrame(i,document.createElement('canvas')));
+const SEQS={
+  show:[0,1,2,3,4,5,6,7,4,5,6,7,8,9,10,11,4,5,6,7,12,13,14,15],
+  all:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+  idle:[4,5,6,7],
+  hit:[4,5,6,7,8,9,10,11]
+};
+const state={seq:'show',pos:0,frame:0,playing:true,acc:0,bg:'gym',guides:true,shown:-1};
+
+function drawBg(ctx,size){
+  if(state.bg==='checker'){
+    const cell=size/16;
+    for(let y=0;y<16;y++)for(let x=0;x<16;x++){ctx.fillStyle=((x+y)&1)?'#2a3236':'#3a4448';ctx.fillRect(x*cell,y*cell,cell,cell);}
+  }else{
+    ctx.fillStyle=state.bg==='gym'?'#7fb3ad':'#86ad5e';ctx.fillRect(0,0,size,size);
+    if(state.bg==='gym'){ctx.fillStyle='#74a8a2';const s=size/64;for(let k=0;k<64;k+=8){ctx.fillRect(0,k*s,size,s);ctx.fillRect(k*s,0,s,size);}}
+  }
+}
+function drawAt(canvas,scale,guides){
+  const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+  drawBg(ctx,W*scale);
+  ctx.drawImage(FC[state.frame],0,0,W*scale,H*scale);
+  if(guides&&state.guides){
+    ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(232,152,80,0.55)';
+    ctx.strokeRect(20*scale+0.5,18*scale+0.5,25*scale-1,27*scale-1);
+    ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(8,8,16,0.45)';
+    ctx.strokeRect(12*scale+0.5,10*scale+0.5,41*scale-1,39*scale-1);
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,60,100,0.9)';
+    ctx.fillRect(PX*scale-12,PY*scale-1,24,2);ctx.fillRect(PX*scale-1,PY*scale-12,2,24);
+  }
+}
+const strip=$('strip'),thumbs=[];
+for(let i=0;i<N;i++){
+  const fig=document.createElement('figure');
+  const c=document.createElement('canvas');c.width=128;c.height=128;
+  const cap=document.createElement('figcaption');cap.textContent=String(i).padStart(2,'0')+' '+animOf(i).replace('substitute_','')+' '+DUR[i]+'ms';
+  fig.appendChild(c);fig.appendChild(cap);
+  fig.addEventListener('click',()=>{state.playing=false;syncPlay();setFrame(i);});
+  strip.appendChild(fig);thumbs.push(c);
+}
+function drawStrip(){
+  thumbs.forEach((c,i)=>{const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;drawBg(ctx,128);ctx.drawImage(FC[i],0,0,128,128);});
+}
+function setFrame(i){state.frame=((i%N)+N)%N;state.acc=0;const p=SEQS[state.seq].indexOf(state.frame);if(p>=0)state.pos=p;}
+function updateUi(){
+  if(state.shown===state.frame)return;
+  if(state.shown>=0)thumbs[state.shown].classList.remove('sel');
+  thumbs[state.frame].classList.add('sel');
+  state.shown=state.frame;
+  $('frame').value=state.frame;
+  $('label').textContent='#'+String(state.frame).padStart(2,'0')+' '+nameOf(state.frame)+' · '+animOf(state.frame)+' · '+DUR[state.frame]+'ms · pivot ('+PX+','+PY+')';
+}
+function syncPlay(){$('play').textContent=state.playing?'Pause':'Play';}
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(100,now-last);last=now;
+  if(state.playing){
+    const seq=SEQS[state.seq];
+    state.acc+=dt;
+    while(state.acc>=DUR[seq[state.pos]]){state.acc-=DUR[seq[state.pos]];state.pos=(state.pos+1)%seq.length;}
+    state.frame=seq[state.pos];
+  }
+  drawAt($('c8'),8,true);drawAt($('c4'),4,false);drawAt($('c1'),1,false);
+  updateUi();
+  requestAnimationFrame(loop);
+}
+$('play').onclick=()=>{state.playing=!state.playing;if(state.playing)setFrame(state.frame);syncPlay();};
+$('prev').onclick=()=>{state.playing=false;syncPlay();setFrame(state.frame-1);};
+$('next').onclick=()=>{state.playing=false;syncPlay();setFrame(state.frame+1);};
+$('frame').oninput=e=>{state.playing=false;syncPlay();setFrame(+e.target.value);};
+$('seq').onchange=e=>{state.seq=e.target.value;state.pos=0;state.acc=0;state.frame=SEQS[state.seq][0];};
+$('bg').onchange=e=>{state.bg=e.target.value;drawStrip();};
+$('guides').onchange=e=>{state.guides=e.target.checked;};
+document.addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='SELECT')return;
+  if(e.code==='Space'){e.preventDefault();$('play').onclick();}
+  else if(e.key==='ArrowLeft'){e.preventDefault();$('prev').onclick();}
+  else if(e.key==='ArrowRight'){e.preventDefault();$('next').onclick();}
+});
+function download(name,href){const a=document.createElement('a');a.href=href;a.download=name;document.body.appendChild(a);a.click();a.remove();}
+$('dlSheet').onclick=()=>{const s=window.pixelArt.exportSheet();download(s.name,s.dataUrl);};
+$('dlMeta').onclick=()=>{
+  const s=window.pixelArt.exportSheet();
+  const url=URL.createObjectURL(new Blob([JSON.stringify(s.metadata,null,2)],{type:'application/json'}));
+  download(s.name.replace(/\.png$/,'.json'),url);setTimeout(()=>URL.revokeObjectURL(url),2000);
+};
+$('dlFrames').onclick=()=>{window.pixelArt.exportFrames().forEach((f,k)=>setTimeout(()=>download(f.name,f.dataUrl),k*150));};
+
+function validate(){
+  const pal=new Set(PAL.map(c=>c.join(','))),used=new Set(),lines=[];let ok=true;
+  for(let i=0;i<N;i++){
+    const c=window.pixelArt.renderFrame(i,document.createElement('canvas'));
+    const d=c.getContext('2d').getImageData(0,0,W,H).data;
+    let badA=0,badC=0,count=0,x0=W,y0=H,x1=-1,y1=-1;
+    for(let p=0;p<W*H;p++){
+      const a=d[p*4+3];if(a===0)continue;
+      if(a!==255){badA++;continue;}
+      const key=d[p*4]+','+d[p*4+1]+','+d[p*4+2];
+      if(!pal.has(key))badC++;else used.add(key);
+      count++;
+      const x=p%W,y=(p/W)|0;if(x<x0)x0=x;if(y<y0)y0=y;if(x>x1)x1=x;if(y>y1)y1=y;
+    }
+    let bounds='';
+    if(i>=4&&i<=7){const inside=x0>=20&&x1<=44&&y0>=18&&y1<=44;bounds=inside?' idle-box ok':' idle-box OUT';if(!inside)ok=false;}
+    else if(x1>=0){const inside=x0>=12&&x1<=52&&y0>=10&&y1<=48;bounds=inside?' fx-box ok':' fx-box OUT';if(!inside)ok=false;}
+    if(badA||badC||c.width!==W||c.height!==H)ok=false;
+    lines.push(nameOf(i)+' '+c.width+'x'+c.height+' px '+String(count).padStart(3)+(x1<0?' empty':' bbox x'+x0+'..'+x1+' y'+y0+'..'+y1)+bounds+' alphaErr '+badA+' colorErr '+badC);
+  }
+  $('check').textContent='Palette/alpha/bounds check: '+(ok?'PASS':'FAIL')+' · '+used.size+'/8 palette colors used · pivot ('+PX+','+PY+') all frames\n'+lines.join('\n');
+}
+drawStrip();validate();syncPlay();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

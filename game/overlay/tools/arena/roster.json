@@ -778,6 +778,12 @@
     "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
   },
   {
+    "dex": "0372",
+    "species": "SHELGON",
+    "level": 52,
+    "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
     "dex": "0384",
     "species": "RAYQUAZA",
     "level": 60,

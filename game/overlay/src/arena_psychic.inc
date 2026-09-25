@@ -77,9 +77,10 @@ static void TickPsychic(void)
                     // Automatic aim tracks during visible charge, locks when
                     // the first stone leaves. No homing in flight. Directional
                     // manual aim always preserves the player's committed ray.
-                    if(!r->order&&!sPsychic[side].manual)
+                    if(!r->order&&!sPsychic[side].manual&&!SmokeBlocks(b->x/Q,b->y/Q,target->x/Q,target->y/Q))
                     {sPsychic[side].aimX=target->x/Q;sPsychic[side].aimY=target->y/Q;}
-                    if(!r->order&&!sPsychic[side].manual&&sDecoys[side^1].life&&sDecoys[side^1].age>=24)
+                    if(!r->order&&!sPsychic[side].manual&&sDecoys[side^1].life&&sDecoys[side^1].age>=24
+                        &&!SmokeBlocks(b->x/Q,b->y/Q,sDecoys[side^1].x,sDecoys[side^1].y))
                     {sPsychic[side].aimX=sDecoys[side^1].x;sPsychic[side].aimY=sDecoys[side^1].y;}
                     r->state=2;r->age=0;r->y-=r->height*Q;r->height=0;
                     dx=sPsychic[side].aimX*Q-r->x;dy=(sPsychic[side].aimY-6)*Q-r->y;
@@ -96,6 +97,8 @@ static void TickPsychic(void)
             if(obstacle>=0)
             {ArenaPhysics_Hit(obstacle,r->vx,r->vy,3);gArenaPsychicTelemetry[5]++;PsychicImpact(i);continue;}
             if(DecoySegment(side^1,ox,oy,nx,ny,14))
+            {sPsychic[side].connected=TRUE;PsychicImpact(i);continue;}
+            if(!sPsychic[side].connected&&CoverSegment(side,MOVE_PSYCHIC,ox,oy,nx,ny,14))
             {sPsychic[side].connected=TRUE;PsychicImpact(i);continue;}
             if(!target->dash&&ArenaMoves_SegmentHit(ox,oy,nx,ny,target->x/Q,target->y/Q,14))
             {

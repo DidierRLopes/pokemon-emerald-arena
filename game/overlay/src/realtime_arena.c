@@ -348,6 +348,7 @@ static void PhaseWrap(u8 side, s32 dx, s32 dy)
 }
 
 #include "arena_double_team.inc"
+#include "arena_cover.inc"
 
 static bool8 SupportedMove(u16 move)
 {
@@ -740,6 +741,7 @@ static void CB2_ArenaInit(void)
     ResetTasks();
     ResetSpriteData();
     DecoyReset();
+    CoverReset();
     SpecialReset();
     ArenaRender_Reset();
     FreeAllSpritePalettes();
@@ -928,9 +930,11 @@ static void MoveDelta(u8 side, s32 dx, s32 dy)
     // Axis-separated sliding. Even the fastest dash step is smaller than any
     // solid obstacle; the swept test also prevents corner cutting.
     if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, x / Q, body->y / Q, ARENA_BODY_RADIUS))
+        && CoverCanStep(x/Q,body->y/Q)
         && (Abs(x - other->x) >= 22 * Q || Abs(body->y - other->y) >= 22 * Q)) body->x = x;
     else if (dx) gArenaAiTelemetry.wallBlocks[side]++;
     if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, body->x / Q, y / Q, ARENA_BODY_RADIUS))
+        && CoverCanStep(body->x/Q,y/Q)
         && (Abs(body->x - other->x) >= 22 * Q || Abs(y - other->y) >= 22 * Q)) body->y = y;
     else if (dy) gArenaAiTelemetry.wallBlocks[side]++;
     if (ghost) PhaseWrap(side, dx, dy);
@@ -1131,6 +1135,12 @@ static void TickPlayer(void)
         // A alone aims at the rival. D-pad + A gives explicit directional
         // aim, including destructible cover. This is still the same four moves.
         body->manualAim=dx||dy;
+        if(!dx&&!dy&&SmokeBlocks(body->x/Q,body->y/Q,sArena.bodies[1].x/Q,sArena.bodies[1].y/Q))
+        {
+            static const s8 facing[8][2]={{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0},{-1,1}};
+            dx=facing[body->facing][0];dy=facing[body->facing][1];
+            body->manualAim=TRUE;
+        }
         BeginShot(0,dx||dy?body->x+dx*200*Q:DecoyAim(1,FALSE),
                     dx||dy?body->y+dy*200*Q:DecoyAim(1,TRUE));
         sArena.attackBuffer = 0;
@@ -1204,6 +1214,7 @@ static bool8 AiTryEvade(void)
         s32 dx, dy, t, px, py, len, sign;
         struct ArenaPoint goal;
         if (!shot->life || shot->side != 0
+            || SmokeBlocks(body->x/Q,body->y/Q,shot->x/Q,shot->y/Q)
             || !ArenaNav_LineClear(body->x/Q,body->y/Q,shot->x/Q,shot->y/Q,2)) continue;
         dx = shot->x - body->x; dy = shot->y - body->y;
         t = -(dx * shot->vx + dy * shot->vy) / (shot->vx * shot->vx + shot->vy * shot->vy);
@@ -1302,6 +1313,8 @@ static void AiChooseMove(s32 distance)
             if((move==MOVE_LEER||move==MOVE_TAIL_WHIP||move==MOVE_SCREECH||move==MOVE_HOWL)&&!hasPhysical)useful=FALSE;
             if(move==MOVE_FOCUS_ENERGY)useful=hasPhysical&&!(gBattleMons[1].status2&STATUS2_FOCUS_ENERGY);
             if(move==MOVE_DOUBLE_TEAM)useful=!sDecoys[1].life;
+            if(move==MOVE_SUBSTITUTE)useful=!sCover[1].hp&&gBattleMons[1].hp>gBattleMons[1].maxHP/2;
+            if(move==MOVE_SMOKESCREEN)useful=!sSmoke[1].life&&distance<100;
             if(move==MOVE_TELEPORT)useful=distance<60;
             // One setup action, then pressure. Repeated buffs should not turn
             // early wild encounters into several seconds of waiting around.
@@ -1339,9 +1352,10 @@ static void TickEnemy(void)
         s32 distance;
         sArena.thinkTimer = sArena.reaction;
         sArena.previous = sArena.observed;
-        sArena.observed.x = sArena.bodies[0].x / Q;
-        sArena.observed.y = sArena.bodies[0].y / Q;
-        if(sDecoys[0].life && sDecoys[0].age>=24)
+        if(!SmokeBlocks(body->x/Q,body->y/Q,sArena.bodies[0].x/Q,sArena.bodies[0].y/Q))
+        {sArena.observed.x = sArena.bodies[0].x / Q;sArena.observed.y = sArena.bodies[0].y / Q;}
+        else gArenaCoverTelemetry[5]++;
+        if(sDecoys[0].life && sDecoys[0].age>=24 && !SmokeBlocks(body->x/Q,body->y/Q,sDecoys[0].x,sDecoys[0].y))
         {
             sArena.observed.x=sDecoys[0].x;
             sArena.observed.y=sDecoys[0].y;
@@ -1354,7 +1368,12 @@ static void TickEnemy(void)
         {
             const struct ArenaMoveProfile *p=ArenaMoves_Get(gBattleMons[1].moves[body->moveSlot]);
             if(p->kind==ARENA_MOVE_SELF && !body->cooldown && gBattleMons[1].pp[body->moveSlot])
-            {BeginShot(1,body->x,body->y-Q);sArena.aiState=AI_RECOVER;return;}
+            {
+                if(p->move==MOVE_SUBSTITUTE||p->move==MOVE_SMOKESCREEN)
+                    BeginShot(1,sArena.observed.x*Q,sArena.observed.y*Q);
+                else BeginShot(1,body->x,body->y-Q);
+                sArena.aiState=AI_RECOVER;return;
+            }
             if (!body->cooldown && gBattleMons[1].pp[body->moveSlot]
                 && distance < p->range && distance > 8
                 && ArenaNav_LineClear(body->x/Q,body->y/Q,sArena.observed.x,sArena.observed.y,2))
@@ -1384,6 +1403,8 @@ static void ApplyMoveHit(u8 side,u16 move)
     u8 targetSide=profile->kind==ARENA_MOVE_SELF?side:side^1;
     struct ArenaBody *target=&sArena.bodies[targetSide];
     s32 damage;
+    if(move==MOVE_SUBSTITUTE){if(!CoverStart(side))ArenaFeedback_Wall(target->x/Q,target->y/Q);return;}
+    if(move==MOVE_SMOKESCREEN){SmokeStart(side);return;}
     if(move!=MOVE_TELEPORT&&move!=MOVE_DOUBLE_TEAM&&SpecialInvulnerable(targetSide))
     {gArenaWarpTossTelemetry[7]++;return;}
     if(move==MOVE_TELEPORT){WarpStart(side);return;}
@@ -1627,6 +1648,16 @@ static void TickActions(void)
             hit=ArenaMoves_InCone((target->x-body->x)/Q,(target->y-body->y)/Q,
                                   body->attackX,body->attackY,range,p->cone);
         }
+        if(!body->connected && gBattleMoves[p->move].power)
+        {
+            if(p->kind==ARENA_MOVE_RUSH)
+            {if(CoverSegment(side,p->move,oldX,oldY,body->x/Q,body->y/Q,p->radius))body->connected=TRUE;}
+            else if(p->kind==ARENA_MOVE_CONE||p->kind==ARENA_MOVE_MELEE)
+            {
+                u8 range=p->move==MOVE_FLAMETHROWER?sFlameReach[side]:p->kind==ARENA_MOVE_CONE?min(p->range,24+body->actionAge*4):p->range;
+                if(CoverCone(side,p,range,hit))body->connected=TRUE;
+            }
+        }
         if(!body->connected && gBattleMoves[p->move].power && sDecoys[side^1].life)
         {
             struct ArenaDecoy*d=&sDecoys[side^1];
@@ -1689,6 +1720,8 @@ static void TickShots(void)
         }
         shot->x += shot->vx; shot->y += shot->vy;
         if(ElementReact(shot)){DestroyShot(shot);continue;}
+        if(CoverSegment(shot->side,shot->move,oldX,oldY,shot->x/Q,shot->y/Q,p->radius))
+        {DestroyShot(shot);continue;}
         if(DecoySegment(shot->side^1,oldX,oldY,shot->x/Q,shot->y/Q,p->radius))
         {DestroyShot(shot);continue;}
         if (ArenaMoves_SegmentHit(oldX,oldY,shot->x/Q,shot->y/Q,target->x/Q,target->y/Q,p->radius) && !target->dash)
@@ -1819,6 +1852,7 @@ static void CB2_Arena(void)
             else
             {
                 DecoyTick();
+                CoverTick();
                 SpecialTick();
                 TickPhysics();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
@@ -1968,7 +2002,7 @@ static void CB2_Arena(void)
         gArenaMoveTelemetry.active[i]=body->actionLife;
         gArenaMoveTelemetry.actionMove[i]=profile->move;
         ArenaMoveFx_Action(i,profile,body->x/Q,body->y/Q,body->shotFacing,body->actionAge,
-            body->actionLife!=0&&profile->move!=MOVE_DOUBLE_TEAM&&profile->move!=MOVE_TELEPORT&&profile->move!=MOVE_SEISMIC_TOSS&&profile->move!=MOVE_DIG&&profile->move!=MOVE_FLY,sArena.paused);
+            body->actionLife!=0&&profile->move!=MOVE_DOUBLE_TEAM&&profile->move!=MOVE_TELEPORT&&profile->move!=MOVE_SEISMIC_TOSS&&profile->move!=MOVE_DIG&&profile->move!=MOVE_FLY&&profile->move!=MOVE_SUBSTITUTE&&profile->move!=MOVE_SMOKESCREEN,sArena.paused);
         ArenaMoveFx_Flame(i,body->x/Q,body->y/Q-8,body->shotFacing,body->actionAge,sFlameReach[i],
             profile->move==MOVE_FLAMETHROWER&&body->actionLife&&!sArena.paused&&!sArena.resultTimer);
     }
@@ -2001,6 +2035,7 @@ static void CB2_Arena(void)
     gSprites[sArena.cueSprite].invisible = sArena.aiState != AI_AIM || sArena.resultTimer;
     DecoyDraw();
     SpecialDraw();
+    CoverDraw();
     CaptureDraw();
     gArenaAiTelemetry.state = sArena.aiState;
     gArenaAiTelemetry.goalX = sArena.goal.x; gArenaAiTelemetry.goalY = sArena.goal.y;
@@ -2046,6 +2081,7 @@ static void ArenaExit(bool8 fainted)
     u32 i;
     CaptureReset();
     DecoyHide();
+    CoverHide();
     SpecialHide();
     // Finish the ORIGINAL battle scripts behind the arena image. No classic
     // scene reconstruction just to say "fainted" and animate an EXP bar.

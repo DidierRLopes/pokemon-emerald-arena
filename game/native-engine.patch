@@ -1,5 +1,5 @@
 diff --git a/Makefile b/Makefile
-index d25123a..a865d47 100644
+index d25123a..6622764 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -112,7 +112,8 @@ INCLUDE_CPP_ARGS := $(INCLUDE_DIRS:%=-iquote %)
@@ -12,18 +12,19 @@ index d25123a..a865d47 100644
  ifeq ($(MODERN),0)
    CPPFLAGS += -I tools/agbcc/include -I tools/agbcc -nostdinc -undef -std=gnu89
    CC1 := tools/agbcc/bin/agbcc$(EXE)
-@@ -297,6 +298,10 @@ endif
+@@ -297,6 +298,11 @@ endif
  
  # Dependency rules (for the *.c & *.s sources to .o files)
  # Have to be explicit or else missing files won't be reported.
 +$(C_BUILDDIR)/realtime_arena.o: src/arena_elements.inc graphics/arena/elements/pools.4bpp graphics/arena/elements/shatter.4bpp graphics/arena/elements/palette.gbapal
 +$(C_BUILDDIR)/realtime_arena.o: src/arena_double_team.inc src/arena_psychic.inc graphics/arena/double-team/effect.4bpp graphics/arena/psychic/palette.gbapal
++$(C_BUILDDIR)/realtime_arena.o: src/arena_cover.inc graphics/arena/cover-smoke/effect.4bpp graphics/arena/cover-smoke/coast.4bpp graphics/arena/cover-smoke/cave.4bpp graphics/arena/cover-smoke/desert.4bpp graphics/arena/cover-smoke/gym.4bpp graphics/arena/cover-smoke/palette.gbapal $(wildcard graphics/arena/cover-smoke/doll-*.4bpp)
 +$(C_BUILDDIR)/arena_move_fx.o: graphics/arena/flame/plume.4bpp graphics/arena/flame/palette.gbapal
 +$(C_BUILDDIR)/arena_sprites.o: $(wildcard .arena-dev/pmd/*.4bpp .arena-dev/pmd/*.gbapal)
  
  # As a side effect, they're evaluated immediately instead of when the rule is invoked.
  # It doesn't look like $(shell) can be deferred so there might not be a better way (Icedude_907: there is soon).
-@@ -330,7 +335,7 @@ ifneq ($(NODEP),1)
+@@ -330,7 +336,7 @@ ifneq ($(NODEP),1)
  endif
  
  $(C_BUILDDIR)/%.o: $(C_SUBDIR)/%.s
@@ -32,7 +33,7 @@ index d25123a..a865d47 100644
  
  $(C_BUILDDIR)/%.d: $(C_SUBDIR)/%.s
  	$(SCANINC) -M $@ -g $(ASSETS_DIR_NAME) $(INCLUDE_SCANINC_ARGS) -I "" $<
-@@ -340,7 +345,7 @@ ifneq ($(NODEP),1)
+@@ -340,7 +346,7 @@ ifneq ($(NODEP),1)
  endif
  
  $(DATA_ASM_BUILDDIR)/%.o: $(DATA_ASM_SUBDIR)/%.s
@@ -41,7 +42,7 @@ index d25123a..a865d47 100644
  
  $(DATA_ASM_BUILDDIR)/%.d: $(DATA_ASM_SUBDIR)/%.s
  	$(SCANINC) -M $@ -g $(ASSETS_DIR_NAME) $(INCLUDE_SCANINC_ARGS) -I "" $<
-@@ -385,5 +390,10 @@ $(ROM): $(ELF)
+@@ -385,5 +391,10 @@ $(ROM): $(ELF)
  	$(FIX) $@ -p --silent
  
  # Symbol file (`make syms`)

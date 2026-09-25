@@ -51,6 +51,8 @@ static void DiveTick(void)
             gArenaDiveTelemetry[3]++;
             if(sDecoys[side^1].life&&ArenaNav_Distance(x,y,sDecoys[side^1].x,sDecoys[side^1].y)<30)
                 DecoyBreak(side^1);
+            else if(sCover[side^1].hp&&ArenaNav_Distance(x,y,sCover[side^1].x/Q,sCover[side^1].y/Q)<30)
+                CoverHit(side^1,side,d->fly?MOVE_FLY:MOVE_DIG,b->attackX,b->attackY);
             else if(ArenaNav_Distance(x,y,t->x/Q,t->y/Q)<32&&!t->dash)
                 ApplyMoveHit(side,d->fly?MOVE_FLY:MOVE_DIG);
             else{gArenaDiveTelemetry[4]++;ArenaFeedback_Impact(side,x,y,0,ARENA_FEEDBACK_MISS);}
