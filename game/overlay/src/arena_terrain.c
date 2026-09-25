@@ -11,18 +11,22 @@
 static const u32 sProps[]=INCBIN_U32(".arena-dev/art/props.4bpp");
 static const u32 sPieces[]=INCBIN_U32(".arena-dev/art/pieces.4bpp");
 static const u32 sBlast[]=INCBIN_U32(".arena-dev/art/blast.4bpp");
+static const u32 sCrater[]=INCBIN_U32(".arena-dev/art/crater.4bpp");
 static const u16 sPalette[16]={0,RGB(6,9,7),RGB(11,14,10),RGB(15,18,15),RGB(21,24,18),
     RGB(28,30,24),RGB(13,8,5),RGB(21,13,7),RGB(13,20,7),RGB(30,23,11),
     RGB(22,27,10),RGB(5,20,27),RGB(22,31,31),RGB(17,10,25),RGB(31,10,4),RGB(31,30,19)};
 static const struct OamData sPropOam={.shape=SPRITE_SHAPE(32x32),.size=SPRITE_SIZE(32x32),.priority=1};
 static const struct OamData sPieceOam={.shape=SPRITE_SHAPE(8x8),.size=SPRITE_SIZE(8x8),.priority=1};
 static const struct OamData sBlastOam={.shape=SPRITE_SHAPE(64x64),.size=SPRITE_SIZE(64x64),.priority=1};
+static const struct OamData sCraterOam={.shape=SPRITE_SHAPE(64x32),.size=SPRITE_SIZE(64x32),.priority=1};
 static const struct SpriteTemplate sTemplate={.tileTag=TAG,.paletteTag=TAG,.oam=&sPropOam,
     .anims=gDummySpriteAnimTable,.images=NULL,.affineAnims=gDummySpriteAffineAnimTable,.callback=SpriteCallbackDummy};
 static EWRAM_DATA u8 sPropSprite[ARENA_OBSTACLES]={};
 static EWRAM_DATA u8 sPieceSprite[ARENA_FRAGMENTS]={};
 static EWRAM_DATA u8 sPropFrame[ARENA_OBSTACLES]={};
 static EWRAM_DATA u8 sBlastSprite=0,sBlastLife=0,sBlastFrame=0;
+static EWRAM_DATA u8 sCraterSprite=0,sCraterFrame=0;
+static EWRAM_DATA u16 sCraterAge=0;
 static EWRAM_DATA u32 sSeenBlast=0,sSeenBroken=0;
 EWRAM_DATA u32 gArenaOamTelemetry[2]={}; // cosmetic evictions, unavailable projectile slots
 
@@ -50,8 +54,9 @@ void ArenaTerrain_Init(void)
     struct SpritePalette pal={sPalette,TAG};
     struct SpriteSheet pieces={sPieces,sizeof(sPieces),TAG+ARENA_OBSTACLES};
     struct SpriteSheet blast={sBlast,2048,TAG+ARENA_OBSTACLES+1};
+    struct SpriteSheet crater={sCrater,1024,TAG+ARENA_OBSTACLES+2};
     struct SpriteTemplate template=sTemplate;
-    LoadSpritePalette(&pal);LoadSpriteSheet(&pieces);LoadSpriteSheet(&blast);
+    LoadSpritePalette(&pal);LoadSpriteSheet(&pieces);LoadSpriteSheet(&blast);LoadSpriteSheet(&crater);
     for(i=0;i<ARENA_OBSTACLES;i++)
     {
         const struct ArenaRect*r=&gArenaObstacles[i];
@@ -70,6 +75,18 @@ void ArenaTerrain_Init(void)
     sBlastSprite=CreateSprite(&template,0,0,7);
     if(sBlastSprite!=MAX_SPRITES)gSprites[sBlastSprite].invisible=TRUE;
     sBlastLife=0;sBlastFrame=255;sSeenBlast=sSeenBroken=0;
+    // The crater sits on the ground beneath every actor, prop and shadow.
+    template.tileTag=TAG+ARENA_OBSTACLES+2;template.oam=&sCraterOam;
+    sCraterSprite=CreateSprite(&template,0,0,11);
+    if(sCraterSprite!=MAX_SPRITES)gSprites[sCraterSprite].invisible=TRUE;
+    sCraterAge=0;sCraterFrame=255;
+}
+void ArenaTerrain_Crater(s16 x,s16 y)
+{
+    if(sCraterSprite==MAX_SPRITES)return;
+    gSprites[sCraterSprite].x=x;gSprites[sCraterSprite].y=y;
+    gSprites[sCraterSprite].invisible=FALSE;
+    sCraterAge=1;
 }
 void ArenaTerrain_Draw(bool8 paused,bool8 frozen)
 {
@@ -132,5 +149,17 @@ void ArenaTerrain_Draw(bool8 paused,bool8 frozen)
             sBlastFrame=frame;
         }
         if(sBlastLife&&!paused&&!frozen)sBlastLife--;
+    }
+    if(sCraterSprite!=MAX_SPRITES&&sCraterAge)
+    {
+        // Fresh debris settles into the bare crater after half a second.
+        u8 frame=sCraterAge<30?0:1;
+        if(frame!=sCraterFrame)
+        {
+            ArenaRender_Copy((const u8*)sCrater+frame*1024,
+                (u8*)OBJ_VRAM0+GetSpriteTileStartByTag(TAG+ARENA_OBSTACLES+2)*32,1024);
+            sCraterFrame=frame;
+        }
+        if(sCraterAge<60&&!paused&&!frozen)sCraterAge++;
     }
 }

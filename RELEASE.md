@@ -1,3 +1,18 @@
+# Unreleased
+
+- Seismic Toss joins the arena as a throw: a connected grab carries the target
+  straight up off the screen, then the attacker dives back down head first
+  with the target held beneath it and slams it into the ground, leaving a
+  crater for the rest of the fight. When the throw will knock the target out,
+  the leap cuts to the anime's view of the Earth from space: the pair circles
+  the globe once and dives back for the slam. Damage is the native level-based
+  script, resolved at the grab so misses and Ghost immunity whiff instead of
+  playing the full throw. Wild Pokémon with the move use it too.
+- The practice Charizard knows Seismic Toss (its Emerald tutor move) in place
+  of Rage, which had no arena profile. 45 adapted moves.
+- Verified headlessly in mGBA: player and enemy throws deal exactly the user's
+  level, pausing mid-throw, Ghost targets, and a knockout on impact.
+
 # Emerald Arena 0.6.0
 
 [Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.6.0/Emerald-Arena-0.6.0-full.bps) · [Controls](PLAY.md)
