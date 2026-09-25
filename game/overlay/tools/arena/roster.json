@@ -783,5 +783,11 @@
     "level": 60,
     "scale": 2,
     "poses": {"Attack": "Shoot", "SpAttack": "Shoot"}
+  },
+  {
+    "dex": "0094",
+    "species": "GENGAR",
+    "level": 36,
+    "poses": {"Attack": "Double", "SpAttack": "Shoot"}
   }
 ]

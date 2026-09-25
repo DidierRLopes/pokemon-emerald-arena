@@ -1,3 +1,15 @@
+# Unreleased
+
+- Ghost types phase through the arena walls and through the objects inside
+  it: walking or dodging out through any edge brings them back in from the
+  opposite edge, and rocks, logs, bushes, crystals and pods never block them.
+  They are drawn translucent and tinted while inside a wall or an object, with
+  a glow at both sides of an edge crossing. Attacks and projectiles still
+  interact with cover as before. This is a type rule, so it covers every
+  Ghost-type battler on either side; a ghost opponent routes straight through cover.
+- Gengar joins the animated roster, so a Ghost type with real moves is
+  available for trying this.
+
 # Emerald Arena 0.8.0
 
 [Download](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0.zip) · [Full BPS patch](https://github.com/GBurgardt/pokemon-emerald-arena/releases/download/v0.8.0/Emerald-Arena-0.8.0-full.bps) · [Watch the four moves](media/emerald-arena-four-moves.mp4)
