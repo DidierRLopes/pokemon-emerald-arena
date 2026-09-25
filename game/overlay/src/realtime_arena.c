@@ -88,6 +88,8 @@ struct ArenaBody
     u16 burnClock;
     u16 weatherClock;
     u8 statusActions;
+    u16 rollAngle;
+    u8 rollStage, rollDistance;
 };
 
 struct ArenaShot
@@ -345,6 +347,36 @@ static void PhaseWrap(u8 side, s32 dx, s32 dy)
     ArenaFeedback_CaptureGlow(exitX, exitY, TRUE);
     ArenaFeedback_CaptureGlow(body->x / Q, body->y / Q, FALSE);
     PlaySE(SE_M_TELEPORT);
+}
+
+// Real-time Rollout. The wind-up tumbles the body in place, slowly at first,
+// then it rolls along its facing, gaining speed; power doubles for every
+// ROLLOUT_STAGE_PX rolled (up to x8) and once more after Defense Curl. Cover
+// in the way is hit with the roll's strength and rolled through if it breaks.
+#define ROLLOUT_STAGE_PX 40
+#define ROLLOUT_MAX_STAGE 3
+#define ROLLOUT_SPIN 0x1000
+// Camera elevation used to project the roll (35 degrees): sin and cos in Q8.
+#define ROLLOUT_CAM_SIN 147
+#define ROLLOUT_CAM_COS 210
+EWRAM_DATA u8 gArenaRolloutStage = 0;
+
+static bool8 Rolling(u8 side)
+{
+    const struct ArenaBody *body = &sArena.bodies[side];
+    return body->shotTimer && gBattleMons[side].moves[body->shotSlot] == MOVE_ROLLOUT;
+}
+
+// A third of full speed at launch, full speed half a second in.
+static s32 RolloutSpeed(const struct ArenaBody *body, const struct ArenaMoveProfile *p)
+{
+    return p->speed * (85 + 171 * min(30, body->actionAge) / 30) / 256;
+}
+
+static void RolloutEnd(struct ArenaBody *body)
+{
+    body->shotTimer = 0;
+    body->actionLife = 1;
 }
 
 #include "arena_double_team.inc"
@@ -1017,7 +1049,8 @@ static void Fire(u8 side, u8 slot, s32 targetX, s32 targetY)
     gArenaCombatTelemetry.lastMove[side] = profile->move;
     if(!gBattleMoves[profile->move].power && body->statusActions<255)body->statusActions++;
     sArena.hudDirty = TRUE;
-    PlaySE(profile->move == MOVE_PSYCHIC ? SE_M_PSYBEAM
+    PlaySE(profile->move == MOVE_ROLLOUT ? SE_M_TAKE_DOWN
+        : profile->move == MOVE_PSYCHIC ? SE_M_PSYBEAM
         : profile->move == MOVE_SHADOW_BALL ? SE_M_PSYBEAM2
         : profile->move == MOVE_DRAGON_CLAW ? SE_M_SCRATCH
         : profile->move == MOVE_CRUNCH ? SE_M_BITE
@@ -1056,6 +1089,7 @@ static void BeginShot(u8 side, s32 targetX, s32 targetY)
     body->animation = profile->animation;
     body->animClock = 0;
     body->drawnFrame = 255;
+    body->rollAngle = 0; body->rollStage = 0; body->rollDistance = 0;
 }
 
 static void TickPendingShots(void)
@@ -1135,7 +1169,9 @@ static void TickPlayer(void)
         // A alone aims at the rival. D-pad + A gives explicit directional
         // aim, including destructible cover. This is still the same four moves.
         body->manualAim=dx||dy;
-        if(!dx&&!dy&&SmokeBlocks(body->x/Q,body->y/Q,sArena.bodies[1].x/Q,sArena.bodies[1].y/Q))
+        // Rollout goes where the body is pointing, not at the rival.
+        if(!dx&&!dy&&(gBattleMons[0].moves[body->moveSlot]==MOVE_ROLLOUT
+            ||SmokeBlocks(body->x/Q,body->y/Q,sArena.bodies[1].x/Q,sArena.bodies[1].y/Q)))
         {
             static const s8 facing[8][2]={{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0},{-1,1}};
             dx=facing[body->facing][0];dy=facing[body->facing][1];
@@ -1302,6 +1338,7 @@ static void AiChooseMove(s32 distance)
         // its damage globals belong to the actual hit transaction.
         score=gBattleMoves[move].power*AiTypeValue(move)/50+AiRandom()%25;
         if(move==MOVE_NIGHT_SHADE||move==MOVE_SEISMIC_TOSS)score=AiTypeValue(move)?gBattleMons[1].level*2:-1000;
+        if(move==MOVE_ROLLOUT&&AiTypeValue(move))score+=45; // the roll's ramp is worth more than its listed power
         else if(gBattleMoves[move].power && !AiTypeValue(move))score=-1000;
         if((move==MOVE_ABSORB||move==MOVE_MEGA_DRAIN||move==MOVE_GIGA_DRAIN||move==MOVE_LEECH_LIFE) && AiTypeValue(move)
             && gBattleMons[1].hp*2<gBattleMons[1].maxHP)score+=90;
@@ -1560,17 +1597,39 @@ static void TickActions(void)
         }
         else if(p->kind==ARENA_MOVE_RUSH)
         {
-            s32 dx=body->attackX*p->speed/Q,dy=body->attackY*p->speed/Q;
+            bool8 rollout=p->move==MOVE_ROLLOUT;
+            s32 speed=rollout?RolloutSpeed(body,p):p->speed;
+            s32 dx=body->attackX*speed/Q,dy=body->attackY*speed/Q;
             s16 obstacle=ArenaNav_FirstObstacle(oldX,oldY,(body->x+dx)/Q,(body->y+dy)/Q,ARENA_BODY_RADIUS);
             // A ghost's rush passes through cover instead of slamming into it.
             if(obstacle>=0 && !GhostBody(side))
             {
-                body->actionLife=1;gArenaMoveTelemetry.rushWalls[side]++;
-                HitTerrain(obstacle,p,body->attackX*3,body->attackY*3);
+                if(rollout)
+                {
+                    // A fast roll smashes through cover; a slow one stops at it.
+                    u32 before=gArenaPhysicsTelemetry.broken;
+                    ArenaPhysics_Hit(obstacle,body->attackX*3,body->attackY*3,2+body->rollStage);
+                    if(before!=gArenaPhysicsTelemetry.broken)sArena.hitstop=3;
+                    else RolloutEnd(body);
+                }
+                else
+                {
+                    body->actionLife=1;
+                    HitTerrain(obstacle,p,body->attackX*3,body->attackY*3);
+                }
+                gArenaMoveTelemetry.rushWalls[side]++;
                 ArenaFeedback_Wall(oldX,oldY);PlaySE(SE_WALL_HIT);
             }
             MoveDelta(side,dx,dy);
-            if(!(body->actionAge%3))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
+            if(rollout)
+            {
+                s32 moved=Abs(body->x/Q-oldX)+Abs(body->y/Q-oldY);
+                if(!moved && body->actionLife>1)RolloutEnd(body); // the wall, or the rival's body
+                body->rollDistance=min(255,body->rollDistance+moved);
+                body->rollStage=min(ROLLOUT_MAX_STAGE,body->rollDistance/ROLLOUT_STAGE_PX);
+                if(!(body->actionAge%2))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
+            }
+            else if(!(body->actionAge%3))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
             hit=ArenaMoves_SegmentHit(oldX,oldY,body->x/Q,body->y/Q,target->x/Q,target->y/Q,p->radius);
         }
         else if(p->move==MOVE_FLAMETHROWER)
@@ -1679,7 +1738,9 @@ static void TickActions(void)
         {
             body->connected=TRUE;
             if(p->move==MOVE_FLAMETHROWER)gArenaFlameTelemetry[2]++;
+            gArenaRolloutStage=body->rollStage;
             ApplyMoveHit(side,p->move);
+            if(p->move==MOVE_ROLLOUT){RolloutEnd(body);sArena.hitstop=max(sArena.hitstop,4);}
         }
         body->actionAge++;body->actionLife--;
     }
@@ -1970,6 +2031,41 @@ static void CB2_Arena(void)
             }
             if (!sArena.paused && !sArena.resultTimer && !frozen)
                 body->animClock += animation == ARENA_ANIM_WALK ? Clamp(Speed(i) * Q / 220, 128, 512) : Q;
+            if (Rolling(i) && !TossActive())
+            {
+                // Roll like a ball along the heading, seen from the arena's
+                // front-elevated camera: one rotation about the ground axis
+                // perpendicular to the travel direction, projected to the
+                // screen. Sideways travel turns like a wheel with the top
+                // moving toward the heading; up/down travel tumbles forward;
+                // diagonals blend the two. Spin-up in place, then flat out.
+                s32 ux = body->attackX, uy = body->attackY, ct, st, v, m00, m01, m10, m11, spin, cross, det;
+                if (!sArena.paused && !frozen)
+                {
+                    u16 rate = body->actionLife ? ROLLOUT_SPIN
+                        : ROLLOUT_SPIN * min(body->shotElapsed, profile->windup) / max(1, profile->windup);
+                    body->rollAngle += rate;
+                    if (!body->actionLife && !(sArena.frame % 6)) ArenaFeedback_Dust(body->x / Q, body->y / Q, FALSE);
+                }
+                ct = Cos(body->rollAngle >> 8, 256); st = Sin(body->rollAngle >> 8, 256);
+                if (ct > -40 && ct < 40) ct = ct < 0 ? -40 : 40;
+                v = 256 - ct;
+                spin = ux * ROLLOUT_CAM_COS / 256 * st / 256;
+                cross = v * ux / 256 * uy / 256 * ROLLOUT_CAM_SIN / 256;
+                m00 = ct + v * uy * uy / 65536;
+                m01 = -spin - cross;
+                m10 = spin - cross;
+                m11 = ct + v * (ux * ux / 256) * (ROLLOUT_CAM_SIN * ROLLOUT_CAM_SIN / 256) / 65536;
+                det = (m00 * m11 - m01 * m10) / 256;
+                if (det > -16 && det < 16) det = det < 0 ? -16 : 16;
+                // The hardware wants the inverse map (screen to texture).
+                SetOamMatrix(sprite->oam.matrixNum, m11 * 256 / det, -m01 * 256 / det, -m10 * 256 / det, m00 * 256 / det);
+            }
+            else if (body->rollAngle)
+            {
+                body->rollAngle = 0;
+                SetOamMatrix(sprite->oam.matrixNum, 0x100, 0, 0, 0x100);
+            }
             gArenaSpriteTelemetry.animation[i] = animation;
             gArenaSpriteTelemetry.frame[i] = frame;
             gArenaSpriteTelemetry.direction[i] = direction;
