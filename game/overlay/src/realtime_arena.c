@@ -307,6 +307,46 @@ static void AiChooseGoal(void);
 static s32 Abs(s32 n) { return n < 0 ? -n : n; }
 static s32 Clamp(s32 n, s32 lo, s32 hi) { return n < lo ? lo : n > hi ? hi : n; }
 
+// Ghost types phase through the arena walls and through the objects inside
+// it: leaving through one edge brings them in from the opposite one, and rocks,
+// logs, bushes, crystals and pods never block their movement. Only a battler
+// with the Ghost type; attacks and projectiles still interact with cover.
+#define ARENA_PHASE_MARGIN 14
+EWRAM_DATA struct ArenaGhostTelemetry gArenaGhostTelemetry = {};
+
+static bool8 GhostBody(u8 side) { return IS_BATTLER_OF_TYPE(side, TYPE_GHOST); }
+
+// Inside a wall or overlapping a solid object: drawn translucent.
+static bool8 Phasing(u8 side)
+{
+    const struct ArenaBody *body = &sArena.bodies[side];
+    return GhostBody(side) && (body->x < ARENA_MIN_X * Q || body->x > ARENA_MAX_X * Q
+        || body->y < ARENA_MIN_Y * Q || body->y > ARENA_MAX_Y * Q
+        || !ArenaNav_LineClear(body->x / Q, body->y / Q, body->x / Q, body->y / Q, ARENA_BODY_RADIUS));
+}
+
+// Once a ghost has pushed a body length into a wall, it reappears inside the
+// opposite wall, still moving the same way. One glow marks each side.
+static void PhaseWrap(u8 side, s32 dx, s32 dy)
+{
+    struct ArenaBody *body = &sArena.bodies[side];
+    s16 exitX = body->x / Q, exitY = body->y / Q;
+    bool8 crossed = FALSE;
+    if (dx < 0 && body->x <= (ARENA_MIN_X - ARENA_PHASE_MARGIN) * Q)
+    { body->x = (ARENA_MAX_X + ARENA_PHASE_MARGIN) * Q; crossed = TRUE; }
+    else if (dx > 0 && body->x >= (ARENA_MAX_X + ARENA_PHASE_MARGIN) * Q)
+    { body->x = (ARENA_MIN_X - ARENA_PHASE_MARGIN) * Q; crossed = TRUE; }
+    if (dy < 0 && body->y <= (ARENA_MIN_Y - ARENA_PHASE_MARGIN) * Q)
+    { body->y = (ARENA_MAX_Y + ARENA_PHASE_MARGIN) * Q; crossed = TRUE; }
+    else if (dy > 0 && body->y >= (ARENA_MAX_Y + ARENA_PHASE_MARGIN) * Q)
+    { body->y = (ARENA_MIN_Y - ARENA_PHASE_MARGIN) * Q; crossed = TRUE; }
+    if (!crossed) return;
+    gArenaGhostTelemetry.crossings[side]++;
+    ArenaFeedback_CaptureGlow(exitX, exitY, TRUE);
+    ArenaFeedback_CaptureGlow(body->x / Q, body->y / Q, FALSE);
+    PlaySE(SE_M_TELEPORT);
+}
+
 #include "arena_double_team.inc"
 
 static bool8 SupportedMove(u16 move)
@@ -753,6 +793,7 @@ static void CB2_ArenaInit(void)
     memset(&gArenaCombatTelemetry, 0, sizeof(gArenaCombatTelemetry));
     memset(&gArenaMoveTelemetry, 0, sizeof(gArenaMoveTelemetry));
     memset(&gArenaFrameTelemetry,0,sizeof(gArenaFrameTelemetry));
+    memset(&gArenaGhostTelemetry,0,sizeof(gArenaGhostTelemetry));
     memset(gArenaRenderTelemetry,0,sizeof(gArenaRenderTelemetry));
     gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;
     sArena.lastBlast=0;
@@ -875,20 +916,24 @@ static void MoveDelta(u8 side, s32 dx, s32 dy)
 {
     struct ArenaBody *body = &sArena.bodies[side];
     struct ArenaBody *other = &sArena.bodies[side ^ 1];
+    bool8 ghost = GhostBody(side);
+    // A ghost may step into the wall band and through cover; see PhaseWrap.
+    s32 margin = ghost ? ARENA_PHASE_MARGIN * Q : 0;
     s32 x, y;
     if(ElementMotion(side,dx,dy))return;
     body->moving = dx || dy;
     if (dx || dy) body->facing = Facing(dx, dy);
-    x = Clamp(body->x + dx, ARENA_MIN_X * Q, ARENA_MAX_X * Q);
-    y = Clamp(body->y + dy, ARENA_MIN_Y * Q, ARENA_MAX_Y * Q);
+    x = Clamp(body->x + dx, ARENA_MIN_X * Q - margin, ARENA_MAX_X * Q + margin);
+    y = Clamp(body->y + dy, ARENA_MIN_Y * Q - margin, ARENA_MAX_Y * Q + margin);
     // Axis-separated sliding. Even the fastest dash step is smaller than any
     // solid obstacle; the swept test also prevents corner cutting.
-    if (ArenaNav_LineClear(body->x / Q, body->y / Q, x / Q, body->y / Q, ARENA_BODY_RADIUS)
+    if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, x / Q, body->y / Q, ARENA_BODY_RADIUS))
         && (Abs(x - other->x) >= 22 * Q || Abs(body->y - other->y) >= 22 * Q)) body->x = x;
     else if (dx) gArenaAiTelemetry.wallBlocks[side]++;
-    if (ArenaNav_LineClear(body->x / Q, body->y / Q, body->x / Q, y / Q, ARENA_BODY_RADIUS)
+    if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, body->x / Q, y / Q, ARENA_BODY_RADIUS))
         && (Abs(body->x - other->x) >= 22 * Q || Abs(y - other->y) >= 22 * Q)) body->y = y;
     else if (dy) gArenaAiTelemetry.wallBlocks[side]++;
+    if (ghost) PhaseWrap(side, dx, dy);
 }
 
 static void Move(u8 side, s32 dx, s32 dy, s32 speed)
@@ -1103,6 +1148,8 @@ static u16 AiRandom(void)
 static void AiRoute(void)
 {
     struct ArenaBody *body = &sArena.bodies[1];
+    // A ghost opponent walks straight through cover rather than around it.
+    if (GhostBody(1)) { sArena.waypoint = sArena.goal; return; }
     if (ArenaNav_NextWaypoint(body->x / Q, body->y / Q, sArena.goal.x, sArena.goal.y, &sArena.waypoint))
         gArenaAiTelemetry.paths++;
 }
@@ -1494,7 +1541,8 @@ static void TickActions(void)
         {
             s32 dx=body->attackX*p->speed/Q,dy=body->attackY*p->speed/Q;
             s16 obstacle=ArenaNav_FirstObstacle(oldX,oldY,(body->x+dx)/Q,(body->y+dy)/Q,ARENA_BODY_RADIUS);
-            if(obstacle>=0)
+            // A ghost's rush passes through cover instead of slamming into it.
+            if(obstacle>=0 && !GhostBody(side))
             {
                 body->actionLife=1;gArenaMoveTelemetry.rushWalls[side]++;
                 HitTerrain(obstacle,p,body->attackX*3,body->attackY*3);
@@ -1851,6 +1899,10 @@ static void CB2_Arena(void)
         gSprites[body->shadow].x = sprite->x;
         gSprites[body->shadow].y = body->y / Q + 8;
         gSprites[body->shadow].invisible = gBattleMons[i].hp == 0;
+        // A ghost inside a wall is drawn semi-transparent (the HUD's blend
+        // settings already list OBJ and the stage) with a pale spectral tint.
+        gArenaGhostTelemetry.phasing[i] = Phasing(i);
+        sprite->oam.objMode = gArenaGhostTelemetry.phasing[i] ? ST_OAM_OBJ_BLEND : ST_OAM_OBJ_NORMAL;
         if (!sArena.paused && !frozen)
             sprite->x2 = i && sArena.aiState == AI_AIM ? ((sArena.frame & 2) ? 1 : -1) : 0;
         if (body->art)
@@ -1899,7 +1951,8 @@ static void CB2_Arena(void)
         // alternating invisible frames. Dust now communicates the dash.
         sprite->invisible = sArena.resultTimer && !gBattleMons[i].hp;
         gSprites[body->shadow].invisible = sprite->invisible;
-        BlendPalette(OBJ_PLTT_ID(i), 16, body->flash ? body->flash + 3 : 0, RGB_WHITE);
+        if (body->flash) BlendPalette(OBJ_PLTT_ID(i), 16, body->flash + 3, RGB_WHITE);
+        else BlendPalette(OBJ_PLTT_ID(i), 16, gArenaGhostTelemetry.phasing[i] ? 7 : 0, RGB(22, 26, 31));
         if (body->flash && !sArena.paused && !frozen) body->flash--;
         gRealtimeArenaTelemetry.x[i] = sprite->x;
         gRealtimeArenaTelemetry.y[i] = body->y / Q;

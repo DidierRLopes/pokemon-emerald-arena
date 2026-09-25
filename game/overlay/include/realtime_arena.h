@@ -76,5 +76,9 @@ extern bool8 gRealtimeArenaRestoringFaint;
 extern bool8 gRealtimeArenaQuietResult;
 struct ArenaResultTelemetry {u32 started,elapsed,uiFallbacks,textsSkipped,animationsSkipped,expUpdates;};
 extern struct ArenaResultTelemetry gArenaResultTelemetry;
+// Ghost types phasing through the arena walls: wall crossings per side and
+// whether each body is currently drawn inside a wall.
+struct ArenaGhostTelemetry {u32 crossings[2]; u8 phasing[2];};
+extern struct ArenaGhostTelemetry gArenaGhostTelemetry;
 
 #endif

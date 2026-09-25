@@ -70,6 +70,10 @@ Six additional Pokémon are in Box 1 at the PC.
 | START | Pause / resume; shows all four moves and PP |
 | Up / right / down / left while paused | Choose move 1 / 2 / 3 / 4 |
 | SELECT | Switch to classic battle |
+
+Ghost types can walk or dodge out through any arena edge and come back in from
+the opposite one, and they pass straight through rocks and other objects; they
+are drawn translucent while inside a wall or an object.
 | L + R in the field | Next practice opponent |
 
 Regular saves keep their encounters and do not receive the practice party.
