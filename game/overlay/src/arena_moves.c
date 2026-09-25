@@ -48,7 +48,10 @@ static const struct ArenaMoveProfile sProfiles[] =
     {MOVE_EMBER,     832, ARENA_MOVE_PROJECTILE, 2,14, 1,44,142,10, ARENA_VIS_EMBER,  ARENA_MOVE_CREAM, 1},
     {MOVE_FLAMETHROWER,1152,ARENA_MOVE_PROJECTILE,2,26, 1,90,186,13, ARENA_VIS_EMBER,  ARENA_MOVE_CREAM, 1},
     {MOVE_FIRE_PUNCH,  0, ARENA_MOVE_MELEE,      3,14, 8,62, 36, 0, ARENA_VIS_SLAM,   ARENA_MOVE_CREAM, 1},
-    {MOVE_BLAZE_KICK,  0, ARENA_MOVE_MELEE,      3,18,10,74, 42, 0, ARENA_VIS_SLAM,   ARENA_MOVE_CREAM, 1}
+    {MOVE_BLAZE_KICK,  0, ARENA_MOVE_MELEE,      3,18,10,74, 42, 0, ARENA_VIS_SLAM,   ARENA_MOVE_CREAM, 1},
+    // A connected grab starts the throw sequence in arena_toss.inc; the
+    // profile only describes the swing that has to reach the target.
+    {MOVE_SEISMIC_TOSS,0, ARENA_MOVE_MELEE,      3,12, 6,30, 34, 0, ARENA_VIS_ARC,    ARENA_MOVE_CREAM, 2}
 };
 
 const struct ArenaMoveProfile *ArenaMoves_Get(u16 move)

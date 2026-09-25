@@ -1,5 +1,5 @@
 diff --git a/Makefile b/Makefile
-index d25123a..a361fbf 100644
+index d25123ab8..a361fbfc3 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -112,7 +112,8 @@ INCLUDE_CPP_ARGS := $(INCLUDE_DIRS:%=-iquote %)
@@ -31,7 +31,7 @@ index d25123a..a361fbf 100644
  $(DATA_ASM_BUILDDIR)/%.d: $(DATA_ASM_SUBDIR)/%.s
  	$(SCANINC) -M $@ -g $(ASSETS_DIR_NAME) $(INCLUDE_SCANINC_ARGS) -I "" $<
 diff --git a/data/battle_scripts_1.s b/data/battle_scripts_1.s
-index d7733eb..1fb38b0 100644
+index d7733eb0e..1fb38b017 100644
 --- a/data/battle_scripts_1.s
 +++ b/data/battle_scripts_1.s
 @@ -2806,6 +2806,10 @@ BattleScript_EffectCamouflage::
@@ -46,7 +46,7 @@ index d7733eb..1fb38b0 100644
  	playfaintcry BS_ATTACKER
  	pause B_WAIT_TIME_LONG
 diff --git a/data/event_scripts.s b/data/event_scripts.s
-index 6834c98..1a2fb4e 100644
+index 6834c98fb..1a2fb4eef 100644
 --- a/data/event_scripts.s
 +++ b/data/event_scripts.s
 @@ -1056,3 +1056,8 @@ Common_EventScript_LegendaryFlewAway::
@@ -59,7 +59,7 @@ index 6834c98..1a2fb4e 100644
 +	.include "data/scripts/arena_lab.inc"
 +#endif
 diff --git a/include/constants/flags.h b/include/constants/flags.h
-index 74b10cd..67edf2d 100644
+index 74b10cdfb..67edf2d05 100644
 --- a/include/constants/flags.h
 +++ b/include/constants/flags.h
 @@ -43,7 +43,7 @@
@@ -72,7 +72,7 @@ index 74b10cd..67edf2d 100644
  #define FLAG_UNUSED_0x022    0x22 // Unused Flag
  #define FLAG_UNUSED_0x023    0x23 // Unused Flag
 diff --git a/ld_script.ld b/ld_script.ld
-index aeaf082..76cd65f 100644
+index aeaf08250..76cd65fc9 100644
 --- a/ld_script.ld
 +++ b/ld_script.ld
 @@ -13,8 +13,8 @@ MEMORY
@@ -118,7 +118,7 @@ index aeaf082..76cd65f 100644
          src/*.o(.rodata);
          data/*.o(.rodata);
 diff --git a/src/battle_controller_player.c b/src/battle_controller_player.c
-index 45bf1a1..3dda8ab 100644
+index 45bf1a17e..3dda8ab5c 100644
 --- a/src/battle_controller_player.c
 +++ b/src/battle_controller_player.c
 @@ -1,4 +1,5 @@
@@ -147,7 +147,7 @@ index 45bf1a1..3dda8ab 100644
          expPointsToGive = T1_READ_16(&gBattleBufferA[gActiveBattler][2]);
          taskId = CreateTask(Task_GiveExpToMon, 10);
 diff --git a/src/battle_main.c b/src/battle_main.c
-index 11fc168..cc81fa8 100644
+index 11fc16860..cc81fa89a 100644
 --- a/src/battle_main.c
 +++ b/src/battle_main.c
 @@ -1,4 +1,6 @@
@@ -370,7 +370,7 @@ index 11fc168..cc81fa8 100644
      {
          RandomlyGivePartyPokerus(gPlayerParty);
 diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
-index 3af09ec..831a580 100644
+index 3af09ec7a..2918e4c31 100644
 --- a/src/battle_script_commands.c
 +++ b/src/battle_script_commands.c
 @@ -1,5 +1,8 @@
@@ -426,7 +426,7 @@ index 3af09ec..831a580 100644
 +    Cmd_accuracycheck();
 +    if (!(gMoveResultFlags & MOVE_RESULT_NO_EFFECT))
 +    {
-+        if (move == MOVE_NIGHT_SHADE)
++        if (move == MOVE_NIGHT_SHADE || move == MOVE_SEISMIC_TOSS)
 +        {
 +            // The original LevelDamage script: immunity first, fixed level
 +            // damage, no STAB/critical/random variance or effectiveness bonus.
@@ -850,7 +850,7 @@ index 3af09ec..831a580 100644
              BtlController_EmitBallThrowAnim(B_COMM_TO_CONTROLLER, shakes);
              MarkBattlerForControllerExec(gActiveBattler);
 diff --git a/src/main_menu.c b/src/main_menu.c
-index 45fa12c..b07a0a0 100644
+index 45fa12cfc..b07a0a00d 100644
 --- a/src/main_menu.c
 +++ b/src/main_menu.c
 @@ -1,4 +1,5 @@
@@ -873,7 +873,7 @@ index 45fa12c..b07a0a0 100644
          gTasks[taskId].func = Task_HighlightSelectedMainMenuItem;
  }
 diff --git a/src/overworld.c b/src/overworld.c
-index 1d6b81c..4bce103 100644
+index 1d6b81c1f..4bce103d3 100644
 --- a/src/overworld.c
 +++ b/src/overworld.c
 @@ -1,4 +1,6 @@
@@ -904,7 +904,7 @@ index 1d6b81c..4bce103 100644
      DoMapLoadLoop(&gMain.state);
      SetFieldVBlankCallback();
 diff --git a/src/reshow_battle_screen.c b/src/reshow_battle_screen.c
-index 17a5d3b..1753336 100644
+index 17a5d3b26..17533367e 100644
 --- a/src/reshow_battle_screen.c
 +++ b/src/reshow_battle_screen.c
 @@ -1,4 +1,5 @@

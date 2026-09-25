@@ -164,7 +164,7 @@ static void CaptureInput(void)
         if(!--sCapture.notice)sArena.hudDirty=TRUE;
     if(sArena.paused || sArena.resultTimer || !sCapture.ready)return;
     if(sCapture.state==ARENA_CAPTURE_IDLE && held && !sCapture.heldLatch
-        && !player->shotTimer && !player->actionLife && !player->dash)
+        && !player->shotTimer && !player->actionLife && !player->dash && !sArena.toss.phase)
     {
         sCapture.heldLatch=TRUE;
         if(!CaptureCanThrow())return;

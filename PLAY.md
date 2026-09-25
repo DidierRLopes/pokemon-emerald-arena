@@ -105,7 +105,7 @@ Include the emulator/version, device, error message and steps. **Do not attach y
 
 ## Current scope
 
-92 animated Pokémon and 44 adapted move profiles. Wild 1v1 arena encounters;
+92 animated Pokémon and 45 adapted move profiles. Wild 1v1 arena encounters;
 trainer, double and link battles remain classic. Unsupported effects also fall
 back to classic battles. This is not a fully rebalanced adventure.
 
@@ -126,7 +126,14 @@ Fire attacks, mud, rocks, bubbles, wind and stars now join the earlier moves.
 Stat changes affect native battle stats; Speed changes also affect movement.
 Draining moves restore HP from actual damage. False Swipe leaves one HP.
 Fire attacks can cause native burns, with damage about every five active seconds.
-Pause and capture freeze that timer. [All 44 move profiles](game/overlay/src/arena_moves.c).
+Pause and capture freeze that timer. [All 45 move profiles](game/overlay/src/arena_moves.c).
+
+Seismic Toss is a throw. Connect the grab up close and the attacker carries the
+target straight up off the screen, dives back down with it and slams it into
+the ground, leaving a crater. A throw that knocks the target out first circles
+the Earth from space, as in the anime. It deals the user's level in damage, as
+in the original game, and cannot touch Ghost types. The practice Charizard
+knows it in place of Rage.
 
 Rocks, wood, foliage, crystals and explosive pods can break. Enemies navigate
 obstacles, aim and dodge, with level-based reactions. Speed affects movement;
