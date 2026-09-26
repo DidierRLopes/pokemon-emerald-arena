@@ -46,6 +46,12 @@ async function start() {
     coreCrashedCallback: () => fail(new Error('The emulator stopped. Reload the page to continue from your last save.')),
   });
   showMenu();
+  // A local server started with --rom offers the player's ROM; build from it
+  // without the file picker. Hosted copies have no such file.
+  if (!haveGame()) {
+    const local = await fetch('local-rom.gba').catch(() => null);
+    if (local?.ok) build(new File([await local.arrayBuffer()], 'local-rom.gba'));
+  }
 }
 
 function haveGame() {

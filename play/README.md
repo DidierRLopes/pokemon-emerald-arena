@@ -25,6 +25,8 @@ node tools/serve-play.mjs          # http://localhost:8123
 ```
 
 `--no-isolation` serves without the headers, to try the service-worker path.
+`--rom original.gba` offers that ROM to the page, so it builds the game without
+the file picker (local only; a hosted copy never has it).
 
 ## Host it
 
