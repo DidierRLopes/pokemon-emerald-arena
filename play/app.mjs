@@ -132,7 +132,9 @@ async function practice() {
     emulator.buttonPress('L'); emulator.buttonPress('R');
     await waitFrames(400);
     emulator.buttonUnpress('L'); emulator.buttonUnpress('R');
-    await waitFrames(150);
+    // Let the send-out play, then pause on the move picker so the fight
+    // waits for the player: START resumes it.
+    await waitFrames(250); await tap('Start');
   } finally {
     emulator.setFastForwardMultiplier(1);
     $('practice-note').hidden = true;
