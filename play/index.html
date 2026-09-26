@@ -31,7 +31,7 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
   </section>
 
   <section id="ready" hidden>
-    <button id="play">Play</button>
+    <button id="play">Play</button> <button id="practice" class="secondary">Practice fight</button>
     <p class="muted">Your game and saves are kept in this browser. <button id="forget" class="link">Remove them</button></p>
   </section>
 
@@ -68,6 +68,7 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
 </main>
 
 <section id="game" hidden>
+  <p id="practice-note" hidden>Skipping to a practice fight…</p>
   <div id="stage"><canvas id="screen" width="240" height="160" tabindex="0" aria-label="Game screen"></canvas></div>
   <nav id="toolbar">
     <button id="export">Export save</button>
@@ -75,6 +76,7 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
     <button id="mute">Sound on</button>
     <button id="fullscreen">Full screen</button>
     <button id="touch-toggle">Touch buttons</button>
+    <button id="practice2">Practice fight</button>
     <button id="quit">Quit</button>
     <span class="hint">Hold Tab to fast-forward</span>
   </nav>

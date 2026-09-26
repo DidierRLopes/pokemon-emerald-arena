@@ -17,6 +17,8 @@ details{border-top:1px solid #c6c4bc;padding-top:15px;margin-top:26px}summary{cu
 table{border-collapse:collapse;margin:12px 0}th,td{text-align:left;padding:4px 18px 4px 0;border-bottom:1px solid #d9d7cf}
 footer{margin-top:36px;font-size:14px}
 .tip{background:#e7e4d6;padding:12px 16px;border-left:4px solid #2948df}
+button.secondary{background:#17181c}
+#practice-note{position:fixed;top:14px;left:0;right:0;text-align:center;color:#fff;font-weight:600;margin:0;z-index:2}
 .hint{color:#8a8d96;font-size:13px;align-self:center}
 
 /* The game: the screen scaled up in whole-pixel steps where it can be, the

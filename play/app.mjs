@@ -8,7 +8,7 @@ const $ = id => document.getElementById(id);
 const status = (text, error = false) => { $('status').textContent = text; $('status').dataset.error = error; };
 const fail = error => { console.error(error); status(error.message || String(error), true); };
 
-let emulator, paths, payload, romPath, savePath, syncTimer, muted = false;
+let emulator, paths, payload, romPath, savePath, practicePath, syncTimer, muted = false, frames = 0;
 const romName = () => `Emerald-Arena-${payload.manifest.version}.gba`;
 
 // Keyboard: the same layout as desktop mGBA. SDL key names.
@@ -36,17 +36,15 @@ async function start() {
   $('version').textContent = `EMERALD ARENA · ${payload.manifest.version}`;
   romPath = `${paths.gamePath}/${romName()}`;
   savePath = `${paths.savePath}/${romName().replace(/\.gba$/, '.sav')}`;
+  practicePath = `${paths.savePath}/Emerald-Arena-practice.sav`;
   for (const [key, input] of Object.entries(KEYS)) {
     try { emulator.bindKey(key, input); } catch (error) { console.warn('bindKey', key, error); }
   }
   emulator.toggleInput(false);
   window.arenaEmulator = emulator;   // for debugging from the console
-  emulator.addCoreCallbacks({
-    saveDataUpdatedCallback: scheduleSync,
-    autoSaveStateCapturedCallback: scheduleSync,
-    coreCrashedCallback: () => fail(new Error('The emulator stopped. Reload the page to continue from your last save.')),
-  });
+  window.arenaFrames = () => frames;
   showMenu();
+  if (haveGame() && new URLSearchParams(location.search).has('practice')) { practice(); return; }
   // A local server started with --rom offers the player's ROM; build from it
   // without the file picker. Hosted copies have no such file.
   if (!haveGame()) {
@@ -94,15 +92,53 @@ function scheduleSync() {
   syncTimer = setTimeout(() => emulator.FSSync().catch(console.error), 1000);
 }
 
-function play() {
+function play(practiceRun = false) {
   $('intro').hidden = true; $('game').hidden = false;
-  emulator.setCoreSettings({rewindEnable: false, autoSaveStateEnable: true, restoreAutoSaveStateOnLoad: true,
+  // A practice run uses its own save and leaves the main resume point alone.
+  emulator.setCoreSettings({rewindEnable: false, autoSaveStateEnable: !practiceRun, restoreAutoSaveStateOnLoad: !practiceRun,
     autoSaveStateTimerIntervalSeconds: 20});
-  if (!emulator.loadGame(romPath)) { quit(); fail(new Error('The game could not start. Remove it and build it again.')); return; }
+  if (!emulator.loadGame(romPath, practiceRun ? practicePath : undefined)) { quit(); fail(new Error('The game could not start. Remove it and build it again.')); return false; }
+  // Loading a game resets the core's callbacks, so they are set after it.
+  emulator.addCoreCallbacks({
+    videoFrameEndedCallback: () => frames++,
+    saveDataUpdatedCallback: scheduleSync,
+    autoSaveStateCapturedCallback: scheduleSync,
+    coreCrashedCallback: () => fail(new Error('The emulator stopped. Reload the page to continue from your last save.')),
+  });
   emulator.toggleInput(true);
   emulator.resumeAudio();
   if (matchMedia('(pointer: coarse)').matches) $('touch').hidden = false;
   $('screen').focus();
+  return true;
+}
+
+// Straight to a fight: a fresh practice save, then the same inputs a player
+// would give (START past the intro and title, SELECT on NEW GAME for the
+// practice team, L + R in the field), counted in game frames and run at
+// fast-forward.
+const waitFrames = n => new Promise(done => { const until = frames + n; const check = () => frames >= until ? done() : setTimeout(check, 10); check(); });
+async function tap(button, hold = 5) { emulator.buttonPress(button); await waitFrames(hold); emulator.buttonUnpress(button); await waitFrames(2); }
+async function practice() {
+  if (emulator.getSave() && !$('game').hidden) emulator.quitGame();
+  try { emulator.FS.unlink(practicePath); } catch {}
+  if (!play(true)) return;
+  $('practice-note').hidden = false;
+  emulator.setFastForwardMultiplier(4);
+  try {
+    await waitFrames(1500); await tap('Start');
+    await waitFrames(600); await tap('Start');
+    await waitFrames(150); await tap('Select');
+    await waitFrames(900);
+    emulator.buttonPress('L'); emulator.buttonPress('R');
+    await waitFrames(400);
+    emulator.buttonUnpress('L'); emulator.buttonUnpress('R');
+    await waitFrames(150);
+  } finally {
+    emulator.setFastForwardMultiplier(1);
+    $('practice-note').hidden = true;
+    history.replaceState(null, '', location.pathname);
+    $('screen').focus();
+  }
 }
 
 async function quit() {
@@ -131,7 +167,7 @@ async function importSave(file) {
   const base = romName().replace(/\.gba$/, '');
   try { for (const name of emulator.FS.readdir(paths.autosave)) if (name.startsWith(base)) emulator.FS.unlink(`${paths.autosave}/${name}`); } catch {}
   await emulator.FSSync();
-  emulator.loadGame(romPath);
+  play();
   $('screen').focus();
 }
 
@@ -176,7 +212,11 @@ function touchControls() {
 
 $('choose').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', () => { if ($('file').files[0]) build($('file').files[0]); });
-$('play').addEventListener('click', play);
+$('play').addEventListener('click', () => play());
+$('practice').addEventListener('click', practice);
+$('practice2').addEventListener('click', practice);
+// Browsers start sound only after a click or key press on the page.
+for (const type of ['pointerdown', 'keydown']) addEventListener(type, () => emulator?.resumeAudio(), {once: true});
 $('forget').addEventListener('click', async () => {
   if ($('forget').dataset.armed !== 'yes') {
     $('forget').dataset.armed = 'yes'; $('forget').textContent = 'Click again to delete the game and its saves';
