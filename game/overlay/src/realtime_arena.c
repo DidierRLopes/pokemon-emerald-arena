@@ -2088,6 +2088,13 @@ static void CB2_Arena(void)
                 if (det > -16 && det < 16) det = det < 0 ? -16 : 16;
                 // The hardware wants the inverse map (screen to texture).
                 SetOamMatrix(sprite->oam.matrixNum, m11 * 256 / det, -m01 * 256 / det, -m10 * 256 / det, m00 * 256 / det);
+                // Keep the pose's centre where it stands: the hardware turns
+                // about the canvas centre, so shift by what that moves it.
+                {
+                    s32 px = sBall[i].pivotX, py = sBall[i].pivotY;
+                    sprite->x += px - ((m00 * px + m01 * py) >> 8);
+                    sprite->y += py - ((m10 * px + m11 * py) >> 8);
+                }
             }
             else if (body->rollAngle)
             {

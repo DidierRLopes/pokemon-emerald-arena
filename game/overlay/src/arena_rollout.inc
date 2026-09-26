@@ -51,6 +51,7 @@ struct RollBall
 {
     u8 radius, outline, dark, mid, band, light, shown, phase, pending, done, lutDone;
     u16 step, stepsDone;                 // roll angle per pixel travelled; work done so far
+    s8 pivotX, pivotY;                   // the pose's centre, from the canvas centre
 };
 static EWRAM_DATA struct RollBallHeap *sBallHeap = NULL;
 static EWRAM_DATA struct RollBall sBall[2] = {};
@@ -99,7 +100,19 @@ static bool8 RollBallVisible(u8 side)
 static void RollBallBegin(u8 side)
 {
     struct RollBall *b = &sBall[side];
+    const u32 *words = sMonFrameTiles[side];
+    s32 w, n = 0, sx = 0, sy = 0;
     b->stepsDone = 0; b->shown = FALSE; b->radius = 0; b->pending = 2; b->done = 0; b->lutDone = 0;
+    // The spin-up turns about the centre of the pose on screen, not the
+    // canvas centre, so the body revs in place instead of swinging round.
+    // Each opaque eight-pixel row segment counts once.
+    for (w = 0; w < 512; w++)
+    {
+        if (!words[w]) continue;
+        n++; sx += ((w >> 3) & 7) * 8 + 4; sy += (w >> 6) * 8 + (w & 7);
+    }
+    b->pivotX = n ? sx / n - 32 : 0;
+    b->pivotY = n ? sy / n - 32 : 0;
 }
 
 // Choose the ball's colours and size from the pose currently decoded for the
