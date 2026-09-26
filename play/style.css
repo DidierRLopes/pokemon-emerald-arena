@@ -1,0 +1,41 @@
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:#f4f2e9;color:#17181c;font:16px/1.6 system-ui,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+main{max-width:660px;margin:0 auto;padding:40px 24px}
+h1{font-size:38px;line-height:1.1;margin:18px 0}
+small,.muted{color:#606168}
+a{color:#2948df}
+button,.button{display:inline-block;background:#2948df;color:#fff;border:0;padding:15px 22px;font:700 16px system-ui;
+  cursor:pointer;min-height:48px;border-radius:0}
+button:disabled{opacity:.55;cursor:wait}
+button.link{background:none;color:#2948df;padding:0;min-height:0;font:inherit;text-decoration:underline}
+:focus-visible{outline:3px solid #17181c;outline-offset:4px}
+#status{min-height:52px}#status[data-error=true]{color:#a32020}
+progress{display:block;width:100%;height:12px;margin:14px 0}
+details{border-top:1px solid #c6c4bc;padding-top:15px;margin-top:26px}summary{cursor:pointer;font-weight:600}
+table{border-collapse:collapse;margin:12px 0}th,td{text-align:left;padding:4px 18px 4px 0;border-bottom:1px solid #d9d7cf}
+footer{margin-top:36px;font-size:14px}
+
+/* The game: the screen scaled up in whole-pixel steps where it can be, the
+   toolbar under it, and touch buttons laid over the lower half on phones. */
+#game{position:fixed;inset:0;background:#0e1014;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;padding:12px;touch-action:none;user-select:none;-webkit-user-select:none}
+#stage{flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+#screen{image-rendering:pixelated;width:min(100%,calc((100vh - 110px) * 1.5));aspect-ratio:3/2;height:auto;background:#000;outline:none}
+#toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+#toolbar button,#toolbar .button{padding:8px 14px;min-height:40px;font-size:14px;background:#262a33}
+#touch{position:fixed;left:0;right:0;bottom:0;height:46vh;pointer-events:none}
+#touch button{pointer-events:auto;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;font-size:15px;min-height:0;padding:0}
+#dpad{pointer-events:auto;position:absolute;left:5vw;bottom:9vh;width:34vmin;height:34vmin;max-width:170px;max-height:170px;
+  border-radius:50%;background:rgba(255,255,255,.1)}
+#dpad span{position:absolute;inset:34%;border-radius:50%;background:rgba(255,255,255,.18)}
+.faces{position:absolute;right:5vw;bottom:11vh;display:flex;gap:4vmin}
+.faces button{width:17vmin;height:17vmin;max-width:84px;max-height:84px}
+.faces button[data-btn=A]{transform:translateY(-6vmin)}
+.shoulders{position:absolute;left:5vw;right:5vw;top:0;display:flex;justify-content:space-between}
+.shoulders button{width:22vmin;height:11vmin;max-width:120px;max-height:54px;border-radius:14px}
+.menu{position:absolute;left:0;right:0;bottom:2vh;display:flex;justify-content:center;gap:6vmin}
+.menu button{width:20vmin;height:8vmin;max-width:110px;max-height:40px;font-size:12px}
+#touch button.down,#dpad.down span{background:rgba(255,255,255,.35)}
+@media (pointer:coarse) and (orientation:portrait){#game{justify-content:flex-start}#stage{flex:0 0 auto}}

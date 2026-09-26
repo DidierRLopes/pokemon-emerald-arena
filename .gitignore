@@ -14,3 +14,4 @@ dist/
 !game/overlay/graphics/arena/**/*.gbapal
 workspace/
 .DS_Store
+play/.cache/

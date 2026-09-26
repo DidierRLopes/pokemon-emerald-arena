@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Play Emerald Arena</title>
+<script>
+// The emulator runs on threads, which browsers only allow on a cross-origin
+// isolated page. Hosts that cannot send the isolation headers get them from
+// sw.js instead; the page reloads once, the first time, to pick them up.
+if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => {
+    if (!sessionStorage.getItem('arena-isolation-reload')) {
+      sessionStorage.setItem('arena-isolation-reload', '1');
+      location.reload();
+    }
+  });
+}
+</script>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<main id="intro">
+  <small id="version">EMERALD ARENA</small>
+  <h1>Play in your browser.</h1>
+  <p>Choose your unmodified <strong>Pokémon Emerald (USA/Europe)</strong> <code>.gba</code>.
+  The game is built and played on this device. Your file is never uploaded.</p>
+
+  <section id="setup" hidden>
+    <button id="choose" disabled>Choose Emerald ROM</button>
+    <input id="file" type="file" accept=".gba" hidden aria-label="Choose your Emerald ROM">
+    <progress id="progress" hidden aria-label="Preparing game"></progress>
+  </section>
+
+  <section id="ready" hidden>
+    <button id="play">Play</button>
+    <p class="muted">Your game and saves are kept in this browser. <button id="forget" class="link">Remove them</button></p>
+  </section>
+
+  <p id="status" role="status" aria-live="polite">Loading…</p>
+
+  <details>
+    <summary>Controls</summary>
+    <table>
+      <tr><th>GBA</th><th>Keyboard</th></tr>
+      <tr><td>D-pad</td><td>Arrow keys</td></tr>
+      <tr><td>A (attack)</td><td>X</td></tr>
+      <tr><td>B (dodge with a direction)</td><td>Z</td></tr>
+      <tr><td>L / R (change move)</td><td>A / S</td></tr>
+      <tr><td>START (pause, pick move)</td><td>Enter</td></tr>
+      <tr><td>SELECT</td><td>Backspace</td></tr>
+    </table>
+    <p>On a fresh save, highlight <strong>NEW GAME</strong> and press <strong>SELECT</strong> for the practice team.
+    In the field, press <strong>L + R together</strong> to start a practice fight. Touch screens get on-screen buttons.</p>
+  </details>
+  <details>
+    <summary>Saves and privacy</summary>
+    <p>Save in the game's field menu as usual; the save is kept in this browser. The emulator also keeps a
+    resume point, so closing the tab picks up where you left off. Use <strong>Export save</strong> to keep a copy,
+    and <strong>Import save</strong> to continue an adventure from another emulator.</p>
+    <p>No account, no server: this page is static files. The only network requests are this page, the emulator,
+    and the sprite sheets from SpriteCollab the first time, each checked against the tested release.</p>
+  </details>
+  <footer><a href="https://github.com/GBurgardt/pokemon-emerald-arena">Emerald Arena on GitHub</a> ·
+  Emulator: <a href="https://github.com/thenick775/mgba/tree/feature/wasm">mGBA for the web</a> (MPL-2.0)</footer>
+</main>
+
+<section id="game" hidden>
+  <div id="stage"><canvas id="screen" width="240" height="160" tabindex="0" aria-label="Game screen"></canvas></div>
+  <nav id="toolbar">
+    <button id="export">Export save</button>
+    <label class="button">Import save<input id="import" type="file" accept=".sav" hidden></label>
+    <button id="mute">Sound on</button>
+    <button id="fullscreen">Full screen</button>
+    <button id="touch-toggle">Touch buttons</button>
+    <button id="quit">Quit</button>
+  </nav>
+  <div id="touch" hidden>
+    <div id="dpad" aria-label="Direction pad"><span></span></div>
+    <div class="shoulders"><button data-btn="L">L</button><button data-btn="R">R</button></div>
+    <div class="faces"><button data-btn="B">B</button><button data-btn="A">A</button></div>
+    <div class="menu"><button data-btn="Select">SELECT</button><button data-btn="Start">START</button></div>
+  </div>
+</section>
+<script type="module" src="app.mjs"></script>
+</html>
