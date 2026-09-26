@@ -3,6 +3,7 @@
 #include "arena_capture.h"
 #include "item.h"
 #include "trig.h"
+#include "malloc.h"
 #include "pokedex.h"
 #include "arena_lab.h"
 #include "arena_navigation.h"
@@ -382,6 +383,7 @@ static void RolloutEnd(struct ArenaBody *body)
     body->actionLife = 1;
 }
 
+#include "arena_rollout.inc"
 #include "arena_double_team.inc"
 #include "arena_cover.inc"
 
@@ -834,6 +836,7 @@ static void CB2_ArenaInit(void)
     memset(gArenaRenderTelemetry,0,sizeof(gArenaRenderTelemetry));
     gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;
     sArena.lastBlast=0;
+    RollBallInit();
     for (i = 0; i < 2; i++)
     {
         struct ArenaBody *body = &sArena.bodies[i];
@@ -1098,6 +1101,7 @@ static void BeginShot(u8 side, s32 targetX, s32 targetY)
     body->animClock = 0;
     body->drawnFrame = 255;
     body->rollAngle = 0; body->rollStage = 0; body->rollDistance = 0;
+    if (profile->move == MOVE_ROLLOUT) RollBallBegin(side);
 }
 
 static void TickPendingShots(void)
@@ -1634,6 +1638,7 @@ static void TickActions(void)
                 s32 moved=Abs(body->x/Q-oldX)+Abs(body->y/Q-oldY);
                 if(!moved && body->actionLife>1)RolloutEnd(body); // the wall
                 body->rollDistance=min(255,body->rollDistance+moved);
+                if(RollBallReady(side))body->rollAngle+=moved*sBall[side].step;
                 body->rollStage=min(ROLLOUT_MAX_STAGE,body->rollDistance/ROLLOUT_STAGE_PX);
                 if(!(body->actionAge%2))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
             }
@@ -2023,6 +2028,7 @@ static void CB2_Arena(void)
             u8 frame;
             u16 tick=body->animClock/Q;
             bool8 holdPose=FALSE;
+            if (!RollBallVisible(i)) RollBallHide(i);
             if(TossActive())holdPose=TossPose(i,&animation,&direction);
             anim=&body->art->animations[animation];
             if (body->animation != animation)
@@ -2036,7 +2042,7 @@ static void CB2_Arena(void)
             if(holdPose)tick=anim->hitTick;
             sprite->y2=PsychicBusy(i)?-3-Sin(sPsychic[i].age*4,2):0;
             frame = ArenaSprites_Frame(anim,tick);
-            if (body->drawnFrame != frame || body->drawnDirection != direction)
+            if (!RollBallVisible(i) && (body->drawnFrame != frame || body->drawnDirection != direction))
             {
                 ArenaSprites_Decode(anim, direction, frame, sMonFrameTiles[i]);
                 ArenaRender_Copy(sMonFrameTiles[i],
@@ -2046,7 +2052,13 @@ static void CB2_Arena(void)
             }
             if (!sArena.paused && !sArena.resultTimer && !frozen)
                 body->animClock += animation == ARENA_ANIM_WALK ? Clamp(Speed(i) * Q / 220, 128, 512) : Q;
-            if (Rolling(i) && !TossActive())
+            if (RollBallVisible(i))
+            {
+                // Curled into a ball: its own frames stand in for the pose.
+                RollBallShow(i, sprite);
+                if (!sArena.paused && !frozen) RollBallTick(i);
+            }
+            else if (Rolling(i) && !TossActive())
             {
                 // Roll like a ball along the heading, seen from the arena's
                 // front-elevated camera: one rotation about the ground axis
@@ -2055,6 +2067,7 @@ static void CB2_Arena(void)
                 // moving toward the heading; up/down travel tumbles forward;
                 // diagonals blend the two. Spin-up in place, then flat out.
                 s32 ux = body->attackX, uy = body->attackY, ct, st, v, m00, m01, m10, m11, spin, cross, det;
+                if (!body->actionLife && body->shotElapsed && !sArena.paused && !frozen) RollBallTick(i);
                 if (!sArena.paused && !frozen)
                 {
                     u16 rate = body->actionLife ? ROLLOUT_SPIN
@@ -2208,6 +2221,7 @@ static void ArenaExit(bool8 fainted)
     // Finish the ORIGINAL battle scripts behind the arena image. No classic
     // scene reconstruction just to say "fainted" and animate an EXP bar.
     // Interactive choices explicitly restore the native UI if needed.
+    RollBallExit();
     if(fainted)
     {
         sArena.active=FALSE;sArena.classic=FALSE;
