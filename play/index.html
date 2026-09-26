@@ -36,6 +36,9 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
   </section>
 
   <p id="status" role="status" aria-live="polite">Loading…</p>
+  <p class="tip"><strong>Straight to a fight:</strong> on the title menu, highlight <strong>NEW GAME</strong> and press
+  <strong>SELECT</strong> (Backspace), not A. In the field, hold <strong>L + R</strong> (A + S) together.
+  Hold <strong>Tab</strong> to fast-forward.</p>
 
   <details>
     <summary>Controls</summary>
@@ -47,6 +50,7 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
       <tr><td>L / R (change move)</td><td>A / S</td></tr>
       <tr><td>START (pause, pick move)</td><td>Enter</td></tr>
       <tr><td>SELECT</td><td>Backspace</td></tr>
+      <tr><td>Fast-forward (hold)</td><td>Tab</td></tr>
     </table>
     <p>On a fresh save, highlight <strong>NEW GAME</strong> and press <strong>SELECT</strong> for the practice team.
     In the field, press <strong>L + R together</strong> to start a practice fight. Touch screens get on-screen buttons.</p>
@@ -72,12 +76,13 @@ if (!window.crossOriginIsolated && window.isSecureContext && 'serviceWorker' in 
     <button id="fullscreen">Full screen</button>
     <button id="touch-toggle">Touch buttons</button>
     <button id="quit">Quit</button>
+    <span class="hint">Hold Tab to fast-forward</span>
   </nav>
   <div id="touch" hidden>
     <div id="dpad" aria-label="Direction pad"><span></span></div>
     <div class="shoulders"><button data-btn="L">L</button><button data-btn="R">R</button></div>
     <div class="faces"><button data-btn="B">B</button><button data-btn="A">A</button></div>
-    <div class="menu"><button data-btn="Select">SELECT</button><button data-btn="Start">START</button></div>
+    <div class="menu"><button data-btn="Select">SELECT</button><button data-btn="Start">START</button><button id="fast" aria-label="Fast-forward">&gt;&gt;</button></div>
   </div>
 </section>
 <script type="module" src="app.mjs"></script>

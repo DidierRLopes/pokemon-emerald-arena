@@ -40,6 +40,7 @@ async function start() {
     try { emulator.bindKey(key, input); } catch (error) { console.warn('bindKey', key, error); }
   }
   emulator.toggleInput(false);
+  window.arenaEmulator = emulator;   // for debugging from the console
   emulator.addCoreCallbacks({
     saveDataUpdatedCallback: scheduleSync,
     autoSaveStateCapturedCallback: scheduleSync,
@@ -209,6 +210,13 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { emulator.pauseGame(); try { emulator.forceAutoSaveState(); } catch {} emulator.FSSync(); }
   else emulator.resumeGame();
 });
+// Hold Tab to fast-forward (three times speed), as in desktop mGBA; the
+// on-screen >> button does the same on touch screens.
+const fastForward = on => { if (emulator && !$('game').hidden) emulator.setFastForwardMultiplier(on ? 3 : 1); };
+addEventListener('keydown', e => { if (e.key === 'Tab' && !$('game').hidden) { e.preventDefault(); if (!e.repeat) fastForward(true); } });
+addEventListener('keyup', e => { if (e.key === 'Tab') fastForward(false); });
+$('fast').addEventListener('pointerdown', e => { $('fast').setPointerCapture(e.pointerId); $('fast').classList.add('down'); fastForward(true); });
+for (const type of ['pointerup', 'pointercancel']) $('fast').addEventListener(type, () => { $('fast').classList.remove('down'); fastForward(false); });
 addEventListener('pagehide', () => { if (emulator && !$('game').hidden) { try { emulator.forceAutoSaveState(); } catch {} emulator.FSSync(); } });
 touchControls();
 start().catch(fail);
