@@ -4,7 +4,8 @@
   slowly at first, then rolls in the direction it is facing, gaining speed and
   leaving a dust trail, until it hits the rival, a wall or an object. Power
   doubles for every 40 px rolled, up to eight times the base, and once more
-  after Defense Curl, like the original turn ramp. A fast roll smashes through
+  after Defense Curl, like the original turn ramp. The ball rolls right over
+  the rival, flattening it for a moment, and a fast roll smashes through
   breakable objects and keeps going. Geodude, Graveler, Golem, Marill,
   Azumarill and Wailmer learn it.
 

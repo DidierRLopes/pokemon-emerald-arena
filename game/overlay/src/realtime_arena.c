@@ -89,7 +89,7 @@ struct ArenaBody
     u16 weatherClock;
     u8 statusActions;
     u16 rollAngle;
-    u8 rollStage, rollDistance;
+    u8 rollStage, rollDistance, flat;
 };
 
 struct ArenaShot
@@ -356,6 +356,9 @@ static void PhaseWrap(u8 side, s32 dx, s32 dy)
 #define ROLLOUT_STAGE_PX 40
 #define ROLLOUT_MAX_STAGE 3
 #define ROLLOUT_SPIN 0x1000
+// Frames a rolled-over rival stays flattened; it springs back over the last few.
+#define ROLLOUT_FLAT_FRAMES 18
+#define ROLLOUT_FLAT_SPRING 10
 // Camera elevation used to project the roll (35 degrees): sin and cos in Q8.
 #define ROLLOUT_CAM_SIN 147
 #define ROLLOUT_CAM_COS 210
@@ -951,6 +954,9 @@ static void MoveDelta(u8 side, s32 dx, s32 dy)
     struct ArenaBody *body = &sArena.bodies[side];
     struct ArenaBody *other = &sArena.bodies[side ^ 1];
     bool8 ghost = GhostBody(side);
+    // A rolling body runs over the other one instead of being held off it, and
+    // a body left overlapping (a roll that ended on top of it) may step away.
+    bool8 over = Rolling(side) && body->actionLife;
     // A ghost may step into the wall band and through cover; see PhaseWrap.
     s32 margin = ghost ? ARENA_PHASE_MARGIN * Q : 0;
     s32 x, y;
@@ -963,11 +969,13 @@ static void MoveDelta(u8 side, s32 dx, s32 dy)
     // solid obstacle; the swept test also prevents corner cutting.
     if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, x / Q, body->y / Q, ARENA_BODY_RADIUS))
         && CoverCanStep(x/Q,body->y/Q)
-        && (Abs(x - other->x) >= 22 * Q || Abs(body->y - other->y) >= 22 * Q)) body->x = x;
+        && (over || Abs(x - other->x) >= 22 * Q || Abs(body->y - other->y) >= 22 * Q
+            || Abs(x - other->x) > Abs(body->x - other->x))) body->x = x;
     else if (dx) gArenaAiTelemetry.wallBlocks[side]++;
     if ((ghost || ArenaNav_LineClear(body->x / Q, body->y / Q, body->x / Q, y / Q, ARENA_BODY_RADIUS))
         && CoverCanStep(body->x/Q,y/Q)
-        && (Abs(body->x - other->x) >= 22 * Q || Abs(y - other->y) >= 22 * Q)) body->y = y;
+        && (over || Abs(body->x - other->x) >= 22 * Q || Abs(y - other->y) >= 22 * Q
+            || Abs(y - other->y) > Abs(body->y - other->y))) body->y = y;
     else if (dy) gArenaAiTelemetry.wallBlocks[side]++;
     if (ghost) PhaseWrap(side, dx, dy);
 }
@@ -1624,7 +1632,7 @@ static void TickActions(void)
             if(rollout)
             {
                 s32 moved=Abs(body->x/Q-oldX)+Abs(body->y/Q-oldY);
-                if(!moved && body->actionLife>1)RolloutEnd(body); // the wall, or the rival's body
+                if(!moved && body->actionLife>1)RolloutEnd(body); // the wall
                 body->rollDistance=min(255,body->rollDistance+moved);
                 body->rollStage=min(ROLLOUT_MAX_STAGE,body->rollDistance/ROLLOUT_STAGE_PX);
                 if(!(body->actionAge%2))ArenaFeedback_Dust(body->x/Q,body->y/Q,TRUE);
@@ -1740,7 +1748,14 @@ static void TickActions(void)
             if(p->move==MOVE_FLAMETHROWER)gArenaFlameTelemetry[2]++;
             gArenaRolloutStage=body->rollStage;
             ApplyMoveHit(side,p->move);
-            if(p->move==MOVE_ROLLOUT){RolloutEnd(body);sArena.hitstop=max(sArena.hitstop,4);}
+            if(p->move==MOVE_ROLLOUT)
+            {
+                // Rolled over: the rival is flattened where it stands, not
+                // shoved ahead of the ball, and the roll carries on past it.
+                target->flat=ROLLOUT_FLAT_FRAMES;
+                target->knockX=target->knockY=0;
+                sArena.hitstop=max(sArena.hitstop,4);
+            }
         }
         body->actionAge++;body->actionLife--;
     }
@@ -2066,6 +2081,17 @@ static void CB2_Arena(void)
                 body->rollAngle = 0;
                 SetOamMatrix(sprite->oam.matrixNum, 0x100, 0, 0, 0x100);
             }
+            else if (body->flat && !TossActive())
+            {
+                // Flattened under a Rollout: wide and low, pressed onto the
+                // ground beneath the ball, then springing back up.
+                s32 f = body->flat >= ROLLOUT_FLAT_SPRING ? 256 : body->flat * 256 / ROLLOUT_FLAT_SPRING;
+                SetOamMatrix(sprite->oam.matrixNum, 65536 / (256 + 72 * f / 256), 0, 0, 65536 / (256 - 150 * f / 256));
+                sprite->y += 8 * f / 256;
+                if (!sArena.paused && !frozen && !--body->flat)
+                    SetOamMatrix(sprite->oam.matrixNum, 0x100, 0, 0, 0x100);
+            }
+            sprite->subpriority = body->flat ? 1 : 0;
             gArenaSpriteTelemetry.animation[i] = animation;
             gArenaSpriteTelemetry.frame[i] = frame;
             gArenaSpriteTelemetry.direction[i] = direction;

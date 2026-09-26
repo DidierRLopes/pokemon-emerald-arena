@@ -130,7 +130,7 @@ static void SpecialDraw(void)
         u8 id=sWarpFx[side].sprite,f=0;
         // Undo the throw's head-first rotation on every ordinary frame;
         // a Rollout in progress owns the matrix for its tumble.
-        if(sArena.bodies[side].art&&!Rolling(side))SetOamMatrix(mon->oam.matrixNum,256,0,0,256);
+        if(sArena.bodies[side].art&&!Rolling(side)&&!sArena.bodies[side].flat)SetOamMatrix(mon->oam.matrixNum,256,0,0,256);
         if(w->active)
         {
             mon->invisible=w->age>=5&&w->age<10;
