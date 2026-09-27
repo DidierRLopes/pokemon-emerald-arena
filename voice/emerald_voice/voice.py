@@ -156,6 +156,29 @@ class SpeakerId:
         return pieces
 
 
+    def learn(self, audio):
+        """No saved voices: the first voice heard in a 1P vs 1P battle is
+        Player 1, the first clearly different one Player 2; after that it is
+        the usual nearest match. Returns (player, note)."""
+        e = self.embed(audio)
+        if not self.learned:
+            self.learned.append(e)
+            return 0, 'first voice heard: Player 1'
+        sims = [float(np.dot(e, p)) for p in self.learned]
+        if len(self.learned) == 1:
+            if sims[0] >= self.SAME:
+                p = 0.9 * self.learned[0] + 0.1 * e
+                self.learned[0] = p / np.linalg.norm(p)
+                return 0, f'voice {sims[0]:.2f}'
+            self.learned.append(e)
+            return 1, f'new voice ({sims[0]:.2f} to Player 1): Player 2'
+        player = 0 if sims[0] >= sims[1] else 1
+        if abs(sims[0] - sims[1]) > 0.08:
+            p = 0.9 * self.learned[player] + 0.1 * e
+            self.learned[player] = p / np.linalg.norm(p)
+        return player, f'voice {sims[0]:.2f} vs {sims[1]:.2f}'
+
+
 class Segmenter:
     """Cuts a live stream into utterances: WebRTC's voice detector on 30 ms
     frames, gated by loudness over the room's noise floor so fans, clicks and
@@ -334,7 +357,7 @@ class PushToTalk:
         while True:
             audio, key = self.record()
             if len(audio) > RATE * 0.35:
-                threading.Thread(target=self._finish, args=(audio, key), daemon=True).start()
+                threading.Thread(target=self._safe_finish, args=(audio, key), daemon=True).start()
 
     def _hands_free(self):
         # One transcription at a time, in order; a backlog is cut to the
@@ -343,7 +366,16 @@ class PushToTalk:
             audio = self.utterances.get()
             while not self.utterances.empty():
                 audio = self.utterances.get()
-            self._finish(audio, 'voice')
+            self._safe_finish(audio, 'voice')
+
+    def _safe_finish(self, audio, key):
+        """One bad clip must never stop the listening."""
+        try:
+            self._finish(audio, key)
+        except Exception as e:
+            import traceback
+            self.log(f'(could not handle that clip: {e!r})')
+            traceback.print_exc()
 
     def _finish(self, audio, key):
         if self.speakers and self.speakers.expect and key == 'voice':
@@ -376,6 +408,8 @@ class PushToTalk:
                     if clean and clean not in HALLUCINATIONS:
                         heard.append((player, text))
                 ms = (time.perf_counter() - t) * 1000
+                if not heard:
+                    return
                 self.log(f'🎙 two voices in one clip ({ms:.0f} ms): ' + ' | '.join(f'P{p + 1} "{x}"' for p, x in heard))
                 for player, text in heard:
                     threading.Thread(target=self.on_text, args=(text, player), daemon=True).start()
