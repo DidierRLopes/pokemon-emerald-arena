@@ -25,9 +25,17 @@ local function retire(s)
   closed[#closed + 1] = s
 end
 
+-- One string.format per 2000 bytes instead of one call per byte.
 local function hex(s)
-  return (s:gsub(".", function(c) return string.format("%02x", c:byte()) end))
+  local out, n = {}, #s
+  for i = 1, n, 2000 do
+    local j = math.min(i + 1999, n)
+    out[#out + 1] = string.format(string.rep("%02x", j - i + 1), s:byte(i, j))
+  end
+  return table.concat(out)
 end
+-- The last bytes sent per watched range: unchanged ranges go as "=".
+local sent = {}
 
 local function release()
   if held ~= 0 then emu:clearKeys(held) end
@@ -36,14 +44,14 @@ end
 
 local function stop()
   if sock then retire(sock) end
-  sock, buffer, watch = nil, "", {}
+  sock, buffer, watch, sent = nil, "", {}, {}
   release()
 end
 
 local function handle(line)
   local cmd, rest = line:match("^(%S+)%s*(.*)$")
   if cmd == "W" then
-    watch = {}
+    watch, sent = {}, {}
     for a, n in rest:gmatch("(%x+):(%d+)") do watch[#watch + 1] = {tonumber(a, 16), tonumber(n)} end
   elseif cmd == "K" then
     local mask = tonumber(rest) or 0
@@ -109,7 +117,15 @@ callbacks:add("frame", function()
   sock:poll()
   if sock and #watch > 0 then
     local parts = {"F", tostring(frame)}
-    for _, w in ipairs(watch) do parts[#parts + 1] = hex(emu:readRange(w[1], w[2])) end
+    for i, w in ipairs(watch) do
+      local raw = emu:readRange(w[1], w[2])
+      if raw == sent[i] then
+        parts[#parts + 1] = "="
+      else
+        parts[#parts + 1] = hex(raw)
+        sent[i] = raw
+      end
+    end
     local ok = sock:send(table.concat(parts, " ") .. "\n")
     if not ok then
       console:log("voice bridge: agent gone; retrying")

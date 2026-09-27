@@ -925,6 +925,8 @@ static void Task_Draft(u8 taskId)
         gArenaDraftScreen = 0;
         if (*leaving == 2)
             SetMainCallback2(CB2_ArenaTitleMenu);
+        else if (*leaving == 3)
+            SetMainCallback2(CB2_StartDraft);     // Player 2 backs out to Player 1's picks
         else if (gArenaDraftMode == ARENA_DRAFT_VS_P2 && player == 0)
             SetMainCallback2(CB2_StartDraftP2);
         else
@@ -1012,7 +1014,7 @@ static void Task_Draft(u8 taskId)
         else
         {
             PlaySE(SE_SELECT);
-            *leaving = 2;
+            *leaving = player ? 3 : 2;
             BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
         }
     }
@@ -1082,8 +1084,9 @@ static void Task_Versus(u8 taskId)
             StartBattle();
         else
         {
-            sTeamCount[0] = sTeamCount[1] = 0;
-            SetMainCallback2(CB2_StartDraft);
+            // REDRAFT goes back to the last draft screen with its picks kept
+            // (Player 2's in 1P vs 1P); COM drafts again after DONE.
+            SetMainCallback2(gArenaDraftMode == ARENA_DRAFT_VS_P2 ? CB2_StartDraftP2 : CB2_StartDraft);
         }
         return;
     }

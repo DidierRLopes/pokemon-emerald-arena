@@ -77,7 +77,24 @@ class LuaBridge:
             self.connected.clear()
             self.log('Game disconnected; waiting for it to reconnect.')
 
+    def _fps(self, frame):
+        """Logs when mGBA runs clearly below the GBA's 60 frames a second
+        (the game feels laggy): measured from the frame numbers it sends."""
+        import time
+        now = time.monotonic()
+        if not self._fps_mark or frame < self._fps_mark[1]:
+            self._fps_mark = (now, frame)
+            return
+        t0, f0 = self._fps_mark
+        if now - t0 >= 5:
+            fps = (frame - f0) / (now - t0)
+            if fps < 55 and not self._fps_warned:
+                self.log(f'mGBA is running at {fps:.0f} frames a second (60 is full speed).')
+            self._fps_warned = fps < 55
+            self._fps_mark = (now, frame)
+
     def _read(self, conn):
+        self._last, self._fps_mark, self._fps_warned = {}, None, False
         buffer = b''
         sizes = [n for _, _, n in WATCH]
         names = [n for n, _, _ in WATCH]
@@ -91,11 +108,22 @@ class LuaBridge:
             frames = [l for l in lines if l.startswith(b'F ')]
             if not frames:
                 continue
-            parts = frames[-1].split()   # only the newest frame matters
-            if len(parts) != 2 + len(sizes):
+            # Each frame sends only the ranges that changed ("=" otherwise):
+            # apply every frame's changes, then act on the newest frame.
+            parts = None
+            for line in frames:
+                p = line.split()
+                if len(p) != 2 + len(sizes):
+                    continue
+                for n, h in zip(names, p[2:]):
+                    if h != b'=':
+                        self._last[n] = bytes.fromhex(h.decode())
+                parts = p
+            if parts is None or len(self._last) != len(names):
                 continue
-            chunks = {n: bytes.fromhex(p.decode()) for n, p in zip(names, parts[2:])}
+            chunks = dict(self._last)
             self.state = parse(int(parts[1]), chunks, self.data, self.symbols)
+            self._fps(int(parts[1]))
             keys = self.on_frame(self.state)
             if keys != self._keys:
                 with self._lock:

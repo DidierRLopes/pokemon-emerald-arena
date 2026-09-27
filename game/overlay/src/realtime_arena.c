@@ -2336,8 +2336,9 @@ static void CB2_Arena(void)
     {
         if (TickP2Pick()) return;
     }
-    else if (P2Human() && !sArena.paused && !sArena.resultTimer && !SpecialBusy(1) && P2HasBench()
-             && (gArenaP2Voice[0] || (gArenaP2Keys & SELECT_BUTTON)))
+    // Cheap tests first: reading the party (encrypted) only when asked.
+    else if ((gArenaP2Voice[0] || (gArenaP2Keys & SELECT_BUTTON)) && P2Human() && !sArena.paused
+             && !sArena.resultTimer && !SpecialBusy(1) && P2HasBench())
     {
         if (gArenaP2Voice[0] == ARENA_P2_SWITCH && P2CanSend(gArenaP2Voice[1]))
         {

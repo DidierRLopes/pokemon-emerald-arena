@@ -60,8 +60,14 @@ def main():
 
     bridge = None
 
+    log_path = Path.home() / '.config/emerald-voice/agent.log'
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_file = open(log_path, 'a', buffering=1)
+    log_file.write(f'--- agent started {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
+
     def log(msg):
         print(msg, flush=True)
+        log_file.write(f'{time.strftime("%H:%M:%S")} {msg}\n')
         if bridge and not msg.startswith('    ['):
             bridge.show(msg.strip())
     data = GameData(args.source)
