@@ -111,8 +111,12 @@ Player 2 switches too: H (or "switch pokemon") opens Player 2's list inside
 the arena (I / K move, U picks, O backs out), "switch to Gengar" switches
 directly, and after Player 2's KO the list opens for Player 2 to choose.
 
-On the versus screen of a 1P vs 1P match, a window asks each player in turn
-to say one sentence and shows what was heard; A (or "fight") is READY, B
+On the versus screen of a 1P vs 1P match, a window shows a sentence for each
+player to read aloud in turn ("Quick, Pikachu! Dodge left, jump up, then fire
+a Thunderbolt at the huge Gyarados!": 3-4 s of varied sounds and battle
+words, which makes the two voices much easier to tell apart), refuses a
+reading that isn't the sentence or a Player 2 reading that sounds like
+Player 1, and shows what was heard; A (or "fight") is READY, B
 records both again (unless voices were saved with --enroll). In battle, a
 command naming a move or Pokémon only one player has goes to that player
 whatever the voice match says, move names are matched forgivingly ("giga

@@ -1041,8 +1041,16 @@ static EWRAM_DATA u8 sVsIconCount = 0;
 EWRAM_DATA u8 gArenaVoiceHeard[2][24] = {};
 EWRAM_DATA u8 gArenaVoiceHeardSeq = 0;
 
+EWRAM_DATA u8 gArenaVoiceRetry = 0;
+
 static const u8 sText_VoiceTitle[] = _("SET EACH PLAYER'S VOICE");
-static const u8 sText_VoiceHelp[] = _("Each player says one sentence, in turn.");
+static const u8 sText_VoiceHelp[] = _("Read this aloud, PLAYER 1 then PLAYER 2:");
+// Kept in sync with ENROLL_SENTENCE in voice/emerald_voice/voice.py. Long
+// (3-4 s) and full of different sounds, with words said in battle.
+static const u8 sText_Sentence1[] = _("“Quick, Pikachu! Dodge left, jump up, then");
+static const u8 sText_Sentence2[] = _("fire a Thunderbolt at the huge Gyarados!”");
+static const u8 sText_RetrySentence[] = _("Not the sentence, read it again. Heard:");
+static const u8 sText_RetrySame[] = _("Sounded like PLAYER 1. PLAYER 2, read it:");
 static const u8 sText_VoiceP1[] = _("PLAYER 1");
 static const u8 sText_VoiceP2[] = _("PLAYER 2");
 static const u8 sText_SpeakNow[] = _("SPEAK NOW…");
@@ -1051,7 +1059,7 @@ static const u8 sText_VoiceSet[] = _("SET");
 static const u8 sText_Restarting[] = _("STARTING OVER…");
 static const u8 sText_OpenQuote[] = _("“");
 static const u8 sText_CloseQuote[] = _("”");
-static const u8 sText_VoiceKeys[] = _("{A_BUTTON} READY   {B_BUTTON} GO BACK (SAY IT AGAIN)");
+static const u8 sText_VoiceKeys[] = _("{A_BUTTON} READY   {B_BUTTON} GO BACK (READ IT AGAIN)");
 
 static bool8 VoiceModalActive(void)
 {
@@ -1077,21 +1085,23 @@ static void DrawVoiceRow(u8 player, u8 y)
     u8 buf[32], *p;
     u8 state = gArenaVoiceEnroll;
     bool8 done = state == 3 || (player == 0 && state == 2);
-    Print(WIN_MAIN, FONT_NORMAL, 20, y, sColorYellow, player ? sText_VoiceP2 : sText_VoiceP1);
+    bool8 current = state == player + 1;
+    Print(WIN_MAIN, FONT_SMALL, 20, y, sColorYellow, player ? sText_VoiceP2 : sText_VoiceP1);
     if (state == 5)
-        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorGray, sText_Restarting);
+        Print(WIN_MAIN, FONT_SMALL, 70, y, sColorGray, sText_Restarting);
     else if (done)
-        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorBlue, sText_VoiceSet);
-    else if (state == player + 1)
-        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorWhite, sText_SpeakNow);
+        Print(WIN_MAIN, FONT_SMALL, 70, y, sColorBlue, sText_VoiceSet);
+    else if (current)
+        Print(WIN_MAIN, FONT_SMALL, 70, y, sColorWhite, sText_SpeakNow);
     else
-        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorGray, sText_Waiting);
+        Print(WIN_MAIN, FONT_SMALL, 70, y, sColorGray, sText_Waiting);
+    // What was heard, once accepted (a refused reading shows below).
     if (done && gArenaVoiceHeard[player][0] != EOS)
     {
         p = StringCopy(buf, sText_OpenQuote);
         p = StringCopy(p, gArenaVoiceHeard[player]);
         StringCopy(p, sText_CloseQuote);
-        Print(WIN_MAIN, FONT_SMALL, 20, y + 14, sColorWhite, buf);
+        Print(WIN_MAIN, FONT_SMALL, 96, y, sColorWhite, buf);
     }
 }
 
@@ -1103,11 +1113,27 @@ static void DrawVoiceModal(void)
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
     FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(4), 8, 12, 224, 136);
     FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(1), 9, 13, 222, 134);
-    Print(WIN_MAIN, FONT_NORMAL, 20, 18, sColorYellow, sText_VoiceTitle);
-    Print(WIN_MAIN, FONT_SMALL, 20, 34, sColorGray, sText_VoiceHelp);
-    DrawVoiceRow(0, 52);
-    DrawVoiceRow(1, 86);
-    Print(WIN_MAIN, FONT_SMALL, 20, 128, gArenaVoiceEnroll == 3 ? sColorYellow : sColorGray, sText_VoiceKeys);
+    Print(WIN_MAIN, FONT_NORMAL, 20, 16, sColorYellow, sText_VoiceTitle);
+    Print(WIN_MAIN, FONT_SMALL, 20, 31, sColorWhite, sText_VoiceHelp);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 16, 44, 208, 26);
+    Print(WIN_MAIN, FONT_SMALL, 20, 45, sColorWhite, sText_Sentence1);
+    Print(WIN_MAIN, FONT_SMALL, 26, 57, sColorWhite, sText_Sentence2);
+    DrawVoiceRow(0, 78);
+    DrawVoiceRow(1, 94);
+    if (gArenaVoiceRetry && (gArenaVoiceEnroll == 1 || gArenaVoiceEnroll == 2))
+    {
+        u8 heard[32], *q;
+        u8 who = gArenaVoiceEnroll - 1;
+        Print(WIN_MAIN, FONT_SMALL, 20, 108, sColorRed, gArenaVoiceRetry == 2 ? sText_RetrySame : sText_RetrySentence);
+        if (gArenaVoiceRetry == 1 && gArenaVoiceHeard[who][0] != EOS)
+        {
+            q = StringCopy(heard, sText_OpenQuote);
+            q = StringCopy(q, gArenaVoiceHeard[who]);
+            StringCopy(q, sText_CloseQuote);
+            Print(WIN_MAIN, FONT_SMALL, 26, 118, sColorRed, heard);
+        }
+    }
+    Print(WIN_MAIN, FONT_SMALL, 20, 132, gArenaVoiceEnroll == 3 ? sColorYellow : sColorGray, sText_VoiceKeys);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
 }
@@ -1178,6 +1204,7 @@ static void Task_Versus(u8 taskId)
         // GO BACK: both players say their sentence again.
         PlaySE(SE_SELECT);
         gArenaVoiceHeard[0][0] = gArenaVoiceHeard[1][0] = EOS;
+        gArenaVoiceRetry = 0;
         gArenaVoiceEnroll = 5;
     }
     else if (JOY_NEW(B_BUTTON))

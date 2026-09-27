@@ -175,16 +175,24 @@ def main():
         # voice is known before the fight ("first voice heard" otherwise).
         heard_seq = [0]
 
-        def on_enrolled(player, text):
+        def show_heard(player, text, retry):
             bridge.write_bytes('gArenaVoiceHeard', data.encode(text.strip(), limit=22), offset=24 * player)
+            bridge.write_byte('gArenaVoiceRetry', retry)
             heard_seq[0] = (heard_seq[0] + 1) & 255
             bridge.write_byte('gArenaVoiceHeardSeq', heard_seq[0])
+
+        def on_enrolled(player, text):
+            show_heard(player, text, 0)
             bridge.write_byte('gArenaVoiceEnroll', 2 if player == 0 else 3)
+
+        def on_enroll_retry(player, reason, text):
+            show_heard(player, text, reason)
 
         def start_over():
             speakers.learned, speakers.expect = [], [0, 1]
             bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=0)
             bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=24)
+            bridge.write_byte('gArenaVoiceRetry', 0)
             bridge.write_byte('gArenaVoiceEnroll', 1)
 
         def versus_watch():
@@ -195,7 +203,7 @@ def main():
                 now = bool(s and s.draft_screen == 3 and s.raw.get('dmode', b'\0')[0] == 2)
                 if now and not on_versus:
                     start_over()
-                    log('Versus screen: Player 1, then Player 2, say one sentence to set your voice.')
+                    log('Versus screen: Player 1, then Player 2, read the sentence shown to set your voice.')
                 elif now and s.raw.get('venroll', b'\0')[0] == 5:
                     start_over()                       # GO BACK: say it again
                     log('Voices: starting over.')
@@ -203,6 +211,7 @@ def main():
                     speakers.expect = []
                 on_versus = now
         ptt.on_enrolled = on_enrolled
+        ptt.on_enroll_retry = on_enroll_retry
         threading.Thread(target=versus_watch, daemon=True).start()
     log(('Ready and listening: just say a command (Right Option push-to-talk works too).' if args.hands_free
          else 'Ready. Hold Right Option, say a command, release.') + (

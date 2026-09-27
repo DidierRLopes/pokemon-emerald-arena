@@ -57,6 +57,9 @@ extern u8 gArenaP2SwitchTo;
 extern u8 gArenaVoiceEnroll;
 extern u8 gArenaVoiceHeard[2][24];
 extern u8 gArenaVoiceHeardSeq;
+// Why the current player is asked again: 1 not the sentence, 2 sounded like
+// Player 1 (Player 2's turn).
+extern u8 gArenaVoiceRetry;
 
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);

@@ -232,6 +232,20 @@ class Segmenter:
         return out
 
 
+# What each player reads on the versus screen to set their voice (kept in sync
+# with the ROM's modal): 3-4 s of speech with a wide spread of sounds, and the
+# words players say in battle, so the voice match is made on real play speech.
+ENROLL_SENTENCE = 'Quick, Pikachu! Dodge left, jump up, then fire a Thunderbolt at the huge Gyarados!'
+
+
+def reads_sentence(text):
+    """Whether a transcript is a reading of ENROLL_SENTENCE (Whisper may
+    garble a name or two)."""
+    import difflib
+    norm = lambda s: ' '.join(''.join(c for c in s.lower() if c.isalpha() or c == ' ').split())
+    return difflib.SequenceMatcher(None, norm(text), norm(ENROLL_SENTENCE)).ratio() >= 0.6
+
+
 # Whisper's usual inventions for noise, breathing or music.
 HALLUCINATIONS = {'you', 'thank you', 'thanks for watching', 'thank you for watching', 'bye', 'okay', 'so',
                   'the end', 'music', 'applause', 'silence', 'hmm', 'uh', 'um'}
@@ -274,6 +288,7 @@ class PushToTalk:
         self.utterances = queue.Queue()
         self.enrolling = False
         self.on_enrolled = None
+        self.on_enroll_retry = None
         self.lead = deque(maxlen=int(RATE * 0.3 / 512) + 1)   # about 0.3 s before the key press
         self.chunks, self.recording = [], False
         self.stream = sounddevice.InputStream(samplerate=RATE, channels=1, dtype='float32', blocksize=512,
@@ -379,13 +394,24 @@ class PushToTalk:
 
     def _finish(self, audio, key):
         if self.speakers and self.speakers.expect and key == 'voice':
-            # Versus screen, 1P vs 1P: this sentence sets a player's voice.
-            text = self.transcriber.transcribe(audio, '')
+            # Versus screen, 1P vs 1P: reading the sentence sets a voice.
+            text = self.transcriber.transcribe(audio, ENROLL_SENTENCE)
             clean = ''.join(c for c in text.lower() if c.isalpha() or c == ' ').strip()
             if len(audio) < RATE * 0.6 or not clean or clean in HALLUCINATIONS or not self.speakers.expect:
                 return
-            player = self.speakers.expect.pop(0)
+            player = self.speakers.expect[0]
+            if not reads_sentence(text) or len(audio) < RATE * 1.5:
+                self.log(f'Player {player + 1}: "{text}" is not the sentence; asking again.')
+                if self.on_enroll_retry:
+                    self.on_enroll_retry(player, 1, text)
+                return
             e = self.speakers.embed(audio)
+            if player == 1 and self.speakers.learned and float(np.dot(e, self.speakers.learned[0])) > 0.85:
+                self.log(f'Player 2\'s reading sounded like Player 1 ({float(np.dot(e, self.speakers.learned[0])):.2f}); asking again.')
+                if self.on_enroll_retry:
+                    self.on_enroll_retry(player, 2, text)
+                return
+            self.speakers.expect.pop(0)
             while len(self.speakers.learned) <= player:
                 self.speakers.learned.append(e)
             self.speakers.learned[player] = e
