@@ -1,5 +1,6 @@
 """Frame-accurate execution of controller macros. The brain decides what to
 do; these actions decide exactly which keys are held on each frame."""
+import math
 import threading
 
 from .state import KEYS, DIRS
@@ -56,6 +57,65 @@ class Walk(Action):
         if moved >= self.distance or self.t > 120 or (self.t > 10 and self.still > 10):
             return 0, True
         return self.keys, False
+
+
+class GoTo(Action):
+    """Walk to a point along a path around the rocks, re-planned every few
+    frames (the target can be the opponent, who moves). Holds the one or two
+    direction keys toward the next waypoint. If the body stops moving (a
+    shot, a cover, the other Pokémon), it sidesteps briefly and re-plans.
+    Done on arrival, when `stop(state)` says so, or after `budget` frames."""
+
+    def __init__(self, target, stop=None, arrive=5, budget=240, name='go', avoid_rival=True):
+        self.target, self.stop, self.arrive, self.budget, self.name = target, stop, arrive, budget, name
+        self.avoid_rival = avoid_rival
+        self.t, self.route, self.last, self.still, self.side_step, self.flip = 0, [], None, 0, 0, 1
+
+    def goal(self, s):
+        return self.target(s) if callable(self.target) else self.target
+
+    def step(self, s):
+        from . import nav
+        self.t += 1
+        me = (s.me.x, s.me.y)
+        if self.stop and self.stop(s):
+            return 0, True
+        if self.t > self.budget:
+            self.ok = self.stop is None and math.dist(me, self.route[-1] if self.route else me) < 24
+            return 0, True
+        if self.t == 1 or self.t % 6 == 0 or not self.route:
+            extra = [nav.body_rect(s.rival.x, s.rival.y)] if self.avoid_rival else []
+            self.route = nav.path(me, self.goal(s), s.solid_mask, extra)
+        while len(self.route) > 1 and math.dist(me, self.route[0]) < 5:
+            self.route.pop(0)
+        wx, wy = self.route[0]
+        if len(self.route) == 1 and math.dist(me, (wx, wy)) <= self.arrive:
+            return 0, True
+        self.still = self.still + 1 if me == self.last else 0
+        self.last = me
+        if self.side_step:
+            self.side_step -= 1
+            return self.side_keys, False
+        dx, dy = wx - me[0], wy - me[1]
+        if self.still > 8:
+            # Stuck: step sideways for a moment, alternating sides.
+            self.still, self.side_step, self.flip = 0, 10, -self.flip
+            sx, sy = -dy * self.flip, dx * self.flip
+            self.side_keys = _dir_keys(sx, sy)
+            return self.side_keys, False
+        return _dir_keys(dx, dy), False
+
+
+def _dir_keys(dx, dy):
+    """One or two direction keys for a heading; a small component is dropped
+    so walking nearly straight doesn't zig-zag."""
+    keys = 0
+    big = max(abs(dx), abs(dy), 1)
+    if abs(dx) >= max(2, big * 0.4):
+        keys |= KEYS['RIGHT'] if dx > 0 else KEYS['LEFT']
+    if abs(dy) >= max(2, big * 0.4):
+        keys |= KEYS['DOWN'] if dy > 0 else KEYS['UP']
+    return keys
 
 
 class Wait(Hold):

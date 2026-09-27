@@ -728,31 +728,19 @@ static void DrawHud(void)
 
 // ---------------------------------------------------------------- moves panel
 // The four moves of a player's Pokémon in a corner, the selected one marked,
-// with PP. Clear while nobody is near; dimmed to grey text when a Pokémon
-// fights over it; hidden while paused (the pause picker lists them).
+// with PP, on a translucent box that stays put even when a Pokémon walks
+// over it; hidden while paused (the pause picker lists them).
 
 static bool8 P2Human(void);
 static EWRAM_DATA u8 sPanelKey[2][8] = {};
 static EWRAM_DATA bool8 sPanelShown[2] = {};
 
-static bool8 PanelCovered(u8 window)
-{
-    s32 left = window == 3 ? 0 : 160, right = left + 80, side;
-    for (side = 0; side < 2; side++)
-    {
-        s32 x = sArena.bodies[side].x / Q, y = sArena.bodies[side].y / Q;
-        if (x > left - 20 && x < right + 20 && y > 112 - 20 && y < 144 + 24)
-            return TRUE;
-    }
-    return FALSE;
-}
-
 static void DrawMovesPanel(u8 side, u8 window, bool8 show)
 {
     u8 key[8], text[8];
     u32 i;
-    bool8 dim = show && PanelCovered(window), same = sPanelShown[side];
-    key[0] = show; key[1] = dim; key[2] = sArena.bodies[side].moveSlot; key[3] = gBattleMons[side].species;
+    bool8 same = sPanelShown[side];
+    key[0] = show; key[1] = 0; key[2] = sArena.bodies[side].moveSlot; key[3] = gBattleMons[side].species;
     for (i = 0; i < MAX_MON_MOVES; i++)
         key[4 + i] = gBattleMons[side].pp[i];
     for (i = 0; i < sizeof(key); i++)
@@ -771,11 +759,8 @@ static void DrawMovesPanel(u8 side, u8 window, bool8 show)
         return;
     }
     CpuFastFill(0, gWindows[window].tileData, 10 * 4 * 32);
-    if (!dim)
-    {
-        WindowRect(window, 1, 1, 78, 30, 11);
-        WindowRect(window, 1, 1, 78, 1, 1);
-    }
+    WindowRect(window, 1, 1, 78, 30, 11);
+    WindowRect(window, 1, 1, 78, 1, 1);
     for (i = 0; i < MAX_MON_MOVES; i++)
     {
         u16 move = gBattleMons[side].moves[i];
@@ -784,8 +769,6 @@ static void DrawMovesPanel(u8 side, u8 window, bool8 show)
         if (move == MOVE_NONE)
             continue;
         color = !ArenaMoves_Get(move) ? 8 : !gBattleMons[side].pp[i] ? 6 : selected ? 7 : 4;
-        if (dim)
-            color = selected ? 3 : 8;
         if (selected)
             WindowRect(window, 3, y, 2, 5, color);
         HudTinyWindow(window, 7, y, gMoveNames[move], color, 13);

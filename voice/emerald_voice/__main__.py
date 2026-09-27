@@ -49,6 +49,8 @@ def main():
     ap.add_argument('--two-players', action='store_true',
                     help='Arena mode 1P vs 1P: Player 2 on I J K L / U O / Y P, voices told apart')
     ap.add_argument('--enroll', action='store_true', help='record both players\' voices again')
+    ap.add_argument('--hands-free', action='store_true',
+                    help='listen all the time: just speak, no key (push-to-talk still works)')
     ap.add_argument('--verbose', action='store_true', help='log every control decision')
     ap.add_argument('--reset-state', default=str(Path.home() / '.config/mgba/states/voice-charizard.ss1'),
                     help='save state that "reset the fight" loads')
@@ -119,11 +121,16 @@ def main():
         speakers = SpeakerId(active=lambda: bool(bridge.state and bridge.state.pvp), want_enroll=args.enroll)
         if args.enroll:
             speakers.profiles = None
+        elif speakers.profiles is None and args.hands_free:
+            log('No saved voices: in 1P vs 1P the first voice heard is Player 1 and the next different one '
+                'Player 2 (run with --enroll to record both voices first).')
         elif speakers.profiles is None:
             log('No saved voices: in 1P vs 1P, Right Option is Player 1 and Left Option is Player 2 '
                 '(run with --enroll to let voices decide).')
-    ptt = PushToTalk(Transcriber(args.stt_model), command, vocabulary, log=log, speakers=speakers)
-    log('Ready. Hold Right Option, say a command, release.' + (
+    ptt = PushToTalk(Transcriber(args.stt_model), command, vocabulary, log=log, speakers=speakers,
+                     hands_free=args.hands_free)
+    log(('Ready and listening: just say a command (Right Option push-to-talk works too).' if args.hands_free
+         else 'Ready. Hold Right Option, say a command, release.') + (
         ' Player 2: I J K L move, U attack, O dodge, Y/P change move.' if args.two_players else ''))
     ptt.run()
 

@@ -9,18 +9,20 @@ real-time arena of desktop mGBA.
 
 ## How it works
 
-1. **Voice.** Push-to-talk on Right Option. The microphone audio is
-   transcribed on this Mac by Whisper (`mlx-whisper`, large-v3-turbo, about
-   250 ms), primed with your Pokémon's move names and your party's names.
+1. **Voice.** Push-to-talk on Right Option, or hands-free with
+   `--hands-free`: WebRTC's voice detector cuts speech into utterances (a
+   pause of about a third of a second ends one). The audio is transcribed on
+   this Mac by Whisper (`mlx-whisper`, small.en by default, about 80 ms),
+   primed with your Pokémon's move names and your party's names.
 2. **Intent (Jev).** The transcript and the options that are possible right
    now (your moves, the Pokémon you can switch to, movement, dodges, stop) go to
    TypeSafe's Jev as one Choice. Low-confidence answers are ignored and shown.
-3. **Control (Jev in the loop).** Goals that take several inputs (approach,
-   retreat, use a move) run a loop: every step, facts computed about the arena
-   (positions, distance and direction to the opponent, blocked directions,
-   move range and readiness, what the opponent is doing) go to Jev, which
-   picks one controller macro: walk in one of eight directions, dash, attack,
-   wait or done.
+3. **Paths.** Every walk, approach, retreat or attack follows a path around
+   the rocks (`nav.py`, the same visibility-graph A* as the game's own AI,
+   re-planned every few frames as the opponent moves). A direction ("go
+   right") ends past a rock rather than against it. A move is fired from its
+   reach: a close-range blow first runs up to the opponent, a shot or beam
+   needs a clear line.
 4. **Execution.** `voice/bridge.lua`, loaded in mGBA's scripting window, streams
    the relevant memory every frame and holds the keys the agent asks for, on
    top of your own keyboard. Macros run frame by frame: cycling L/R to a move,
@@ -89,7 +91,10 @@ through the bridge; if Player 2 does not move, allow Terminal under System
 Settings > Privacy & Security > Input Monitoring). Voice: Right Option is
 Player 1 and Left Option is Player 2; run once with `--enroll` (each player
 says two sentences) and Right Option works for both, the voice deciding
-whose Pokémon obeys. The HUD shows both players' selected moves.
+whose Pokémon obeys. Hands-free (the launcher's default), no enrollment is
+needed: the first voice heard in the battle is Player 1 and the first clearly
+different one Player 2 (Resemblyzer speaker embeddings, adapted as you play).
+Both players' moves and PP are shown in the bottom corners.
 
 Build note: `python3 tools/arena/draft_data.py` in the workspace writes the
 draft table and, from the party icons, the grid miniatures

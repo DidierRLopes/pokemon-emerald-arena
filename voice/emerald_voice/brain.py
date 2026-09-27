@@ -1,18 +1,34 @@
-"""From words to play. Jev first maps what was said onto the commands that
-are possible right now (intent). Goals that take more than one input
-(approach, retreat, use a move) then run a control loop: each step Jev picks
-one controller macro from facts computed about the arena, and the executor
-carries it out frame by frame. A rule-based policy stands in when Jev is not
-available, so the game never waits on the network."""
+"""From words to play. Jev maps what was said onto the commands that are
+possible right now (intent), told what each move needs (a close-range blow
+means running up to the opponent first). The agent then plans the way: every
+walk, approach, retreat or attack follows a path around the rocks, re-planned
+every few frames as the opponent moves, and the executor carries it out frame
+by frame. Rules stand in for Jev when it is not available."""
 import re
 import threading
-import time
 
-from .executor import Attack, DIR_KEYS, Dodge, Hold, Sequence, SelectMove, Switch, Tap, Unpause, Wait, Walk
+from . import nav
+from .executor import Action, Attack, Dodge, GoTo, Sequence, SelectMove, Switch, Unpause
 from .jev import JevError
-from .state import DIRS, KEYS, blocked, direction_name, view
+from .state import DIRS, view
 
 CARDINAL = ['up', 'down', 'left', 'right']
+
+
+class FireWhen(Action):
+    """Fire the selected move if the rival is in reach; otherwise give up
+    (the move was not landable in time)."""
+
+    def __init__(self, ready, aim=None):
+        self.ready, self.aim, self.name, self.attack = ready, aim, 'attack', None
+
+    def step(self, s):
+        if self.attack is None:
+            if not self.ready(s):
+                self.ok = False
+                return 0, True
+            self.attack = Attack(self.aim(s) if self.aim else None)
+        return self.attack.step(s)
 
 
 class Brain:
@@ -46,7 +62,12 @@ class Brain:
         for i, move in enumerate(s.me.moves):
             if move and self.data.profiles.get(move):
                 p = self.data.profiles[move]
-                opts[f'use_move_{i}'] = f'Use the move {self.data.moves.get(move, "?")} ({p.kind}, range {p.range}px)'
+                how = {'melee': 'close range: runs up to the opponent, then strikes',
+                       'rush': 'charges at the opponent from mid range',
+                       'cone': 'short-range blast in front: gets near, then fires',
+                       'projectile': 'long-range shot: fires from a distance',
+                       'self': 'affects itself, no target'}.get(p.kind, p.kind)
+                opts[f'use_move_{i}'] = f'Use the move {self.data.moves.get(move, "?")} ({how})'
         for mon in s.party:
             if mon.slot != s.active_party_slot and mon.hp > 0 and not mon.is_egg:
                 opts[f'switch_{mon.slot}'] = (f'Switch Pokémon: send out {mon.name} (a {self.data.species.get(mon.species, "?")}), '
@@ -136,142 +157,69 @@ class Brain:
         elif intent == 'resume':
             ex.run(Sequence(self.unpause()))
         elif intent.startswith('move_'):
-            ex.run(Sequence(self.unpause() + [Walk(intent[5:])]))
+            dx, dy = DIRS[intent[5:]]
+            goal_pt = nav.toward(s.me.x, s.me.y, dx, dy, s.solid_mask, extra=[nav.body_rect(s.rival.x, s.rival.y)])
+            self.run(Sequence(self.unpause() + [GoTo(goal_pt, budget=150, name=intent)]), goal, intent)
         elif intent.startswith('dodge_'):
             ex.run(Sequence(self.unpause() + [Dodge(intent[6:])]))
         elif intent.startswith('switch_'):
             slot = int(intent[7:])
             mon = next(m for m in s.party if m.slot == slot)
             ex.run(Sequence(self.unpause() + [Switch(self.bridge, mon.personality, mon.name)]))
+        elif intent == 'approach':
+            self.run(Sequence(self.unpause() + [GoTo(lambda st: (st.rival.x, st.rival.y), avoid_rival=False,
+                                                     stop=lambda st: st.distance() <= 30, budget=240, name='approach')]),
+                     goal, 'get closer')
+        elif intent == 'retreat':
+            spot = nav.open_spot_away((s.me.x, s.me.y), (s.rival.x, s.rival.y), s.solid_mask)
+            # Running for the whole budget is a fine retreat: no failure report.
+            ex.run(Sequence(self.unpause() + [GoTo(spot, stop=lambda st: st.distance() >= 120, budget=180,
+                                                   name='retreat')]))
         else:
             slot = int(intent[-1]) if intent.startswith('use_move_') else s.selected_slot
-            goal_kind = 'use_move' if intent.startswith('use_move_') or intent == 'attack' else intent
-            threading.Thread(target=self.control, args=(goal_kind, slot, goal), daemon=True).start()
+            move = s.me.moves[slot]
+            profile = self.data.profiles.get(move)
+            name = self.move_name(s, slot)
+            in_reach = lambda st: self.in_reach(st, profile)
+            steps = self.unpause() + [SelectMove(slot)]
+            if profile and profile.kind != 'self':
+                # Close the distance first (around rocks), then fire.
+                steps.append(GoTo(lambda st: (st.rival.x, st.rival.y), stop=in_reach, budget=300, name='close in',
+                                  avoid_rival=False))
+            aim = (lambda st: st.direction_to_rival()) if name.lower() == 'rollout' else None
+            steps.append(FireWhen(in_reach, aim))
+            self.run(Sequence(steps), goal, name)
 
-    # ----- control loop -----------------------------------------------------
-    def facts(self, s, goal, slot):
-        profile = self.data.profiles.get(s.me.moves[slot]) if goal == 'use_move' else None
-        dist = round(s.distance())
-        f = {'goal': {'approach': 'get close to the opponent (within about 36 px)',
-                      'retreat': 'get far from the opponent (more than 110 px away)',
-                      'use_move': f'hit the opponent with {self.move_name(s, slot)}'}[goal],
-             'me': {'x': s.me.x, 'y': s.me.y, 'hp': f'{s.me.hp}/{s.me.max_hp}', 'attack_ready': s.me.cooldown == 0,
-                    'dash_ready': s.me.dash_cooldown == 0},
-             'opponent': {'x': s.rival.x, 'y': s.rival.y, 'hp': f'{s.rival.hp}/{s.rival.max_hp}', 'doing': s.rival.phase},
-             'distance_px': dist, 'direction_to_opponent': s.direction_to_rival(),
-             'direction_away_from_opponent': direction_name(s.me.x - s.rival.x, s.me.y - s.rival.y),
-             'blocked_directions': [d for d in DIRS if blocked(s, d)]}
-        # For each open direction, the distance to the opponent after a short
-        # walk that way, best first for this goal: Jev weighs these instead of
-        # doing geometry.
-        steps = []
-        for d, (dx, dy) in DIRS.items():
-            if d in f['blocked_directions']:
-                continue
-            k = 0.7071 if dx and dy else 1.0
-            after = ((s.me.x + dx * 24 * k - s.rival.x) ** 2 + (s.me.y + dy * 24 * k - s.rival.y) ** 2) ** 0.5
-            steps.append((d, round(after)))
-        steps.sort(key=lambda t: -t[1] if goal == 'retreat' else t[1])
-        f['open_directions_best_first'] = [f'{d} ({after} px from opponent after)' for d, after in steps]
-        if profile:
-            f['move'] = {'name': self.move_name(s, slot), 'kind': profile.kind, 'range_px': profile.range,
-                         'in_range': dist <= profile.range or profile.kind == 'self', 'selected': s.selected_slot == slot}
-        return f
+    @staticmethod
+    def reach(profile):
+        """How close to stand to land a move: melee from right beside the
+        rival, beams and projectiles from further back (as the game's AI)."""
+        k, r = profile.kind, profile.range
+        if k == 'melee':
+            return max(20, min(r - 8, 30))
+        if k == 'rush':
+            return max(40, r - 22)
+        if k == 'cone':
+            return max(28, min(r - 10, 70))
+        if k == 'projectile':
+            return max(40, min(r - 10, 110))
+        return 10 ** 6
 
-    def macro_options(self, goal):
-        opts = {'move_' + d: f'Walk {d.replace("_", " and ")} for a moment' for d in DIRS}
-        for d in CARDINAL:
-            opts['dash_' + d] = f'Quick dash {d}: fast, evades attacks, has a cooldown'
-        if goal == 'use_move':
-            opts['attack'] = 'Fire the selected move now (only when it is in range and ready)'
-        opts['wait'] = 'Stand still for a moment'
-        opts['done'] = 'The goal is achieved; stop controlling'
-        return opts
+    def in_reach(self, s, profile):
+        if not profile or profile.kind == 'self':
+            return True
+        if s.distance() > self.reach(profile):
+            return False
+        # Shots and beams need a clear line; blows land from beside the rival.
+        return profile.kind == 'melee' or nav.line_clear(s.me.x, s.me.y, s.rival.x, s.rival.y, s.solid_mask, radius=3)
 
-    def rules_macro(self, s, goal, f):
-        free = [d for d in DIRS if d not in f['blocked_directions']]
-        if goal == 'approach':
-            if f['distance_px'] <= 36:
-                return 'done'
-            want = f['direction_to_opponent']
-        elif goal == 'retreat':
-            if f['distance_px'] >= 110:
-                return 'done'
-            want = f['direction_away_from_opponent']
-        else:
-            m = f['move']
-            if m['in_range']:
-                return 'attack' if s.me.cooldown == 0 else 'wait'
-            want = f['direction_to_opponent']
-        if want in free:
-            return 'move_' + want
-        # Steer around: the free direction closest in angle to the one wanted.
-        order = ['right', 'down_right', 'down', 'down_left', 'left', 'up_left', 'up', 'up_right']
-        i = order.index(want)
-        for step in (1, -1, 2, -2, 3, -3):
-            for d in free:
-                if order.index(d) == (i + step) % 8:
-                    return 'move_' + d
-        return 'wait'
-
-    def control(self, goal, slot, goal_id):
+    def run(self, action, goal, what):
+        """Start an action and report if it could not be finished."""
         ex = self.executor
-        started, fired, decisions = time.time(), False, 0
-        budget = {'approach': 4.0, 'retreat': 3.0, 'use_move': 6.0}[goal]
-        if goal == 'use_move':
-            ex.run(Sequence(self.unpause() + [SelectMove(slot)]))
-            ex.done_event.wait(3)
-            if self.goal_id != goal_id:
-                return
-        while self.goal_id == goal_id and time.time() - started < budget:
-            s = self.state()
-            if not s or s.screen != 'arena':
-                return
-            f = self.facts(s, goal, slot)
-            macro, how = None, 'rules'
-            # Whether the goal is met is arithmetic; Jev decides how to get there.
-            if (goal == 'approach' and f['distance_px'] <= 36) or (goal == 'retreat' and f['distance_px'] >= 110):
-                macro, how = 'done', 'goal reached'
-            elif self.jev:
-                try:
-                    macro, conf, _, ms = self.jev.choice(f, 'You control a Pokémon in a real-time top-down arena (screen '
-                                                         'coordinates, y grows downward). Pick the next controller action '
-                                                         'that best achieves the goal. open_directions_best_first ranks '
-                                                         'the walkable directions for this goal; dash when the opponent '
-                                                         'is attacking and close.', self.macro_options(goal))
-                    how = f'Jev {conf:.2f} {ms:.0f} ms'
-                except JevError as e:
-                    self.log(f'  Jev unavailable ({e}); rules take over.')
-                    self.jev = None
-            if macro is None:
-                macro = self.rules_macro(s, goal, f)
-            if self.goal_id != goal_id:
-                return
-            decisions += 1
-            if self.verbose:
-                self.log(f'    [{goal}] {f["distance_px"]:>3} px {f["direction_to_opponent"]:>10} → {macro} ({how})')
-            if macro == 'done':
-                break
-            if macro == 'attack':
-                if goal == 'use_move' and not f['move']['in_range']:
-                    macro = 'move_' + f['direction_to_opponent']
-                else:
-                    move = s.me.moves[slot]
-                    aim = f['direction_to_opponent'] if self.data.moves.get(move, '').lower() == 'rollout' else None
-                    ex.run(Attack(aim))
-                    ex.done_event.wait(1)
-                    fired = True
-                    break
-            if macro.startswith('move_'):
-                ex.run(Hold(DIR_KEYS[macro[5:]], 20, macro))
-            elif macro.startswith('dash_'):
-                ex.run(Dodge(macro[5:]))
-            elif macro == 'wait':
-                ex.run(Wait(8))
-            # Decide again as soon as the previous macro is mostly under way.
-            time.sleep(0.05 if self.jev else 0.12)
-        if self.goal_id == goal_id:
-            if goal == 'use_move' and not fired:
-                self.log(f'  Could not land {self.move_name(self.state(), slot)} in time.')
-            elif self.verbose:
-                self.log(f'  [{goal}] finished after {decisions} decisions.')
+        ex.run(action)
+
+        def watch():
+            ex.done_event.wait(10)
+            if self.goal_id == goal and ex.done_event.is_set() and not ex.last_ok:
+                self.log(f'  Could not {"use " + what if what[0].isupper() else what} in time.')
+        threading.Thread(target=watch, daemon=True).start()

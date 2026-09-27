@@ -46,7 +46,11 @@
 #define TEAM_MAX 6
 // The grid: 24x24 portraits, 5 per row, 5 rows on screen, scrolling.
 #define GRID_COLS 5
-#define GRID_ROWS ((ARENA_DRAFT_COUNT + GRID_COLS - 1) / GRID_COLS)
+// Cell 0 is the READY button; cell n shows roster entry n - 1.
+#define GRID_CELLS (ARENA_DRAFT_COUNT + 1)
+#define GRID_ROWS ((GRID_CELLS + GRID_COLS - 1) / GRID_COLS)
+#define CELL_READY 0
+#define CELL_MON(cell) ((cell) - 1)
 #define GRID_VISIBLE 5
 #define CELL 24
 #define STRIP_DONE 6
@@ -64,6 +68,7 @@ struct DraftScreen
     u8 picSprite, cursorSprite, stripSprite;
     u8 iconSprites[2][TEAM_MAX];
     u8 canvas[15 * 16 * 32];
+    u32 ready[9 * 8];
     u16 timer;
     u8 message;
 };
@@ -370,6 +375,15 @@ static bool8 CanPick(u8 player, u8 index)
         && TeamCost(player) + sArenaDraftRoster[index].cost <= CREDITS;
 }
 
+static bool8 AnyPick(u8 player)
+{
+    u32 i;
+    for (i = 0; i < ARRAY_COUNT(sArenaDraftRoster); i++)
+        if (CanPick(player, i))
+            return TRUE;
+    return FALSE;
+}
+
 // COM spends its credits evenly: each pick is near what is left per open
 // slot, at random, and never a species twice.
 static void DraftCom(u8 player)
@@ -397,6 +411,41 @@ static void DraftCom(u8 player)
 
 // ---------------------------------------------------------------- grid minis
 
+// The READY button: a 24x24 cell with a check mark and READY in a 3x5
+// font, green once the team has a Pokémon, grey before.
+static const u16 sReadyGlyphs[] = {0x6BAD, 0x79A7, 0x2BED, 0x6B6E, 0x5A92};   // R E A D Y
+
+static void ReadyPixel(u32 *tiles, s32 x, s32 y, u8 color)
+{
+    u8 *b = (u8 *)tiles + ((y >> 3) * 3 + (x >> 3)) * 32 + (y & 7) * 4 + ((x & 7) >> 1);
+    *b = (x & 1) ? (*b & 0x0F) | (color << 4) : (*b & 0xF0) | color;
+}
+
+static void ReadyTiles(u32 *tiles, bool8 on)
+{
+    s32 x, y, i;
+    u8 fill = on ? 7 : 9, ink = 8, edge = on ? 4 : 3;
+    for (y = 0; y < 24; y++)
+        for (x = 0; x < 24; x++)
+            ReadyPixel(tiles, x, y, (x == 0 || y == 0 || x == 23 || y == 23) ? edge : fill);
+    // Check mark: a short stroke down-right, then a long one up-right, 2 px thick.
+    for (i = 0; i < 4; i++)
+    {
+        ReadyPixel(tiles, 6 + i, 7 + i, ink);
+        ReadyPixel(tiles, 6 + i, 8 + i, ink);
+    }
+    for (i = 0; i < 8; i++)
+    {
+        ReadyPixel(tiles, 10 + i, 10 - i, ink);
+        ReadyPixel(tiles, 10 + i, 11 - i, ink);
+    }
+    for (i = 0; i < 5; i++)
+        for (y = 0; y < 5; y++)
+            for (x = 0; x < 3; x++)
+                if (sReadyGlyphs[i] & (1 << (14 - y * 3 - x)))
+                    ReadyPixel(tiles, 3 + i * 4 + x, 15 + y, ink);
+}
+
 // Visible rows into the canvas (15x16 tiles on BG1, right half), each
 // portrait its own 3x3 tiles with its icon palette, greyed when out of reach.
 static void DrawGrid(void)
@@ -412,13 +461,19 @@ static void DrawGrid(void)
         for (c = 0; c < GRID_COLS; c++)
         {
             i = (sDraft->top + r) * GRID_COLS + c;
-            if (i >= ARRAY_COUNT(sArenaDraftRoster))
+            if (i >= GRID_CELLS)
                 continue;
-            pal = sArenaDraftMiniPal[i] + (CanPick(sDraft->player, i) ? 0 : 3);
+            if (i == CELL_READY)
+            {
+                ReadyTiles(sDraft->ready, sTeamCount[sDraft->player] != 0);
+                pal = PANEL_PAL;
+            }
+            else
+                pal = sArenaDraftMiniPal[CELL_MON(i)] + (CanPick(sDraft->player, CELL_MON(i)) ? 0 : 3);
             for (t = 0; t < 9; t++)
             {
                 tile = (r * 3 + t / 3) * 15 + c * 3 + t % 3;
-                memcpy(&sDraft->canvas[tile * 32], &sArenaDraftMinis[i][t * 32], 32);
+                memcpy(&sDraft->canvas[tile * 32], i == CELL_READY ? (const u8 *)sDraft->ready + t * 32 : &sArenaDraftMinis[CELL_MON(i)][t * 32], 32);
                 map[(r * 3 + t / 3) * 32 + 15 + c * 3 + t % 3] = (1 + tile) | (pal << 12);
             }
         }
@@ -520,14 +575,46 @@ static const u8 *KindText(u16 move)
 
 static const u8 sText_Total[] = _("TOTAL");
 
+static const u8 sText_ReadyTitle[] = _("READY");
+static const u8 sText_ReadyTeam[] = _("POKéMON IN TEAM");
+static const u8 sText_ReadySpent[] = _("CREDITS SPENT");
+static const u8 sText_ReadyGo[] = _("{A_BUTTON} TO FINISH THE DRAFT");
+static const u8 sText_ReadyEmpty[] = _("PICK A POKéMON FIRST");
+
+static void DrawReadyInfo(void)
+{
+    u8 buf[8];
+    u32 i;
+    FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
+    Print(WIN_MAIN, FONT_NORMAL, 2, 0, sColorYellow, sText_ReadyTitle);
+    Print(WIN_MAIN, FONT_SMALL, 2, 20, sColorGray, sText_ReadyTeam);
+    ConvertIntToDecimalStringN(buf, sTeamCount[sDraft->player], STR_CONV_MODE_LEFT_ALIGN, 1);
+    Print(WIN_MAIN, FONT_SMALL, 90, 20, sColorWhite, buf);
+    Print(WIN_MAIN, FONT_SMALL, 2, 31, sColorGray, sText_ReadySpent);
+    ConvertIntToDecimalStringN(buf, TeamCost(sDraft->player), STR_CONV_MODE_LEFT_ALIGN, 3);
+    Print(WIN_MAIN, FONT_SMALL, 90, 31, sColorWhite, buf);
+    for (i = 0; i < sTeamCount[sDraft->player]; i++)
+        Print(WIN_MAIN, FONT_SMALL, 2 + (i % 2) * 58, 46 + (i / 2) * 11, sColorWhite,
+              gSpeciesNames[sArenaDraftRoster[sTeams[sDraft->player][i]].species]);
+    Print(WIN_MAIN, FONT_SMALL, 2, 112, sTeamCount[sDraft->player] ? sColorYellow : sColorRed,
+          sTeamCount[sDraft->player] ? sText_ReadyGo : sText_ReadyEmpty);
+    PutWindowTilemap(WIN_MAIN);
+    CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
+}
+
 static void DrawInfo(void)
 {
-    const struct ArenaDraftEntry *e = &sArenaDraftRoster[sDraft->cursor];
+    const struct ArenaDraftEntry *e = &sArenaDraftRoster[CELL_MON(sDraft->cursor)];
     const struct SpeciesInfo *info = &gSpeciesInfo[e->species];
     static const u8 *const statNames[] = {sText_Hp, sText_Atk, sText_Def, sText_SpA, sText_SpD, sText_Spe};
     u8 stats[6];
     u8 buf[32], *p;
     u32 i, total = 0, width;
+    if (sDraft->cursor == CELL_READY)
+    {
+        DrawReadyInfo();
+        return;
+    }
     stats[0] = info->baseHP; stats[1] = info->baseAttack; stats[2] = info->baseDefense;
     stats[3] = info->baseSpAttack; stats[4] = info->baseSpDefense; stats[5] = info->baseSpeed;
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
@@ -541,7 +628,7 @@ static void DrawInfo(void)
     Print(WIN_MAIN, FONT_SMALL, 28, 0, sColorWhite, gSpeciesNames[e->species]);
     p = ConvertIntToDecimalStringN(buf, e->cost, STR_CONV_MODE_LEFT_ALIGN, 2);
     StringCopy(p, sText_Cr);
-    Print(WIN_MAIN, FONT_SMALL, 94, 0, CanPick(sDraft->player, sDraft->cursor) ? sColorYellow : sColorRed, buf);
+    Print(WIN_MAIN, FONT_SMALL, 94, 0, CanPick(sDraft->player, CELL_MON(sDraft->cursor)) ? sColorYellow : sColorRed, buf);
     p = StringCopy(buf, gTypeNames[info->types[0]]);
     if (info->types[1] != info->types[0])
     {
@@ -669,7 +756,7 @@ static void MoveGrid(s32 dx, s32 dy)
     s32 col = sDraft->cursor % GRID_COLS, row = sDraft->cursor / GRID_COLS;
     col = (col + dx + GRID_COLS) % GRID_COLS;
     row += dy;
-    if (row >= GRID_ROWS || (row == GRID_ROWS - 1 && row * GRID_COLS + col >= (s32)ARRAY_COUNT(sArenaDraftRoster)))
+    if (row >= GRID_ROWS || (row == GRID_ROWS - 1 && row * GRID_COLS + col >= GRID_CELLS))
     {
         sDraft->focus = 1;
         sDraft->strip = col * 7 / GRID_COLS;
@@ -725,7 +812,7 @@ static void Task_Draft(u8 taskId)
             else if (JOY_NEW(DPAD_UP))
             {
                 sDraft->focus = 0;
-                sDraft->cursor = min(ARRAY_COUNT(sArenaDraftRoster) - 1, (sDraft->top + GRID_VISIBLE - 1) * GRID_COLS + (sDraft->strip * GRID_COLS / 7));
+                sDraft->cursor = min(GRID_CELLS - 1, (sDraft->top + GRID_VISIBLE - 1) * GRID_COLS + (sDraft->strip * GRID_COLS / 7));
             }
         }
         PlaySE(SE_SELECT);
@@ -733,20 +820,28 @@ static void Task_Draft(u8 taskId)
     }
     else if (JOY_NEW(A_BUTTON))
     {
-        if (!sDraft->focus)
+        u8 mon = CELL_MON(sDraft->cursor);
+        if (!sDraft->focus && sDraft->cursor != CELL_READY)
         {
             if (sTeamCount[player] >= TEAM_MAX) sDraft->message = MSG_FULL;
-            else if (InTeam(player, sDraft->cursor)) sDraft->message = MSG_TWICE;
-            else if (!CanPick(player, sDraft->cursor)) sDraft->message = MSG_COST;
+            else if (InTeam(player, mon)) sDraft->message = MSG_TWICE;
+            else if (!CanPick(player, mon)) sDraft->message = MSG_COST;
             else
             {
-                sTeams[player][sTeamCount[player]++] = sDraft->cursor;
-                PlayCry_Normal(sArenaDraftRoster[sDraft->cursor].species, 0);
+                sTeams[player][sTeamCount[player]++] = mon;
+                PlayCry_Normal(sArenaDraftRoster[mon].species, 0);
+                // Nothing left to pick (a full team, or no credits for anyone
+                // else): straight to DONE.
+                if (!AnyPick(player))
+                {
+                    sDraft->focus = 1;
+                    sDraft->strip = STRIP_DONE;
+                }
             }
             if (sDraft->message)
                 PlaySE(SE_FAILURE);
         }
-        else if (sDraft->strip == STRIP_DONE)
+        else if (sDraft->strip == STRIP_DONE || !sDraft->focus)
         {
             if (sTeamCount[player])
             {
