@@ -23,8 +23,12 @@ WATCH = [
     ('draft', 'gArenaDraftBattle', 1),
     ('dmode', 'gArenaDraftMode', 1),
     ('p2slot', 'gArenaP2MoveSlot', 1),
+    ('dscreen', 'gArenaDraftScreen', 1),
+    ('dvoice', 'gArenaDraftVoice', 2),
+    ('toast', 'gArenaToastSeq', 2),
 ]
-OPTIONAL = {'gArenaDraftBattle', 'gArenaDraftMode', 'gArenaP2MoveSlot'}   # Arena-mode builds only
+OPTIONAL = {'gArenaDraftBattle', 'gArenaDraftMode', 'gArenaP2MoveSlot',   # Arena-mode builds only
+            'gArenaDraftScreen', 'gArenaDraftVoice', 'gArenaToastSeq'}
 KEYS = {'A': 1, 'B': 2, 'SELECT': 4, 'START': 8, 'RIGHT': 16, 'LEFT': 32, 'UP': 64, 'DOWN': 128, 'R': 256, 'L': 512}
 FACING = ['down', 'down_right', 'right', 'up_right', 'up', 'up_left', 'left', 'down_left']
 PHASES = {0: 'idle', 1: 'winding_up', 2: 'attacking', 3: 'recovering'}
@@ -82,6 +86,9 @@ class GameState:
     trainer_battle: bool
     dodges: int = 0           # the arena's count of the player's dodges
     pvp: bool = False         # an Arena-mode 1P vs 1P battle
+    draft_screen: int = 0     # 1/2: Player 1/2 drafting, 3: the versus screen
+    draft_busy: bool = False  # the draft screen hasn't taken the last request yet
+    toast_seq: tuple = (0, 0)
     side: int = 0             # whose point of view this is
     raw: dict = field(repr=False, default_factory=dict)
 
@@ -142,6 +149,8 @@ def parse(frame, chunks, data, symbols):
                      party_submenu=(symbols.get('Task_HandleSelectionMenuInput', -1) & ~1) in funcs,
                      solid_mask=phy[54], trainer_battle=bool(u32(btf, 0) & 8), dodges=u32(tel, 28),
                      pvp=bool(chunks.get('draft', b'\0')[0]) and chunks.get('dmode', b'\0')[0] == 2,
+                     draft_screen=chunks.get('dscreen', b'\0')[0], draft_busy=bool(chunks.get('dvoice', b'\0\0')[0]),
+                     toast_seq=tuple(chunks.get('toast', b'\0\0')[:2]),
                      raw=chunks)
 
 

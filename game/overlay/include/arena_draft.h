@@ -28,6 +28,20 @@ extern u16 gArenaP2Keys;
 // Player 2's selected move slot in a 1P vs 1P battle, for the voice agent.
 extern u8 gArenaP2MoveSlot;
 
+// The voice agent's requests on the draft screens: {op, roster index}.
+#define ARENA_VOICE_NONE 0
+#define ARENA_VOICE_PICK 1
+#define ARENA_VOICE_REMOVE 2
+#define ARENA_VOICE_DONE 3
+#define ARENA_VOICE_SHOW 4
+extern u8 gArenaDraftVoice[2];
+// 0 elsewhere, 1 or 2 while Player 1 or 2 drafts, 3 on the versus screen.
+extern u8 gArenaDraftScreen;
+// A line a trainer calls out in the arena, in the game's charset: set the
+// text, then bump the sequence number to show it.
+extern u8 gArenaToastText[2][28];
+extern u8 gArenaToastSeq[2];
+
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);
 const u8 *ArenaDraft_OpponentName(void);

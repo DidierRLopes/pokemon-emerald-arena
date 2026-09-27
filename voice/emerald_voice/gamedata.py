@@ -70,6 +70,26 @@ class GameData:
             if m:
                 self.charset.setdefault(int(m.group(2), 16), m.group(1))
         self.charset[0x00] = ' '
+        self.encoding = {}
+        for byte, ch in sorted(self.charset.items()):
+            self.encoding.setdefault(ch, byte)
+        self.encoding[' '] = 0x00
+        # Arena mode's draft roster, in the order the draft screen shows it.
+        roster = root / 'src/data/arena_draft.h'
+        self.roster = []
+        if roster.exists():
+            for m in re.finditer(r'\{\s*SPECIES_(\w+)\s*,\s*\d+', roster.read_text()):
+                if 'SPECIES_' + m.group(1) in species_ids:
+                    self.roster.append(species_ids['SPECIES_' + m.group(1)])
+
+    def encode(self, text, limit=24):
+        """Text in the game's charset (unknown characters dropped), cut at a
+        word boundary to fit `limit` characters, EOS-terminated."""
+        chars = [c for c in text if c in self.encoding]
+        s = ''.join(chars).strip()
+        if len(s) > limit:
+            s = s[:limit].rsplit(' ', 1)[0] or s[:limit]
+        return bytes(self.encoding[c] for c in s) + b'\xff'
 
     def text(self, raw):
         out = []

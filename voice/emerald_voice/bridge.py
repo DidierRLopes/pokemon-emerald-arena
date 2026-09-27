@@ -30,6 +30,12 @@ class LuaBridge:
             if self.conn:
                 self.conn.sendall(f'B {self.symbols[symbol]:08x} {value}\n'.encode())
 
+    def write_bytes(self, symbol, data, offset=0):
+        with self._lock:
+            if self.conn and symbol in self.symbols:
+                base = self.symbols[symbol] + offset
+                self.conn.sendall(''.join(f'B {base + i:08x} {b}\n' for i, b in enumerate(data)).encode())
+
     def write_u16(self, symbol, value):
         with self._lock:
             if self.conn and symbol in self.symbols:
@@ -114,6 +120,11 @@ class HeadlessBridge:
     def write_u16(self, symbol, value):
         if symbol in self.symbols:
             self.core.memory.u16[self.symbols[symbol]] = value
+
+    def write_bytes(self, symbol, data, offset=0):
+        if symbol in self.symbols:
+            for i, b in enumerate(data):
+                self.core.memory.u8[self.symbols[symbol] + offset + i] = b
 
     def show(self, text):
         pass

@@ -101,6 +101,8 @@ def main():
         s = bridge.state
         if not s:
             return ''
+        if s.draft_screen:
+            return 'Pokémon draft: pick Charizard and Gengar, remove Pikachu, show Dragonite, done, fight.'
         names = [data.moves.get(m, '') for m in s.me.moves if m] + [m.name for m in s.party]
         return 'Moves and Pokémon: ' + ', '.join(n for n in names if n) + '.'
 

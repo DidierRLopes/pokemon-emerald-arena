@@ -206,11 +206,19 @@ static const struct WindowTemplate sArenaWindows[] =
       .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 91 },
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 343 },
-    // The moves panels: Player 1 bottom left, Player 2 bottom right.
-    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 14,
+    // The moves panels: Player 1 top right under the HP bars (clear of the
+    // opponent trainer at the right edge), Player 2 bottom right.
+    { .bg = 0, .tilemapLeft = 18, .tilemapTop = 2,
       .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 403 },
     { .bg = 0, .tilemapLeft = 20, .tilemapTop = 14,
       .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 443 },
+    // Trainer call-outs: above Player 1's trainer (bottom left), and left of
+    // the opponent's (right edge). Their tiles share the pause picker's VRAM:
+    // the two are never shown together.
+    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 10,
+      .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 91 },
+    { .bg = 0, .tilemapLeft = 12, .tilemapTop = 7,
+      .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 139 },
     DUMMY_WIN_TEMPLATE
 };
 static const u16 sArenaPalette[16] =
@@ -562,6 +570,13 @@ static bool8 Eligible(void)
 bool8 RealtimeArena_CanSkipIntro(void)
 {
     u8 weather=GetCurrentWeather();
+    // Arena-mode drafts always skip it: switch-in abilities (Intimidate,
+    // weather) still take effect, silently, before the arena opens.
+    if(gArenaDraftBattle&&Eligible())
+    {
+        gRealtimeArenaQuietResult=TRUE;
+        return TRUE;
+    }
     // Active switch-in abilities/weather may execute native animation scripts.
     // Keep their complete intro until that specific path is supported and tested.
     return Eligible()&&gBattleMons[0].ability!=ABILITY_INTIMIDATE
@@ -779,6 +794,94 @@ static void DrawMovesPanel(u8 side, u8 window, bool8 show)
     CopyWindowToVram(window, COPYWIN_FULL);
 }
 
+// ---------------------------------------------------------------- call-outs
+// A speech bubble from a trainer for about 2.5 s: what a player said to their
+// Pokémon (written by the voice agent), or the move COM just ordered.
+
+EWRAM_DATA u8 gArenaToastText[2][28] = {};
+EWRAM_DATA u8 gArenaToastSeq[2] = {};
+static EWRAM_DATA u8 sToastSeen[2] = {};
+static EWRAM_DATA u8 sToastShown[2] = {};
+static EWRAM_DATA u16 sToastTimer[2] = {};
+static const u8 sTextToastBang[] = _("!");
+
+static void ArenaToast(u8 side, const u8 *text)
+{
+    u8 *end = StringCopyN(gArenaToastText[side], text, 24);
+    *end = EOS;
+    StringAppend(gArenaToastText[side], sTextToastBang);
+    gArenaToastSeq[side]++;
+}
+
+static void ComToast(u8 side, u16 move)
+{
+    if (side == 1 && (gBattleTypeFlags & BATTLE_TYPE_TRAINER) && !P2Human())
+        ArenaToast(1, gMoveNames[move]);
+}
+
+static void DrawToast(u8 side)
+{
+    u8 window = 5 + side;
+    const u8 *text = gArenaToastText[side];
+    u32 width = 0, i, left, right;
+    for (i = 0; text[i] != EOS && i < 27; i++)
+        width += gFontSmallLatinGlyphWidths[text[i]];
+    width = min(width + 8, 120);
+    CpuFastFill(0, gWindows[window].tileData, 16 * 3 * 32);
+    left = side ? 122 - width : 2;
+    right = left + width;
+    WindowRect(window, left, 2, width, 15, 9);                       // outline
+    WindowRect(window, left + 1, 3, width - 2, 13, 10);              // bubble
+    if (side == 0)
+    {
+        // Tail down toward Player 1's trainer.
+        for (i = 0; i < 5; i++)
+            WindowRect(window, 6 + i, 17 + i, 5 - i, 1, i == 4 ? 9 : 10);
+    }
+    else
+    {
+        // Tail right toward the opponent's trainer.
+        for (i = 0; i < 5; i++)
+            WindowRect(window, right + i, 4 + i, 1, 7 - i, i == 4 ? 9 : 10);
+    }
+    PrintWindow(window, left + 4, 3, text, 9);
+    PutWindowTilemap(window);
+    CopyWindowToVram(window, COPYWIN_FULL);
+}
+
+static void UpdateToasts(bool8 reset)
+{
+    u32 side;
+    for (side = 0; side < 2; side++)
+    {
+        bool8 visible, fresh = FALSE;
+        if (reset)
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
+            sToastTimer[side] = 0;
+            sToastShown[side] = FALSE;
+            continue;
+        }
+        if (gArenaToastSeq[side] != sToastSeen[side])
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
+            sToastTimer[side] = 150;
+            fresh = TRUE;
+        }
+        visible = sToastTimer[side] && !sArena.paused && !sArena.resultTimer;
+        if (sToastTimer[side] && !sArena.paused)
+            sToastTimer[side]--;
+        if (visible && (fresh || !sToastShown[side]))
+            DrawToast(side);
+        else if (!visible && sToastShown[side])
+        {
+            ClearWindowTilemap(5 + side);
+            CopyWindowToVram(5 + side, COPYWIN_MAP);
+        }
+        sToastShown[side] = visible;
+    }
+}
+
 static void UpdateMovesPanels(void)
 {
     bool8 show = !sArena.paused && !sArena.resultTimer;
@@ -894,7 +997,9 @@ static void CB2_ArenaInit(void)
     SetVBlankCallback(NULL);
     SetHBlankCallback(NULL);
     ScanlineEffect_Stop();
-    SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_FORCED_BLANK);
+    // Forced blank shows white for the frames the arena takes to load; in a
+    // draft battle (re-entered after every KO) show the dark backdrop instead.
+    SetGpuReg(REG_OFFSET_DISPCNT, gArenaDraftBattle ? DISPCNT_MODE_0 : DISPCNT_FORCED_BLANK);
     FreeAllWindowBuffers();
     ResetTasks();
     ResetSpriteData();
@@ -1045,6 +1150,7 @@ static void CB2_ArenaInit(void)
     DrawHud();
     sPanelShown[0] = sPanelShown[1] = FALSE;
     UpdateMovesPanels();
+    UpdateToasts(TRUE);
     PutWindowTilemap(0);
     CopyWindowToVram(0, COPYWIN_FULL);
     SendoutInit();
@@ -1225,6 +1331,7 @@ static void BeginShot(u8 side, s32 targetX, s32 targetY)
     body->drawnFrame = 255;
     body->rollAngle = 0; body->rollStage = 0; body->rollDistance = 0;
     if (profile->move == MOVE_ROLLOUT) RollBallBegin(side);
+    ComToast(side, profile->move);
 }
 
 static void TickPendingShots(void)
@@ -2419,8 +2526,9 @@ static void CB2_Arena(void)
     gArenaFeedbackTelemetry.hitstop = sArena.hitstop;
     gArenaFeedbackTelemetry.attackBuffer = sArena.attackBuffer;
     gArenaFeedbackTelemetry.dashBuffer = sArena.dashBuffer;
-    // Before the HUD: the pause picker shares tile row 14 and must win it.
+    // Before the HUD: the pause picker shares these rows and must win them.
     UpdateMovesPanels();
+    UpdateToasts(FALSE);
     if (sArena.hudDirty || sHudRecovery!=RecoveryPips() || JOY_NEW(START_BUTTON | L_BUTTON | R_BUTTON)) DrawHud();
     gArenaRenderTelemetry[1]=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228-now;
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;

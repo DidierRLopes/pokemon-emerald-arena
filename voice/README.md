@@ -94,7 +94,14 @@ says two sentences) and Right Option works for both, the voice deciding
 whose Pokémon obeys. Hands-free (the launcher's default), no enrollment is
 needed: the first voice heard in the battle is Player 1 and the first clearly
 different one Player 2 (Resemblyzer speaker embeddings, adapted as you play).
-Both players' moves and PP are shown in the bottom corners.
+Player 1's moves and PP sit top right under the HP bars, Player 2's bottom
+right. Every command understood appears as a speech bubble from that
+player's trainer; COM's trainer calls out each move it orders.
+
+The draft works by voice too: "pick Charizard and Gengar", "remove Pikachu",
+"show me Dragonite", "done"; on the versus screen, "fight". Draft battles go
+straight into the arena: no classic intro, messages or party menu (after a
+KO the next Pokémon in draft order is sent out).
 
 Build note: `python3 tools/arena/draft_data.py` in the workspace writes the
 draft table and, from the party icons, the grid miniatures

@@ -58,6 +58,8 @@
 EWRAM_DATA u8 gArenaDraftMode = ARENA_DRAFT_NONE;
 EWRAM_DATA bool8 gArenaDraftBattle = FALSE;
 EWRAM_DATA u16 gArenaP2Keys = 0;
+EWRAM_DATA u8 gArenaDraftVoice[2] = {};
+EWRAM_DATA u8 gArenaDraftScreen = 0;
 static EWRAM_DATA bool8 sAdventureOnce = FALSE;
 static EWRAM_DATA u8 sTeams[2][TEAM_MAX] = {};
 static EWRAM_DATA u8 sTeamCount[2] = {};
@@ -771,6 +773,81 @@ static void MoveGrid(s32 dx, s32 dy)
         sDraft->top = row - GRID_VISIBLE + 1;
 }
 
+static void TryPick(u8 player, u8 mon)
+{
+    if (sTeamCount[player] >= TEAM_MAX) sDraft->message = MSG_FULL;
+    else if (InTeam(player, mon)) sDraft->message = MSG_TWICE;
+    else if (!CanPick(player, mon)) sDraft->message = MSG_COST;
+    else
+    {
+        sTeams[player][sTeamCount[player]++] = mon;
+        PlayCry_Normal(sArenaDraftRoster[mon].species, 0);
+        // Nothing left to pick (a full team, or no credits for anyone
+        // else): straight to DONE.
+        if (!AnyPick(player))
+        {
+            sDraft->focus = 1;
+            sDraft->strip = STRIP_DONE;
+        }
+    }
+    if (sDraft->message)
+        PlaySE(SE_FAILURE);
+}
+
+static void ShowCell(u8 cell)
+{
+    u8 row = cell / GRID_COLS;
+    sDraft->focus = 0;
+    sDraft->cursor = cell;
+    if (row < sDraft->top)
+        sDraft->top = row;
+    else if (row >= sDraft->top + GRID_VISIBLE)
+        sDraft->top = row - GRID_VISIBLE + 1;
+}
+
+// A request from the voice agent: pick, remove or show a Pokémon, or finish.
+static bool8 DraftVoice(u8 player, s16 *leaving)
+{
+    u8 op = gArenaDraftVoice[0], mon = gArenaDraftVoice[1];
+    u32 i;
+    gArenaDraftVoice[0] = ARENA_VOICE_NONE;
+    sDraft->message = MSG_NONE;
+    if (op == ARENA_VOICE_DONE)
+    {
+        if (sTeamCount[player])
+        {
+            PlaySE(SE_SELECT);
+            *leaving = 1;
+            BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
+            return FALSE;
+        }
+        PlaySE(SE_FAILURE);
+        return TRUE;
+    }
+    if (mon >= ARRAY_COUNT(sArenaDraftRoster))
+        return FALSE;
+    if (op == ARENA_VOICE_PICK || op == ARENA_VOICE_SHOW)
+        ShowCell(mon + 1);
+    if (op == ARENA_VOICE_PICK)
+        TryPick(player, mon);
+    else if (op == ARENA_VOICE_REMOVE)
+    {
+        for (i = 0; i < sTeamCount[player]; i++)
+            if (sTeams[player][i] == mon)
+                break;
+        if (i == sTeamCount[player])
+        {
+            PlaySE(SE_FAILURE);
+            return TRUE;
+        }
+        for (; i + 1 < sTeamCount[player]; i++)
+            sTeams[player][i] = sTeams[player][i + 1];
+        sTeamCount[player]--;
+        PlaySE(SE_BALL_OPEN);
+    }
+    return TRUE;
+}
+
 static void Task_Draft(u8 taskId)
 {
     s16 *leaving = &gTasks[taskId].data[0];
@@ -782,6 +859,7 @@ static void Task_Draft(u8 taskId)
     {
         DestroyTask(taskId);
         TeardownScreen();
+        gArenaDraftScreen = 0;
         if (*leaving == 2)
             SetMainCallback2(CB2_ArenaTitleMenu);
         else if (gArenaDraftMode == ARENA_DRAFT_VS_P2 && player == 0)
@@ -795,7 +873,12 @@ static void Task_Draft(u8 taskId)
         }
         return;
     }
-    if (JOY_NEW(DPAD_ANY))
+    gArenaDraftScreen = 1 + player;
+    if (gArenaDraftVoice[0] && DraftVoice(player, leaving))
+        changed = TRUE;
+    else if (*leaving)
+        return;
+    else if (JOY_NEW(DPAD_ANY))
     {
         sDraft->message = MSG_NONE;
         if (!sDraft->focus)
@@ -820,28 +903,16 @@ static void Task_Draft(u8 taskId)
     }
     else if (JOY_NEW(A_BUTTON))
     {
-        u8 mon = CELL_MON(sDraft->cursor);
         if (!sDraft->focus && sDraft->cursor != CELL_READY)
+            TryPick(player, CELL_MON(sDraft->cursor));
+        else if (!sDraft->focus)
         {
-            if (sTeamCount[player] >= TEAM_MAX) sDraft->message = MSG_FULL;
-            else if (InTeam(player, mon)) sDraft->message = MSG_TWICE;
-            else if (!CanPick(player, mon)) sDraft->message = MSG_COST;
-            else
-            {
-                sTeams[player][sTeamCount[player]++] = mon;
-                PlayCry_Normal(sArenaDraftRoster[mon].species, 0);
-                // Nothing left to pick (a full team, or no credits for anyone
-                // else): straight to DONE.
-                if (!AnyPick(player))
-                {
-                    sDraft->focus = 1;
-                    sDraft->strip = STRIP_DONE;
-                }
-            }
-            if (sDraft->message)
-                PlaySE(SE_FAILURE);
+            // READY takes the cursor to DONE; DONE (A or START) finishes.
+            sDraft->focus = 1;
+            sDraft->strip = STRIP_DONE;
+            PlaySE(SE_SELECT);
         }
-        else if (sDraft->strip == STRIP_DONE || !sDraft->focus)
+        else if (sDraft->strip == STRIP_DONE)
         {
             if (sTeamCount[player])
             {
@@ -922,6 +993,7 @@ static void Task_Versus(u8 taskId)
     {
         DestroyTask(taskId);
         TeardownScreen();
+        gArenaDraftScreen = 0;
         if (*leaving == 1)
             StartBattle();
         else
@@ -931,8 +1003,10 @@ static void Task_Versus(u8 taskId)
         }
         return;
     }
-    if (JOY_NEW(A_BUTTON | START_BUTTON))
+    gArenaDraftScreen = 3;
+    if (JOY_NEW(A_BUTTON | START_BUTTON) || gArenaDraftVoice[0] == ARENA_VOICE_DONE)
     {
+        gArenaDraftVoice[0] = ARENA_VOICE_NONE;
         PlaySE(SE_SELECT);
         *leaving = 1;
         FadeOutBGM(4);

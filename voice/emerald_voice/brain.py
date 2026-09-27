@@ -4,8 +4,10 @@ means running up to the opponent first). The agent then plans the way: every
 walk, approach, retreat or attack follows a path around the rocks, re-planned
 every few frames as the opponent moves, and the executor carries it out frame
 by frame. Rules stand in for Jev when it is not available."""
+import difflib
 import re
 import threading
+import time
 
 from . import nav
 from .executor import Action, Attack, Dodge, GoTo, Sequence, SelectMove, Switch, Unpause
@@ -129,6 +131,9 @@ class Brain:
             ok = self.bridge.load_state(self.reset_state)
             self.log('  → reset the fight' if ok else '  Could not reset: the game is not connected.')
             return
+        if self.bridge.state and self.bridge.state.draft_screen:
+            self.draft_command(text, self.bridge.state)
+            return
         if s.screen != 'arena' and not (s.screen == 'battle' and s.me.hp == 0):
             self.log('  Not in a real-time battle right now.')
             return
@@ -137,10 +142,97 @@ class Brain:
             self.log(f'  ? "{text}" was not understood as a command ({how}).')
             return
         self.log(f'  → {self.describe(intent, s)} ({how})')
+        self.toast(text)
         with self.lock:
             self.goal_id += 1
             goal = self.goal_id
         self.start(intent, s, goal)
+
+    # ----- trainer call-outs ------------------------------------------------
+    def toast(self, text):
+        """What was said, in a speech bubble from this player's trainer."""
+        live = self.bridge.state
+        if not live:
+            return
+        line = text.strip().rstrip('.').strip()
+        if not line:
+            return
+        line = line[0].upper() + line[1:]
+        if line[-1] not in '!?':
+            line += '!'
+        data = self.data.encode(line, limit=26)
+        self.bridge.write_bytes('gArenaToastText', data, offset=28 * self.side)
+        self.bridge.write_bytes('gArenaToastSeq', [(live.toast_seq[self.side] + 1) & 255], offset=self.side)
+
+    # ----- the draft screens ----------------------------------------------------
+    PICK, REMOVE, DONE, SHOW = 1, 2, 3, 4
+
+    def find_species(self, text):
+        """Roster indexes of the Pokémon named in `text`, in spoken order;
+        forgiving of Whisper's spellings ("mew two", "gengard")."""
+        names = {re.sub(r'[^a-z]', '', self.data.species.get(sp, '').lower()): i
+                 for i, sp in enumerate(self.data.roster)}
+        words = re.sub(r'[^a-z ]', ' ', text.lower()).split()
+        found, i = [], 0
+        while i < len(words):
+            best = None
+            for n in (3, 2, 1):
+                if i + n > len(words):
+                    continue
+                joined = ''.join(words[i:i + n])
+                if len(joined) < 3:
+                    continue
+                if joined in names:
+                    best = (1.0, n, names[joined])
+                    break
+                match = difflib.get_close_matches(joined, names, n=1, cutoff=0.8)
+                if match:
+                    score = difflib.SequenceMatcher(None, joined, match[0]).ratio()
+                    if not best or score > best[0]:
+                        best = (score, n, names[match[0]])
+            if best:
+                if best[2] not in found:
+                    found.append(best[2])
+                i += best[1]
+            else:
+                i += 1
+        return found
+
+    def draft_request(self, op, index=0):
+        """One request to the draft screen, after the previous one is taken."""
+        for _ in range(60):
+            live = self.bridge.state
+            if live and not live.draft_busy:
+                break
+            time.sleep(1 / 60)
+        self.bridge.write_bytes('gArenaDraftVoice', [index], offset=1)
+        self.bridge.write_bytes('gArenaDraftVoice', [op])
+        time.sleep(3 / 60)
+
+    def draft_command(self, text, s):
+        t = ' ' + re.sub(r"[^a-z' ]", ' ', text.lower()) + ' '
+        done = re.search(r"\b(done|ready|finish(ed)?|that's (it|all)|confirm|let'?s (go|fight|battle)|start( the)? (battle|fight)|fight|battle)\b", t)
+        if s.draft_screen == 3:
+            if done or re.search(r'\b(go|start|begin)\b', t):
+                self.log('  → start the battle')
+                self.draft_request(self.DONE)
+            else:
+                self.log(f'  ? "{text}": say "fight" to start the battle.')
+            return
+        picks = self.find_species(text)
+        remove = re.search(r"\b(remove|drop|undo|take (out|off)|get rid|unpick|delete|without|kick|swap out)\b", t)
+        show = re.search(r"\b(show|look|what about|what's|info|details|see|check)\b", t) and not re.search(
+            r'\b(pick|choose|take|add|want|get|draft|select|go with)\b', t)
+        op = self.REMOVE if remove else self.SHOW if show else self.PICK
+        verb = {self.PICK: 'pick', self.REMOVE: 'remove', self.SHOW: 'show'}[op]
+        for index in picks:
+            self.log(f'  → {verb} {self.data.species.get(self.data.roster[index], "?")}')
+            self.draft_request(op, index)
+        if done and op != self.REMOVE:
+            self.log('  → done drafting')
+            self.draft_request(self.DONE)
+        if not picks and not done:
+            self.log(f'  ? "{text}": no Pokémon name heard (say e.g. "pick Charizard", "remove Pikachu", "done").')
 
     def describe(self, intent, s):
         if intent.startswith('use_move_'):
