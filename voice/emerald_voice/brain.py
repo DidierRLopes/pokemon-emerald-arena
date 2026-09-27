@@ -145,6 +145,18 @@ class Brain:
              'distance_px': dist, 'direction_to_opponent': s.direction_to_rival(),
              'direction_away_from_opponent': direction_name(s.me.x - s.rival.x, s.me.y - s.rival.y),
              'blocked_directions': [d for d in DIRS if blocked(s, d)]}
+        # For each open direction, the distance to the opponent after a short
+        # walk that way, best first for this goal: Jev weighs these instead of
+        # doing geometry.
+        steps = []
+        for d, (dx, dy) in DIRS.items():
+            if d in f['blocked_directions']:
+                continue
+            k = 0.7071 if dx and dy else 1.0
+            after = ((s.me.x + dx * 24 * k - s.rival.x) ** 2 + (s.me.y + dy * 24 * k - s.rival.y) ** 2) ** 0.5
+            steps.append((d, round(after)))
+        steps.sort(key=lambda t: -t[1] if goal == 'retreat' else t[1])
+        f['open_directions_best_first'] = [f'{d} ({after} px from opponent after)' for d, after in steps]
         if profile:
             f['move'] = {'name': self.move_name(s, slot), 'kind': profile.kind, 'range_px': profile.range,
                          'in_range': dist <= profile.range or profile.kind == 'self', 'selected': s.selected_slot == slot}
@@ -201,11 +213,16 @@ class Brain:
                 return
             f = self.facts(s, goal, slot)
             macro, how = None, 'rules'
-            if self.jev:
+            # Whether the goal is met is arithmetic; Jev decides how to get there.
+            if (goal == 'approach' and f['distance_px'] <= 36) or (goal == 'retreat' and f['distance_px'] >= 110):
+                macro, how = 'done', 'goal reached'
+            elif self.jev:
                 try:
                     macro, conf, _, ms = self.jev.choice(f, 'You control a Pokémon in a real-time top-down arena (screen '
                                                          'coordinates, y grows downward). Pick the next controller action '
-                                                         'that best achieves the goal.', self.macro_options(goal))
+                                                         'that best achieves the goal. open_directions_best_first ranks '
+                                                         'the walkable directions for this goal; dash when the opponent '
+                                                         'is attacking and close.', self.macro_options(goal))
                     how = f'Jev {conf:.2f} {ms:.0f} ms'
                 except JevError as e:
                     self.log(f'  Jev unavailable ({e}); rules take over.')
