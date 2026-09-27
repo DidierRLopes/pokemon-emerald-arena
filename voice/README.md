@@ -98,7 +98,9 @@ Player 1's moves and PP sit top left under its HP bar, and every command
 understood appears as a speech bubble bottom left. Player 2's are top right
 and bottom right, only when Player 2 is human (nothing is shown for COM).
 Switching Pokémon (by voice or SELECT) shows only the party list; the
-recall and send-out happen in the arena.
+recall and send-out happen in the arena. "Switch pokemon" opens the list for
+you to choose; "switch to Dragonite" switches straight away. After a KO the
+list opens too: pick with the arrows or say a name ("send out Gengar").
 
 Chains: "retreat and then shadow ball", "get closer, then dragon claw" queue
 up to two commands; the second starts when the first is done (a new order
@@ -106,8 +108,8 @@ replaces the queue).
 
 The draft works by voice too: "pick Charizard and Gengar", "remove Pikachu",
 "show me Dragonite", "done"; on the versus screen, "fight". Draft battles go
-straight into the arena: no classic intro, messages or party menu (after a
-KO the next Pokémon in draft order is sent out).
+straight into the arena: no classic intro or messages; the party list is
+the only screen outside the arena.
 
 Build note: `python3 tools/arena/draft_data.py` in the workspace writes the
 draft table and, from the party icons, the grid miniatures

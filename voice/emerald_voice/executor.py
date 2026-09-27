@@ -283,6 +283,24 @@ class Switch(Action):
         return 0, True
 
 
+class OpenParty(Action):
+    """Open the party list and leave the choice to the player."""
+    name = 'open the party list'
+
+    def __init__(self, bridge):
+        self.bridge, self.requested, self.t = bridge, False, 0
+
+    def step(self, s):
+        self.t += 1
+        if s.party_input or self.t > 60 * 8:
+            self.ok = s.party_input
+            return 0, True
+        if s.screen == 'arena' and not self.requested:
+            self.bridge.write_byte('gArenaVoiceRequest', 1)
+            self.requested = True
+        return 0, False
+
+
 class Executor:
     """Runs one action at a time; a new action replaces the current one."""
 

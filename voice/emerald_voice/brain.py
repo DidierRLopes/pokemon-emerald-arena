@@ -10,7 +10,7 @@ import threading
 import time
 
 from . import nav
-from .executor import Action, Attack, Dodge, GoTo, Sequence, SelectMove, Switch, Unpause
+from .executor import Action, Attack, Dodge, GoTo, OpenParty, Sequence, SelectMove, Switch, Unpause
 from .jev import JevError
 from .state import DIRS, view
 
@@ -70,6 +70,9 @@ class Brain:
                        'projectile': 'long-range shot: fires from a distance',
                        'self': 'affects itself, no target'}.get(p.kind, p.kind)
                 opts[f'use_move_{i}'] = f'Use the move {self.data.moves.get(move, "?")} ({how})'
+        if s.party and not s.party_input:
+            opts['party_menu'] = ('Switch Pokémon without naming which one: switch pokemon, change pokemon, '
+                                  'swap, show my team, come back (opens the party list to choose)')
         for mon in s.party:
             if mon.slot != s.active_party_slot and mon.hp > 0 and not mon.is_egg:
                 opts[f'switch_{mon.slot}'] = (f'Switch Pokémon: send out {mon.name} (a {self.data.species.get(mon.species, "?")}), '
@@ -104,6 +107,8 @@ class Brain:
             name = self.data.moves.get(move, '').lower()
             if f'use_move_{i}' in opts and name and name in t:
                 return f'use_move_{i}'
+        if 'party_menu' in opts and re.search(r'\b(switch|change|swap)\b|come back|my team|party', t):
+            return 'party_menu'
         for key, words in (('stop', ['stop', 'stay', 'wait', 'hold']), ('retreat', ['away', 'back off', 'retreat', 'run', 'get back']),
                            ('approach', ['closer', 'approach', 'charge', 'go at', 'get him', 'get her', 'get it']),
                            ('attack', ['attack', 'hit', 'fire', 'now']), ('resume', ['resume', 'unpause', 'start'])):
@@ -133,6 +138,18 @@ class Brain:
             return
         if self.bridge.state and self.bridge.state.draft_screen:
             self.draft_command(text, self.bridge.state)
+            return
+        if s.party_input and self.side == 0:
+            # The party list is open (a KO, or "switch pokemon"): a name picks.
+            intent, conf, how = self.interpret(text, s)
+            if intent.startswith('switch_') and conf >= 0.35:
+                self.log(f'  → {self.describe(intent, s)} ({how})')
+                with self.lock:
+                    self.goal_id += 1
+                    goal = self.goal_id
+                self.start(intent, s, goal)
+            else:
+                self.log(f'  ? "{text}": say which Pokémon to send out, or pick it with the arrows.')
             return
         if s.screen != 'arena' and not (s.screen == 'battle' and s.me.hp == 0):
             self.log('  Not in a real-time battle right now.')
@@ -289,6 +306,8 @@ class Brain:
             self.log(f'  ? "{text}": no Pokémon name heard (say e.g. "pick Charizard", "remove Pikachu", "done").')
 
     def describe(self, intent, s):
+        if intent == 'party_menu':
+            return 'open the party list'
         if intent.startswith('use_move_'):
             return 'use ' + self.move_name(s, int(intent[-1]))
         if intent.startswith('switch_'):
@@ -308,6 +327,8 @@ class Brain:
             self.run(Sequence(self.unpause() + [GoTo(goal_pt, budget=150, name=intent)]), goal, intent)
         elif intent.startswith('dodge_'):
             ex.run(Sequence(self.unpause() + [Dodge(intent[6:])]))
+        elif intent == 'party_menu':
+            ex.run(Sequence(self.unpause() + [OpenParty(self.bridge)]))
         elif intent.startswith('switch_'):
             slot = int(intent[7:])
             mon = next(m for m in s.party if m.slot == slot)
