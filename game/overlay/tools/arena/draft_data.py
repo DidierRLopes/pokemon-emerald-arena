@@ -11,10 +11,12 @@ when the attacks run out.
 Moves are also weighed by their arena wind-up, since a slow move lands
 less often in real time.
 
-Cost: from base stat total on a line through Bulbasaur 6 and Venusaur 15,
-capped at 20 (Mewtwo and the other box legendaries), at least 2, with a
-discount for Pokémon whose real-time moveset is thin and a few manual
-overrides (Shedinja's Wonder Guard).
+Cost: rises faster than base stat total, so strength is expensive and a
+100-credit team has to trade off: box legendaries cost 32 (three of them
+spend almost everything), pseudo-legendaries about 24, fully evolved
+starters 18-19, middle evolutions about 10, first stages about 5, down to 2.
+A thin real-time moveset takes 2 off; Shedinja's Wonder Guard is set by
+hand.
 
 Run from the pokeemerald workspace: python3 tools/arena/draft_data.py
 """
@@ -172,15 +174,16 @@ def pick_moves(sp):
     return chosen[:4]
 
 
-OVERRIDES = {'SPECIES_SHEDINJA': 12}         # Wonder Guard: only super-effective hits land
+OVERRIDES = {'SPECIES_SHEDINJA': 14}         # Wonder Guard: only super-effective hits land
 
 
 def cost(sp, chosen):
-    c = round(0.0435 * species[sp]['bst'] - 7.8)
+    x = max(0.0, (species[sp]['bst'] - 200) / 480)
+    c = round(2 + 30 * x ** 1.6)
     attacks = [m for m in chosen if score(m, sp) > 0]
     if len(attacks) < 2:
         c -= 2                                # thin real-time moveset
-    return max(2, min(20, OVERRIDES.get(sp, c)))
+    return max(2, min(35, OVERRIDES.get(sp, c)))
 
 
 SAFE_EXTRA = {'ABILITY_SHED_SKIN', 'ABILITY_SYNCHRONIZE', 'ABILITY_TRUANT', 'ABILITY_SPEED_BOOST', 'ABILITY_SOUNDPROOF',
@@ -250,27 +253,47 @@ def read_png_indexed(path):
     return rows
 
 
-def mini(rows):
+PORTRAIT = 24
+
+
+def portrait(rows):
+    """The icon's first frame cropped to its opaque area and centred in a
+    24x24 square; only icons larger than that are scaled down (majority
+    colour per block), so most keep their own pixels."""
     frame = rows[:32]
     pts = [(x, y) for y in range(32) for x in range(32) if frame[y][x]]
-    out = [[0] * 8 for _ in range(8)]
+    out = [[0] * PORTRAIT for _ in range(PORTRAIT)]
     if not pts:
         return out
     minX, maxX = min(p[0] for p in pts), max(p[0] for p in pts)
     minY, maxY = min(p[1] for p in pts), max(p[1] for p in pts)
     w, h = maxX - minX + 1, maxY - minY + 1
-    s = (max(w, h) + 7) // 8
-    offX, offY = (8 - -(-w // s)) // 2, (8 - -(-h // s)) // 2
-    for oy in range(8):
-        for ox in range(8):
+    size = max(w, h)
+    scale = min(1.0, (PORTRAIT - 1) / size)
+    ow, oh = max(1, round(w * scale)), max(1, round(h * scale))
+    offX, offY = (PORTRAIT - ow) // 2, PORTRAIT - 1 - oh           # standing on the bottom edge
+    for oy in range(oh):
+        for ox in range(ow):
+            x0, x1 = minX + int(ox / scale), minX + max(int(ox / scale) + 1, int((ox + 1) / scale))
+            y0, y1 = minY + int(oy / scale), minY + max(int(oy / scale) + 1, int((oy + 1) / scale))
             counts = [0] * 16
-            for sy in range(minY + (oy - offY) * s, minY + (oy - offY) * s + s):
-                for sx in range(minX + (ox - offX) * s, minX + (ox - offX) * s + s):
-                    if minX <= sx <= maxX and minY <= sy <= maxY:
-                        counts[frame[sy][sx] & 15] += 1
+            for yy in range(y0, min(y1, maxY + 1)):
+                for xx in range(x0, min(x1, maxX + 1)):
+                    counts[frame[yy][xx] & 15] += 1
             best = max(range(1, 16), key=lambda v: counts[v])
-            out[oy][ox] = best if counts[best] else 0
+            # Keep outlines: a block with any dark outline pixel stays opaque.
+            out[offY + oy][offX + ox] = best if counts[best] else 0
     return out
+
+
+def tiles_4bpp(px, width_tiles):
+    data = []
+    for ty in range(len(px) // 8):
+        for tx in range(width_tiles):
+            for y in range(8):
+                for x in range(0, 8, 2):
+                    data.append(px[ty * 8 + y][tx * 8 + x] | (px[ty * 8 + y][tx * 8 + x + 1] << 4))
+    return data
 
 
 icon_file = dict(re.findall(r'(gMonIcon_\w+)\[\]\s*=\s*INCGFX_U8\("([^"]+)\.png"', read('src/data/graphics/pokemon.h')))
@@ -279,15 +302,12 @@ pal_of = {k: int(v) for k, v in re.findall(r'\[(SPECIES_\w+)\]\s*=\s*(\d+),', re
 mini_rows, pal_rows = [], []
 for r in roster:
     sp = 'SPECIES_' + r['species']
-    px = mini(read_png_indexed(ROOT / (icon_file[icon_of[sp]] + '.png')))
-    data = []
-    for y in range(8):
-        for x in range(0, 8, 2):
-            data.append(px[y][x] | (px[y][x + 1] << 4))
+    data = tiles_4bpp(portrait(read_png_indexed(ROOT / (icon_file[icon_of[sp]] + '.png'))), PORTRAIT // 8)
     mini_rows.append('    {' + ', '.join(f'0x{b:02x}' for b in data) + '},')
     pal_rows.append(str(pal_of[sp]))
 MINIS.write_text('// Generated at build time by tools/arena/draft_data.py from the party icons; not committed.\n'
-                 'static const u8 sArenaDraftMinis[ARENA_DRAFT_COUNT][32] =\n{\n' + '\n'.join(mini_rows) + '\n};\n'
+                 '// 24x24 portraits, 3x3 tiles each, row-major tiles.\n'
+                 'static const u8 sArenaDraftMinis[ARENA_DRAFT_COUNT][9 * 32] =\n{\n' + '\n'.join(mini_rows) + '\n};\n'
                  'static const u8 sArenaDraftMiniPal[ARENA_DRAFT_COUNT] = {' + ', '.join(pal_rows) + '};\n')
 
 OUT.write_text('// Generated by tools/arena/draft_data.py from this build\'s data; do not edit.\n'

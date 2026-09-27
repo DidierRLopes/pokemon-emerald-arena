@@ -206,6 +206,11 @@ static const struct WindowTemplate sArenaWindows[] =
       .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 91 },
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 343 },
+    // The moves panels: Player 1 bottom left, Player 2 bottom right.
+    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 14,
+      .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 403 },
+    { .bg = 0, .tilemapLeft = 20, .tilemapTop = 14,
+      .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 443 },
     DUMMY_WIN_TEMPLATE
 };
 static const u16 sArenaPalette[16] =
@@ -721,6 +726,84 @@ static void DrawHud(void)
     sArena.hudDirty = FALSE;
 }
 
+// ---------------------------------------------------------------- moves panel
+// The four moves of a player's Pokémon in a corner, the selected one marked,
+// with PP. Clear while nobody is near; dimmed to grey text when a Pokémon
+// fights over it; hidden while paused (the pause picker lists them).
+
+static bool8 P2Human(void);
+static EWRAM_DATA u8 sPanelKey[2][8] = {};
+static EWRAM_DATA bool8 sPanelShown[2] = {};
+
+static bool8 PanelCovered(u8 window)
+{
+    s32 left = window == 3 ? 0 : 160, right = left + 80, side;
+    for (side = 0; side < 2; side++)
+    {
+        s32 x = sArena.bodies[side].x / Q, y = sArena.bodies[side].y / Q;
+        if (x > left - 20 && x < right + 20 && y > 112 - 20 && y < 144 + 24)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static void DrawMovesPanel(u8 side, u8 window, bool8 show)
+{
+    u8 key[8], text[8];
+    u32 i;
+    bool8 dim = show && PanelCovered(window), same = sPanelShown[side];
+    key[0] = show; key[1] = dim; key[2] = sArena.bodies[side].moveSlot; key[3] = gBattleMons[side].species;
+    for (i = 0; i < MAX_MON_MOVES; i++)
+        key[4 + i] = gBattleMons[side].pp[i];
+    for (i = 0; i < sizeof(key); i++)
+    {
+        if (key[i] != sPanelKey[side][i])
+            same = FALSE;
+        sPanelKey[side][i] = key[i];
+    }
+    if (same)
+        return;
+    sPanelShown[side] = TRUE;
+    if (!show)
+    {
+        ClearWindowTilemap(window);
+        CopyWindowToVram(window, COPYWIN_MAP);
+        return;
+    }
+    CpuFastFill(0, gWindows[window].tileData, 10 * 4 * 32);
+    if (!dim)
+    {
+        WindowRect(window, 1, 1, 78, 30, 11);
+        WindowRect(window, 1, 1, 78, 1, 1);
+    }
+    for (i = 0; i < MAX_MON_MOVES; i++)
+    {
+        u16 move = gBattleMons[side].moves[i];
+        bool8 selected = i == sArena.bodies[side].moveSlot;
+        u8 color, y = 4 + i * 7;
+        if (move == MOVE_NONE)
+            continue;
+        color = !ArenaMoves_Get(move) ? 8 : !gBattleMons[side].pp[i] ? 6 : selected ? 7 : 4;
+        if (dim)
+            color = selected ? 3 : 8;
+        if (selected)
+            WindowRect(window, 3, y, 2, 5, color);
+        HudTinyWindow(window, 7, y, gMoveNames[move], color, 13);
+        ConvertIntToDecimalStringN(text, gBattleMons[side].pp[i], STR_CONV_MODE_RIGHT_ALIGN, 2);
+        HudTinyWindow(window, 68, y, text, color, 2);
+    }
+    PutWindowTilemap(window);
+    CopyWindowToVram(window, COPYWIN_FULL);
+}
+
+static void UpdateMovesPanels(void)
+{
+    bool8 show = !sArena.paused && !sArena.resultTimer;
+    DrawMovesPanel(0, 3, show);
+    if (P2Human())
+        DrawMovesPanel(1, 4, show);
+}
+
 static void LoadAimMarker(void)
 {
     u32 tiles[128] = {0};
@@ -977,6 +1060,8 @@ static void CB2_ArenaInit(void)
     gRealtimeArenaTelemetry.hpBefore = gBattleMons[0].hp;
     gRealtimeArenaTelemetry.expBefore = GetMonData(&gPlayerParty[gBattlerPartyIndexes[0]], MON_DATA_EXP);
     DrawHud();
+    sPanelShown[0] = sPanelShown[1] = FALSE;
+    UpdateMovesPanels();
     PutWindowTilemap(0);
     CopyWindowToVram(0, COPYWIN_FULL);
     SendoutInit();
@@ -2351,6 +2436,8 @@ static void CB2_Arena(void)
     gArenaFeedbackTelemetry.hitstop = sArena.hitstop;
     gArenaFeedbackTelemetry.attackBuffer = sArena.attackBuffer;
     gArenaFeedbackTelemetry.dashBuffer = sArena.dashBuffer;
+    // Before the HUD: the pause picker shares tile row 14 and must win it.
+    UpdateMovesPanels();
     if (sArena.hudDirty || sHudRecovery!=RecoveryPips() || JOY_NEW(START_BUTTON | L_BUTTON | R_BUTTON)) DrawHud();
     gArenaRenderTelemetry[1]=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228-now;
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;

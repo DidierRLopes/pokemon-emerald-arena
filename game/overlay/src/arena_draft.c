@@ -38,14 +38,17 @@
 // Everything here is built at runtime from the game's own graphics.
 
 #include "data/arena_draft.h"
-// 8x8 grid miniatures of the party icons, generated at build time.
+// 24x24 grid portraits of the party icons, generated at build time.
 #include "data/arena_draft_minis.h"
 #include "arena_moves.h"
 
 #define CREDITS 100
 #define TEAM_MAX 6
-#define GRID_COLS 15
-#define GRID_ROWS 10
+// The grid: 24x24 portraits, 5 per row, 5 rows on screen, scrolling.
+#define GRID_COLS 5
+#define GRID_ROWS ((ARENA_DRAFT_COUNT + GRID_COLS - 1) / GRID_COLS)
+#define GRID_VISIBLE 5
+#define CELL 24
 #define STRIP_DONE 6
 
 EWRAM_DATA u8 gArenaDraftMode = ARENA_DRAFT_NONE;
@@ -57,10 +60,10 @@ static EWRAM_DATA u8 sTeamCount[2] = {};
 
 struct DraftScreen
 {
-    u8 player, cursor, focus, strip, state, menuSel;
+    u8 player, cursor, focus, strip, state, menuSel, top;
     u8 picSprite, cursorSprite, stripSprite;
     u8 iconSprites[2][TEAM_MAX];
-    u8 canvas[GRID_COLS * 16 * 32];
+    u8 canvas[15 * 16 * 32];
     u16 timer;
     u8 message;
 };
@@ -394,38 +397,39 @@ static void DraftCom(u8 player)
 
 // ---------------------------------------------------------------- grid minis
 
+// Visible rows into the canvas (15x16 tiles on BG1, right half), each
+// portrait its own 3x3 tiles with its icon palette, greyed when out of reach.
 static void DrawGrid(void)
 {
     u16 *map = sTilemaps[1];
-    u32 i, row, col, ty;
+    u32 r, c, t, i, tile;
     u8 pal;
-    for (i = 0; i < ARRAY_COUNT(sArenaDraftRoster); i++)
-    {
-        col = i % GRID_COLS;
-        row = i / GRID_COLS;
-        pal = sArenaDraftMiniPal[i] + (CanPick(sDraft->player, i) ? 0 : 3);
-        for (ty = (row * 12 + 4) >> 3; ty <= (row * 12 + 11) >> 3; ty++)
-            map[ty * 32 + 15 + col] = (1 + ty * GRID_COLS + col) | (pal << 12);
-    }
+    memset(sDraft->canvas, 0, sizeof(sDraft->canvas));
+    for (r = 0; r < 16; r++)
+        for (c = 0; c < 15; c++)
+            map[r * 32 + 15 + c] = 0;
+    for (r = 0; r < GRID_VISIBLE; r++)
+        for (c = 0; c < GRID_COLS; c++)
+        {
+            i = (sDraft->top + r) * GRID_COLS + c;
+            if (i >= ARRAY_COUNT(sArenaDraftRoster))
+                continue;
+            pal = sArenaDraftMiniPal[i] + (CanPick(sDraft->player, i) ? 0 : 3);
+            for (t = 0; t < 9; t++)
+            {
+                tile = (r * 3 + t / 3) * 15 + c * 3 + t % 3;
+                memcpy(&sDraft->canvas[tile * 32], &sArenaDraftMinis[i][t * 32], 32);
+                map[(r * 3 + t / 3) * 32 + 15 + c * 3 + t % 3] = (1 + tile) | (pal << 12);
+            }
+        }
+    LoadBgTiles(1, sDraft->canvas, sizeof(sDraft->canvas), 1);
     CopyBgTilemapBufferToVram(1);
 }
 
 static void BuildGrid(void)
 {
-    u32 i, row, col, y, py, tile;
+    u32 i, y;
     u16 *pal;
-    for (i = 0; i < ARRAY_COUNT(sArenaDraftRoster); i++)
-    {
-        col = i % GRID_COLS;
-        row = i / GRID_COLS;
-        for (y = 0; y < 8; y++)
-        {
-            py = row * 12 + 4 + y;
-            tile = (py >> 3) * GRID_COLS + col;
-            memcpy(&sDraft->canvas[tile * 32 + (py & 7) * 4], &sArenaDraftMinis[i][y * 4], 4);
-        }
-    }
-    LoadBgTiles(1, sDraft->canvas, sizeof(sDraft->canvas), 1);
     // Icon palettes 0-2 as they are; 3-5 greyed out for Pokémon out of reach.
     for (i = 0; i < 3; i++)
     {
@@ -445,9 +449,9 @@ static void BuildGrid(void)
 
 // ---------------------------------------------------------------- draft view
 
-static const struct OamData sOamCursor = {.shape = SPRITE_SHAPE(16x16), .size = SPRITE_SIZE(16x16), .priority = 0};
+static const struct OamData sOamCursor = {.shape = SPRITE_SHAPE(32x32), .size = SPRITE_SIZE(32x32), .priority = 0};
 static const struct OamData sOamStrip = {.shape = SPRITE_SHAPE(32x32), .size = SPRITE_SIZE(32x32), .priority = 0};
-static EWRAM_DATA u32 sCursorTiles[8 * 4] = {};
+static EWRAM_DATA u32 sCursorTiles[8 * 16] = {};
 static EWRAM_DATA u32 sStripTiles[8 * 16] = {};
 
 static void SetPixel(u32 *tiles, u8 widthTiles, s32 x, s32 y, u8 color)
@@ -475,7 +479,7 @@ static void CreateCursors(void)
     struct SpriteTemplate t = {TAG_CURSOR, TAG_CURSOR, &sOamCursor, gDummySpriteAnimTable, NULL, gDummySpriteAffineAnimTable, SpriteCallbackDummy};
     memset(sCursorTiles, 0, sizeof(sCursorTiles));
     memset(sStripTiles, 0, sizeof(sStripTiles));
-    DrawBox(sCursorTiles, 2, 12);
+    DrawBox(sCursorTiles, 4, 26);
     DrawBox(sStripTiles, 4, 32);
     sheet.data = sCursorTiles; sheet.size = sizeof(sCursorTiles); sheet.tag = TAG_CURSOR;
     LoadSpriteSheet(&sheet);
@@ -493,8 +497,8 @@ static void PlaceCursors(void)
     struct Sprite *c = &gSprites[sDraft->cursorSprite], *s = &gSprites[sDraft->stripSprite];
     c->invisible = sDraft->focus != 0;
     s->invisible = sDraft->focus == 0 || sDraft->strip == STRIP_DONE;
-    c->x = 120 + (sDraft->cursor % GRID_COLS) * 8 - 2 + 8;
-    c->y = (sDraft->cursor / GRID_COLS) * 12 + 4 - 2 + 8;
+    c->x = 120 + (sDraft->cursor % GRID_COLS) * CELL - 1 + 16;
+    c->y = (sDraft->cursor / GRID_COLS - sDraft->top) * CELL + 4 - 1 + 16;
     s->x = sDraft->strip * 32 + 16;
     s->y = 144;
 }
@@ -514,6 +518,8 @@ static const u8 *KindText(u16 move)
     }
 }
 
+static const u8 sText_Total[] = _("TOTAL");
+
 static void DrawInfo(void)
 {
     const struct ArenaDraftEntry *e = &sArenaDraftRoster[sDraft->cursor];
@@ -521,46 +527,59 @@ static void DrawInfo(void)
     static const u8 *const statNames[] = {sText_Hp, sText_Atk, sText_Def, sText_SpA, sText_SpD, sText_Spe};
     u8 stats[6];
     u8 buf[32], *p;
-    u32 i;
+    u32 i, total = 0, width;
     stats[0] = info->baseHP; stats[1] = info->baseAttack; stats[2] = info->baseDefense;
     stats[3] = info->baseSpAttack; stats[4] = info->baseSpDefense; stats[5] = info->baseSpeed;
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
-    Print(WIN_MAIN, FONT_SMALL, 2, 0, sColorWhite, gSpeciesNames[e->species]);
+    // The font has no pound sign: draw a 5x7 one.
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(9), 3, 3, 1, 7);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(9), 5, 3, 1, 7);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(9), 2, 5, 5, 1);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(9), 2, 8, 5, 1);
+    ConvertIntToDecimalStringN(buf, SpeciesToNationalPokedexNum(e->species), STR_CONV_MODE_LEADING_ZEROS, 3);
+    Print(WIN_MAIN, FONT_SMALL, 8, 0, sColorGray, buf);
+    Print(WIN_MAIN, FONT_SMALL, 28, 0, sColorWhite, gSpeciesNames[e->species]);
     p = ConvertIntToDecimalStringN(buf, e->cost, STR_CONV_MODE_LEFT_ALIGN, 2);
     StringCopy(p, sText_Cr);
-    Print(WIN_MAIN, FONT_SMALL, 88, 0, CanPick(sDraft->player, sDraft->cursor) ? sColorYellow : sColorRed, buf);
-    for (i = 0; i < 6; i++)
-    {
-        Print(WIN_MAIN, FONT_SMALL, 72, 11 + i * 9, sColorGray, statNames[i]);
-        ConvertIntToDecimalStringN(buf, stats[i], STR_CONV_MODE_RIGHT_ALIGN, 3);
-        Print(WIN_MAIN, FONT_SMALL, 98, 11 + i * 9, sColorWhite, buf);
-    }
+    Print(WIN_MAIN, FONT_SMALL, 94, 0, CanPick(sDraft->player, sDraft->cursor) ? sColorYellow : sColorRed, buf);
     p = StringCopy(buf, gTypeNames[info->types[0]]);
     if (info->types[1] != info->types[0])
     {
         p = StringCopy(p, sText_Slash);
         StringCopy(p, gTypeNames[info->types[1]]);
     }
-    Print(WIN_MAIN, FONT_SMALL, 2, 70, sColorBlue, buf);
-    for (i = 0; i < 4; i++)
+    Print(WIN_MAIN, FONT_SMALL, 2, 11, sColorBlue, buf);
+    for (i = 0; i < 6; i++)
     {
-        if (e->moves[i] == MOVE_NONE)
-            continue;
-        Print(WIN_MAIN, FONT_SMALL, 2, 80 + i * 9, sColorWhite, gMoveNames[e->moves[i]]);
-        Print(WIN_MAIN, FONT_SMALL, 84, 80 + i * 9, sColorGray, KindText(e->moves[i]));
+        total += stats[i];
+        Print(WIN_MAIN, FONT_SMALL, 2, 23 + i * 9, sColorGray, statNames[i]);
+        ConvertIntToDecimalStringN(buf, stats[i], STR_CONV_MODE_RIGHT_ALIGN, 3);
+        Print(WIN_MAIN, FONT_SMALL, 22, 23 + i * 9, sColorWhite, buf);
+        width = stats[i] * 64 / 180;
+        if (width > 72) width = 72;
+        FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(9), 42, 27 + i * 9, 72, 3);
+        FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(stats[i] >= 100 ? 7 : stats[i] >= 70 ? 4 : 5), 42, 27 + i * 9, width, 3);
     }
     if (sDraft->message)
     {
         static const u8 *const msgs[] = {NULL, sText_Full, sText_TooCostly, sText_Twice};
-        Print(WIN_MAIN, FONT_SMALL, 2, 116, sColorRed, msgs[sDraft->message]);
+        Print(WIN_MAIN, FONT_SMALL, 2, 78, sColorRed, msgs[sDraft->message]);
     }
     else
-        Print(WIN_MAIN, FONT_SMALL, 2, 116, sColorGray, sText_DraftHint);
+    {
+        Print(WIN_MAIN, FONT_SMALL, 2, 78, sColorGray, sText_Total);
+        ConvertIntToDecimalStringN(buf, total, STR_CONV_MODE_LEFT_ALIGN, 3);
+        Print(WIN_MAIN, FONT_SMALL, 34, 78, sColorWhite, buf);
+    }
+    for (i = 0; i < 4; i++)
+    {
+        if (e->moves[i] == MOVE_NONE)
+            continue;
+        Print(WIN_MAIN, FONT_SMALL, 2, 90 + i * 9, sColorWhite, gMoveNames[e->moves[i]]);
+        Print(WIN_MAIN, FONT_SMALL, 84, 90 + i * 9, sColorGray, KindText(e->moves[i]));
+    }
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
-    if (sDraft->picSprite != 0xFF)
-        FreeAndDestroyMonPicSprite(sDraft->picSprite);
-    sDraft->picSprite = CreateMonPicSprite_HandleDeoxys(e->species, 0, 0, TRUE, 36, 40, 15, TAG_NONE);
 }
 
 static void DrawCredits(void)
@@ -612,10 +631,10 @@ static void CB2_StartDraftFor(u8 player)
         sDraft = AllocZeroed(sizeof(*sDraft));
     sDraft->player = player;
     sDraft->cursor = 0;
+    sDraft->top = 0;
     sDraft->focus = 0;
     sDraft->strip = 0;
     sDraft->message = MSG_NONE;
-    sDraft->picSprite = 0xFF;
     for (i = 0; i < TEAM_MAX; i++)
         sDraft->iconSprites[0][i] = sDraft->iconSprites[1][i] = 0xFF;
     FillPanel(0, 0, 15, 16, TILE_PANEL);
@@ -624,6 +643,8 @@ static void CB2_StartDraftFor(u8 player)
     for (i = 1; i < 7; i++)
         FillPanel(i * 4, 16, 1, 4, TILE_VLINE);
     BuildGrid();
+    // The portraits sit 4 px below the top edge.
+    ChangeBgY(1, -(4 << 8), BG_COORD_SET);
     LoadMonIconPalettes();
     CreateCursors();
     RefreshDraft();
@@ -648,7 +669,7 @@ static void MoveGrid(s32 dx, s32 dy)
     s32 col = sDraft->cursor % GRID_COLS, row = sDraft->cursor / GRID_COLS;
     col = (col + dx + GRID_COLS) % GRID_COLS;
     row += dy;
-    if (row >= GRID_ROWS)
+    if (row >= GRID_ROWS || (row == GRID_ROWS - 1 && row * GRID_COLS + col >= (s32)ARRAY_COUNT(sArenaDraftRoster)))
     {
         sDraft->focus = 1;
         sDraft->strip = col * 7 / GRID_COLS;
@@ -657,6 +678,10 @@ static void MoveGrid(s32 dx, s32 dy)
     if (row < 0)
         row = 0;
     sDraft->cursor = row * GRID_COLS + col;
+    if (row < sDraft->top)
+        sDraft->top = row;
+    else if (row >= sDraft->top + GRID_VISIBLE)
+        sDraft->top = row - GRID_VISIBLE + 1;
 }
 
 static void Task_Draft(u8 taskId)
@@ -700,7 +725,7 @@ static void Task_Draft(u8 taskId)
             else if (JOY_NEW(DPAD_UP))
             {
                 sDraft->focus = 0;
-                sDraft->cursor = (GRID_ROWS - 1) * GRID_COLS + (sDraft->strip * GRID_COLS / 7);
+                sDraft->cursor = min(ARRAY_COUNT(sArenaDraftRoster) - 1, (sDraft->top + GRID_VISIBLE - 1) * GRID_COLS + (sDraft->strip * GRID_COLS / 7));
             }
         }
         PlaySE(SE_SELECT);
