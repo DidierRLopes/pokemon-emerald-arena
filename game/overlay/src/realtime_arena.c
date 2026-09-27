@@ -1,5 +1,6 @@
 #include "global.h"
 #include "realtime_arena.h"
+#include "arena_draft.h"
 #include "arena_capture.h"
 #include "item.h"
 #include "trig.h"
@@ -443,6 +444,15 @@ static bool8 SupportedBattler(u8 side)
         || (gBattleMons[side].status2 & ~(STATUS2_FOCUS_ENERGY|STATUS2_DEFENSE_CURL))
         || gStatuses3[side] || gBattleMons[side].hp == 0 || FirstMove(side, TRUE) == MAX_MON_MOVES)
         return FALSE;
+    // Arena mode drafts: these abilities only act between turns or on held
+    // items, which the real-time arena does not have, so they are harmless.
+    if (gArenaDraftBattle)
+        switch (gBattleMons[side].ability)
+        {
+        case ABILITY_SHED_SKIN: case ABILITY_SYNCHRONIZE: case ABILITY_TRUANT: case ABILITY_SPEED_BOOST:
+        case ABILITY_SOUNDPROOF: case ABILITY_LIQUID_OOZE: case ABILITY_STICKY_HOLD: case ABILITY_ROUGH_SKIN:
+            return TRUE;
+        }
     switch (gBattleMons[side].ability)
     {
     case ABILITY_NONE:
