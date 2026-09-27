@@ -38,8 +38,12 @@ same decisions, so the game never waits on the network.
 
     ./play-voice-fight.command            # from the repository root
 
-Then in mGBA: **Tools > Scripting…**, **File > Load script…**, pick
-`voice/bridge.lua` (once per mGBA launch). The first time, macOS asks
+Then in mGBA: **Tools > Scripting…**, and in that window's **File** menu pick
+the recent script `emerald-voice-bridge.lua` (once per mGBA launch; mGBA 0.10.5
+cannot load scripts by itself). The launcher keeps that copy, in
+`~/.config/mgba/scripts`, in sync with `voice/bridge.lua`; it lives outside
+`~/Documents` because macOS only lets mGBA read files there that you picked.
+The Terminal says **Game connected.** once it is running. The first time, macOS asks
 Terminal for the microphone. Options: `--text` to type commands,
 `--verbose` to see every control decision, `--no-jev` for rules only,
 `--stt-model mlx-community/whisper-small.en-mlx` for faster transcription.
