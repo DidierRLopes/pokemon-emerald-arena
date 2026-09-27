@@ -700,6 +700,7 @@ static u8 RecoveryPips(void)
     return 8-min(8,body->cooldown*8/max(1,p?p->recovery:30));
 }
 
+static EWRAM_DATA u8 sP2Pick = 0;         // Player 2 choosing: 0 closed, 1 after a KO, 2 voluntary
 #include "arena_hud.inc"
 
 static void DrawHud(void)
@@ -708,7 +709,7 @@ static void DrawHud(void)
     u8 text[64];
     u8 *end;
     DrawStatusHud();
-    if (sArena.paused)
+    if (sArena.paused && !sP2Pick)
     {
         if(!sMoveMenuReady)
         {
@@ -866,6 +867,140 @@ static void UpdateToasts(bool8 reset)
         }
         sToastShown[side] = visible;
     }
+}
+
+// ---------------------------------------------------------------- Player 2's team
+// In 1P vs 1P Player 2 chooses their own Pokémon: after a KO, or on request
+// (their switch key, or by voice). The arena freezes and lists Player 2's
+// party in the pause picker's window; I / K move, U picks, O cancels a
+// voluntary switch. The engine then runs the switch silently.
+
+EWRAM_DATA u8 gArenaP2Voice[2] = {};
+EWRAM_DATA u8 gArenaP2NextMon = 0;
+EWRAM_DATA u8 gArenaP2SwitchTo = 0;
+static EWRAM_DATA u8 sP2PickCursor = 0;
+static EWRAM_DATA u16 sP2PickPrev = 0;
+static const u8 sTextP2Pick[] = _("PLAYER 2: CHOOSE A POKéMON");
+static const u8 sTextP2Fainted[] = _("FAINTED");
+static const u8 sTextP2Out[] = _("IN BATTLE");
+static const u8 sTextP2Keys[] = _("U PICK  O BACK");
+
+static bool8 P2CanSend(u8 index)
+{
+    return index < PARTY_SIZE && GetMonData(&gEnemyParty[index], MON_DATA_SPECIES) != SPECIES_NONE
+        && GetMonData(&gEnemyParty[index], MON_DATA_HP) != 0 && index != gBattlerPartyIndexes[1];
+}
+
+static bool8 P2HasBench(void)
+{
+    u32 i;
+    for (i = 0; i < PARTY_SIZE; i++)
+        if (P2CanSend(i))
+            return TRUE;
+    return FALSE;
+}
+
+static void DrawP2Pick(void)
+{
+    u32 i, y;
+    u8 text[16];
+    FillWindowPixelBuffer(1, PIXEL_FILL(9));
+    PrintWindow(1, 5, 1, sTextP2Pick, 7);
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        struct Pokemon *mon = &gEnemyParty[i];
+        u16 species = GetMonData(mon, MON_DATA_SPECIES);
+        u8 color;
+        if (species == SPECIES_NONE)
+            continue;
+        y = 12 + i * 9;
+        color = P2CanSend(i) ? (i == sP2PickCursor ? 7 : 4) : 8;
+        if (i == sP2PickCursor)
+            WindowRect(1, 0, y + 3, 3, 6, 5);
+        PrintWindow(1, 8, y, gSpeciesNames[species], color);
+        if (i == gBattlerPartyIndexes[1])
+            PrintWindow(1, 120, y, sTextP2Out, 8);
+        else if (!GetMonData(mon, MON_DATA_HP))
+            PrintWindow(1, 120, y, sTextP2Fainted, 6);
+        else
+        {
+            ConvertIntToDecimalStringN(text, GetMonData(mon, MON_DATA_HP), STR_CONV_MODE_RIGHT_ALIGN, 3);
+            PrintWindow(1, 120, y, text, color);
+        }
+    }
+    if (sP2Pick == 2)
+        PrintWindow(1, 150, 1, sTextP2Keys, 8);
+    PutWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_FULL);
+}
+
+static void OpenP2Pick(u8 why)
+{
+    u32 i;
+    sP2Pick = why;
+    sP2PickCursor = 0;
+    for (i = 0; i < PARTY_SIZE; i++)
+        if (P2CanSend(i)) { sP2PickCursor = i; break; }
+    sP2PickPrev = gArenaP2Keys;
+    sArena.paused = TRUE;
+    DrawStage();
+    DrawP2Pick();
+}
+
+static void ArenaExit(bool8 fainted);
+
+// Returns TRUE when the arena has been left (the caller must stop).
+static bool8 TickP2Pick(void)
+{
+    u16 keys = gArenaP2Keys, pressed = keys & ~sP2PickPrev;
+    s32 step = 0, i;
+    s32 choice = -1;
+    sP2PickPrev = keys;
+    if (gArenaP2Voice[0] == ARENA_P2_SWITCH)
+    {
+        if (P2CanSend(gArenaP2Voice[1])) choice = gArenaP2Voice[1];
+        gArenaP2Voice[0] = 0;
+    }
+    else if (gArenaP2Voice[0]) gArenaP2Voice[0] = 0;
+    if (pressed & DPAD_UP) step = -1;
+    else if (pressed & DPAD_DOWN) step = 1;
+    if (step)
+    {
+        for (i = 1; i < PARTY_SIZE; i++)
+        {
+            u8 next = (sP2PickCursor + PARTY_SIZE + step * i) % PARTY_SIZE;
+            if (P2CanSend(next)) { sP2PickCursor = next; PlaySE(SE_SELECT); DrawP2Pick(); break; }
+        }
+    }
+    if (choice < 0 && (pressed & A_BUTTON) && P2CanSend(sP2PickCursor))
+        choice = sP2PickCursor;
+    if (choice < 0 && (pressed & B_BUTTON) && sP2Pick == 2)
+    {
+        sP2Pick = 0;
+        sArena.paused = FALSE;
+        DrawStage();
+        sArena.hudDirty = TRUE;
+        return FALSE;
+    }
+    if (choice < 0)
+        return FALSE;
+    PlaySE(SE_SELECT);
+    ClearWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_MAP);
+    sArena.paused = FALSE;
+    if (sP2Pick == 1)
+    {
+        sP2Pick = 0;
+        gArenaP2NextMon = choice + 1;
+        ArenaExit(TRUE);
+    }
+    else
+    {
+        sP2Pick = 0;
+        gArenaP2SwitchTo = choice + 1;
+        ArenaExit(FALSE);
+    }
+    return TRUE;
 }
 
 static void UpdateMovesPanels(void)
@@ -1135,6 +1270,7 @@ static void CB2_ArenaInit(void)
     gRealtimeArenaTelemetry.expBefore = GetMonData(&gPlayerParty[gBattlerPartyIndexes[0]], MON_DATA_EXP);
     DrawHud();
     sPanelShown[0] = sPanelShown[1] = FALSE;
+    sP2Pick = 0;
     UpdateMovesPanels();
     UpdateToasts(TRUE);
     PutWindowTilemap(0);
@@ -2196,22 +2332,40 @@ static void CB2_Arena(void)
     gArenaFrameTelemetry.updates++;
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
-    if (JOY_NEW(SELECT_BUTTON) && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
-    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    if (sP2Pick)
+    {
+        if (TickP2Pick()) return;
+    }
+    else if (P2Human() && !sArena.paused && !sArena.resultTimer && !SpecialBusy(1) && P2HasBench()
+             && (gArenaP2Voice[0] || (gArenaP2Keys & SELECT_BUTTON)))
+    {
+        if (gArenaP2Voice[0] == ARENA_P2_SWITCH && P2CanSend(gArenaP2Voice[1]))
+        {
+            // A named switch ("P2: switch to Gengar") needs no list.
+            gArenaP2SwitchTo = gArenaP2Voice[1] + 1;
+            gArenaP2Voice[0] = 0;
+            ArenaExit(FALSE);
+            return;
+        }
+        gArenaP2Voice[0] = 0;
+        OpenP2Pick(2);
+    }
+    if (JOY_NEW(SELECT_BUTTON) && !sP2Pick && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !sP2Pick && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         gArenaVoiceRequest = 0;
         gArenaVoicePartyMenu = TRUE;
         ArenaExit(FALSE);
         return;
     }
-    if (JOY_NEW(START_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    if (JOY_NEW(START_BUTTON) && !sP2Pick && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
         DrawStage();
         sArena.hudDirty = TRUE;
     }
     if(!SpecialBusy(0)&&!SpecialBusy(1))CaptureInput();
-    if(sArena.paused)
+    if(sArena.paused && !sP2Pick)
     {
         u16 keys=gMain.newKeys&DPAD_ANY;
         u8 slot=keys==DPAD_UP?0:keys==DPAD_RIGHT?1:keys==DPAD_DOWN?2:keys==DPAD_LEFT?3:MAX_MON_MOVES;
@@ -2235,7 +2389,18 @@ static void CB2_Arena(void)
                 sArena.bodies[i].actionAge++;sArena.bodies[i].actionLife--;
                 sFlameReach[i]=min(sFlameReach[i],sArena.bodies[i].actionLife*11);
             }
-            if (--sArena.resultTimer == 0) { ArenaExit(TRUE); return; }
+            if (--sArena.resultTimer == 0)
+            {
+                // Player 2's Pokémon fainted: Player 2 picks the next one first.
+                if (P2Human() && !gBattleMons[1].hp && gBattleMons[0].hp && P2HasBench())
+                {
+                    sArena.resultTimer = 1;
+                    OpenP2Pick(1);
+                    return;
+                }
+                ArenaExit(TRUE);
+                return;
+            }
         }
         else
         {

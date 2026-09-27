@@ -50,7 +50,8 @@ static void CaptureHud(void)
     bool8 twoPlayers=gArenaDraftBattle && gArenaDraftMode==ARENA_DRAFT_VS_P2;
     u16 move2=twoPlayers?gBattleMons[1].moves[sArena.bodies[1].moveSlot]:0;
     u8 pp2=twoPlayers?gBattleMons[1].pp[sArena.bodies[1].moveSlot]:0;
-    bool8 visible=!sArena.paused;
+    // Draft battles show each side's moves in the corner panels instead.
+    bool8 visible=!sArena.paused && !gArenaDraftBattle;
     bool8 notice=sCapture.notice!=0;
     u16 stock=CountTotalItemQuantityInBag(ITEM_POKE_BALL);
     u16 move=gBattleMons[0].moves[sArena.bodies[0].moveSlot];

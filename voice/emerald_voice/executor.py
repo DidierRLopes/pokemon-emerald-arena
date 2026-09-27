@@ -142,10 +142,11 @@ class Unpause(Action):
     name = 'unpause'
 
     def __init__(self):
-        self.tap = None
+        self.tap, self.t = None, 0
 
     def step(self, s):
-        if not s.paused:
+        self.t += 1
+        if not s.paused or self.t > 180:      # e.g. Player 2 is choosing a Pokémon
             return 0, True
         if not self.tap or self.tap.t >= self.tap.press + self.tap.gap + 6:
             self.tap = Tap(KEYS['START'], name='start')

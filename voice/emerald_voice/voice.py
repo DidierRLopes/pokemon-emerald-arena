@@ -38,7 +38,8 @@ def left_option_down():
 
 # Player 2 on the same keyboard, as GBA keys: I J K L move, U attacks (A),
 # O dodges (B), Y and P change move (L, R). mGBA leaves these keys unbound.
-P2_KEYS = {34: 64, 40: 128, 38: 32, 37: 16, 32: 1, 31: 2, 16: 512, 35: 256}
+# H switches Pokémon (SELECT).
+P2_KEYS = {34: 64, 40: 128, 38: 32, 37: 16, 32: 1, 31: 2, 16: 512, 35: 256, 4: 4}
 
 
 def p2_keys():
@@ -64,6 +65,7 @@ class SpeakerId:
         self.embed(np.zeros(RATE, np.float32) + 1e-3)            # warm up
         self.profiles = None
         self.learned = []          # voices picked up during play when none are saved
+        self.expect = []           # versus screen: whose voice the next utterances are
         if self.PROFILE.exists():
             d = np.load(self.PROFILE)
             self.profiles = [d['p1'], d['p2']]
@@ -206,6 +208,7 @@ class PushToTalk:
         self.blocks = queue.Queue()
         self.utterances = queue.Queue()
         self.enrolling = False
+        self.on_enrolled = None
         self.lead = deque(maxlen=int(RATE * 0.3 / 512) + 1)   # about 0.3 s before the key press
         self.chunks, self.recording = [], False
         self.stream = sounddevice.InputStream(samplerate=RATE, channels=1, dtype='float32', blocksize=512,
@@ -301,6 +304,18 @@ class PushToTalk:
             self._finish(audio, 'voice')
 
     def _finish(self, audio, key):
+        if self.speakers and self.speakers.expect and key == 'voice' and len(audio) > RATE * 0.4:
+            # Versus screen, 1P vs 1P: this utterance sets a player's voice.
+            player = self.speakers.expect.pop(0)
+            e = self.speakers.embed(audio)
+            while len(self.speakers.learned) <= player:
+                self.speakers.learned.append(e)
+            self.speakers.learned[player] = e
+            self.log(f'Voice set for Player {player + 1}.')
+            chime('Pop')
+            if self.on_enrolled:
+                self.on_enrolled(player)
+            return
         t = time.perf_counter()
         text = self.transcriber.transcribe(audio, self.vocabulary())
         ms = (time.perf_counter() - t) * 1000

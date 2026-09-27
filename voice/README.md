@@ -102,6 +102,23 @@ recall and send-out happen in the arena. "Switch pokemon" opens the list for
 you to choose; "switch to Dragonite" switches straight away. After a KO the
 list opens too: pick with the arrows or say a name ("send out Gengar").
 
+Clear commands (a move name, "dodge left", "go up", "switch to Gengar")
+skip Jev and act about 0.2 s sooner; anything vaguer still goes to Jev. A
+command that sounded like one but wasn't understood shows as "...?" in the
+bubble.
+
+Player 2 switches too: H (or "switch pokemon") opens Player 2's list inside
+the arena (I / K move, U picks, O backs out), "switch to Gengar" switches
+directly, and after Player 2's KO the list opens for Player 2 to choose.
+
+On the versus screen of a 1P vs 1P match, each player says one line to set
+their voice (unless voices were saved with --enroll). The ARENA menu's
+1P VS COM row toggles COM between EASY (random within its budget) and HARD
+(strength and type coverage) with LEFT / RIGHT.
+
+The launcher loads the bridge in mGBA by itself once Terminal is allowed
+under System Settings > Privacy & Security > Accessibility.
+
 Chains: "retreat and then shadow ball", "get closer, then dragon claw" queue
 up to two commands; the second starts when the first is done (a new order
 replaces the queue).

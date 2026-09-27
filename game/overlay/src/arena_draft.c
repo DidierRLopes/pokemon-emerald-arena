@@ -59,6 +59,8 @@ EWRAM_DATA u8 gArenaDraftMode = ARENA_DRAFT_NONE;
 EWRAM_DATA bool8 gArenaDraftBattle = FALSE;
 EWRAM_DATA u16 gArenaP2Keys = 0;
 EWRAM_DATA u8 gArenaDraftVoice[2] = {};
+EWRAM_DATA u8 gArenaVoiceEnroll = 0;
+static EWRAM_DATA bool8 sComHard = FALSE;
 EWRAM_DATA u8 gArenaDraftScreen = 0;
 static EWRAM_DATA bool8 sAdventureOnce = FALSE;
 static EWRAM_DATA u8 sTeams[2][TEAM_MAX] = {};
@@ -264,6 +266,9 @@ static void Print(u8 window, u8 font, u8 x, u8 y, const u8 *color, const u8 *tex
 
 static void Task_ArenaMenu(u8 taskId);
 
+static const u8 sText_Easy[] = _("{LEFT_ARROW}EASY{RIGHT_ARROW}");
+static const u8 sText_Hard[] = _("{LEFT_ARROW}HARD{RIGHT_ARROW}");
+
 static void DrawMenu(u8 sel)
 {
     static const u8 *const options[] = {sText_VsCom, sText_VsP2, sText_Adventure};
@@ -276,6 +281,9 @@ static void DrawMenu(u8 sel)
             Print(WIN_MAIN, FONT_NORMAL, 64, 56 + i * 20, sColorYellow, sText_Cursor);
         Print(WIN_MAIN, FONT_NORMAL, 80, 56 + i * 20, i == sel ? sColorWhite : sColorGray, options[i]);
     }
+    // COM's draft: EASY picks at random within its budget, HARD for
+    // strength and type coverage. LEFT / RIGHT on 1P VS COM.
+    Print(WIN_MAIN, FONT_SMALL, 164, 59, sel == 0 ? sColorYellow : sColorGray, sComHard ? sText_Hard : sText_Easy);
     Print(WIN_MAIN, FONT_SMALL, 64, 136, sColorGray, sText_MenuHint);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
@@ -332,6 +340,8 @@ static void Task_ArenaMenu(u8 taskId)
         (*sel)--, PlaySE(SE_SELECT), DrawMenu(*sel);
     else if (JOY_NEW(DPAD_DOWN) && *sel < 2)
         (*sel)++, PlaySE(SE_SELECT), DrawMenu(*sel);
+    else if (JOY_NEW(DPAD_LEFT | DPAD_RIGHT) && *sel == 0)
+        sComHard ^= TRUE, PlaySE(SE_SELECT), DrawMenu(*sel);
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
@@ -384,6 +394,59 @@ static bool8 AnyPick(u8 player)
         if (CanPick(player, i))
             return TRUE;
     return FALSE;
+}
+
+static u16 BaseTotal(u16 species)
+{
+    const struct SpeciesInfo *i = &gSpeciesInfo[species];
+    return i->baseHP + i->baseAttack + i->baseDefense + i->baseSpAttack + i->baseSpDefense + i->baseSpeed;
+}
+
+// HARD: every pick weighs strength (base stats), fit to what is left per
+// open slot, and coverage (a new type for the team, attacks of types the
+// team can't hit with yet), with a little randomness.
+static void DraftComHard(u8 player)
+{
+    u32 i, k, attackTypes, teamTypes;
+    s32 left, target, score, best, pick;
+    sTeamCount[player] = 0;
+    while (sTeamCount[player] < TEAM_MAX)
+    {
+        left = CREDITS - TeamCost(player);
+        target = left / (TEAM_MAX - sTeamCount[player]);
+        attackTypes = teamTypes = 0;
+        for (i = 0; i < sTeamCount[player]; i++)
+        {
+            const struct ArenaDraftEntry *e = &sArenaDraftRoster[sTeams[player][i]];
+            teamTypes |= (1 << gSpeciesInfo[e->species].types[0]) | (1 << gSpeciesInfo[e->species].types[1]);
+            for (k = 0; k < MAX_MON_MOVES; k++)
+                if (gBattleMoves[e->moves[k]].power)
+                    attackTypes |= 1 << gBattleMoves[e->moves[k]].type;
+        }
+        best = -0x7FFFFFFF;
+        pick = -1;
+        for (i = 0; i < ARRAY_COUNT(sArenaDraftRoster); i++)
+        {
+            const struct ArenaDraftEntry *e = &sArenaDraftRoster[i];
+            s32 cost = e->cost, miss = cost > target ? cost - target : target - cost;
+            if (!CanPick(player, i))
+                continue;
+            // Leave at least 2 credits for every slot still open after this one.
+            if (left - cost < 2 * (TEAM_MAX - sTeamCount[player] - 1))
+                continue;
+            score = BaseTotal(e->species) - miss * 13 + Random() % 40;
+            if (!(teamTypes & (1 << gSpeciesInfo[e->species].types[0])))
+                score += 45;
+            for (k = 0; k < MAX_MON_MOVES; k++)
+                if (gBattleMoves[e->moves[k]].power && !(attackTypes & (1 << gBattleMoves[e->moves[k]].type)))
+                    score += 12;
+            if (score > best)
+                best = score, pick = i;
+        }
+        if (pick < 0)
+            break;
+        sTeams[player][sTeamCount[player]++] = pick;
+    }
 }
 
 // COM spends its credits evenly: each pick is near what is left per open
@@ -867,7 +930,12 @@ static void Task_Draft(u8 taskId)
         else
         {
             if (gArenaDraftMode == ARENA_DRAFT_VS_COM)
-                DraftCom(1);
+            {
+                if (sComHard)
+                    DraftComHard(1);
+                else
+                    DraftCom(1);
+            }
             FREE_AND_SET_NULL(sDraft);
             SetMainCallback2(CB2_ShowVersus);
         }
@@ -984,16 +1052,32 @@ static void CB2_ShowVersus(void)
     StartScreen();
 }
 
+static const u8 sText_Enroll1[] = _("PLAYER 1: SAY ANYTHING");
+static const u8 sText_Enroll2[] = _("PLAYER 2: SAY ANYTHING");
+static const u8 sText_Enrolled[] = _("VOICES READY");
+
 static void Task_Versus(u8 taskId)
 {
     s16 *leaving = &gTasks[taskId].data[0];
+    s16 *shown = &gTasks[taskId].data[1];
     if (gPaletteFade.active)
         return;
+    // The voice agent learns who is who from one line each (1P VS 1P).
+    if (*shown != gArenaVoiceEnroll && !*leaving)
+    {
+        static const u8 *const lines[] = {NULL, sText_Enroll1, sText_Enroll2, sText_Enrolled};
+        *shown = gArenaVoiceEnroll;
+        FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(0), 96, 86, 144, 12);
+        if (gArenaVoiceEnroll && gArenaVoiceEnroll < ARRAY_COUNT(lines))
+            Print(WIN_MAIN, FONT_SMALL, 96, 86, gArenaVoiceEnroll == 3 ? sColorGray : sColorYellow, lines[gArenaVoiceEnroll]);
+        CopyWindowToVram(WIN_MAIN, COPYWIN_GFX);
+    }
     if (*leaving)
     {
         DestroyTask(taskId);
         TeardownScreen();
         gArenaDraftScreen = 0;
+        gArenaP2Voice[0] = gArenaP2NextMon = gArenaP2SwitchTo = 0;
         if (*leaving == 1)
             StartBattle();
         else

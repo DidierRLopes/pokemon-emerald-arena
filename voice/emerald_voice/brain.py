@@ -84,8 +84,45 @@ class Brain:
     def move_name(self, s, slot):
         return self.data.moves.get(s.me.moves[slot], '?') if 0 <= slot < 4 else '?'
 
+    # Words a clear command can be made of; anything else goes to Jev.
+    FILLER = set('go now use please the a an it him her them quick quickly fast again do your you with and to on at '
+                 'come back move run hit attack pokemon pok mon little bit more some ok okay hey let lets s just try '
+                 'out send switch change swap into for my team party get closer away off dodge dash jump evade stop '
+                 'stay wait hold up down left right north south east west resume start fire approach charge retreat'.split())
+
+    def fast_intent(self, text, s, opts):
+        """A command that needs no model: every word is a move name, a
+        Pokémon on the team, a direction or a plain command word, and the
+        rules find what it means ("flamethrower", "dodge left", "go up",
+        "switch to Gengar"). About 0.2 s faster than asking Jev."""
+        words = re.sub(r'[^a-z ]', ' ', text.lower()).split()
+        if not words or len(words) > 6:
+            return None
+        known = set(self.FILLER)
+        for move in s.me.moves:
+            known.update(self.data.moves.get(move, '').lower().split())
+        for mon in s.party:
+            known.update(mon.name.lower().split())
+        if any(w not in known for w in words):
+            return None
+        intent = self.rules_intent(text, s, opts)
+        return None if intent == 'none' else intent
+
+    def sounds_like_command(self, text, s):
+        words = set(re.sub(r'[^a-z ]', ' ', text.lower()).split())
+        names = set()
+        for move in s.me.moves:
+            names.update(self.data.moves.get(move, '').lower().split())
+        for mon in s.party:
+            names.update(mon.name.lower().split())
+        return bool(words & (names | {'dodge', 'dash', 'left', 'right', 'up', 'down', 'closer', 'away', 'attack',
+                                       'switch', 'change', 'stop', 'retreat', 'jump'}))
+
     def interpret(self, text, s):
         opts = self.options(s)
+        fast = self.fast_intent(text, s, opts)
+        if fast:
+            return fast, 1.0, 'instant'
         facts = {'transcript': text, 'my_pokemon': s.me.name,
                  'my_moves': [self.data.moves.get(m, '-') for m in s.me.moves],
                  'party': [f'{m.name} ({m.hp}/{m.max_hp} HP)' for m in s.party]}
@@ -174,6 +211,8 @@ class Brain:
         intent, conf, how = self.interpret(text, s)
         if intent == 'none' or conf < 0.35:
             self.log(f'  ? "{text}" was not understood as a command ({how}).')
+            if self.sounds_like_command(text, s):
+                self.toast(text.strip().rstrip('.!?') + '?')      # heard, not acted on
             return
         self.log(f'  → {self.describe(intent, s)} ({how})')
         self.toast(text)
@@ -327,6 +366,12 @@ class Brain:
             self.run(Sequence(self.unpause() + [GoTo(goal_pt, budget=150, name=intent)]), goal, intent)
         elif intent.startswith('dodge_'):
             ex.run(Sequence(self.unpause() + [Dodge(intent[6:])]))
+        elif intent == 'party_menu' and self.side:
+            # Player 2's own chooser, in the arena.
+            self.bridge.write_bytes('gArenaP2Voice', [1, 0])
+        elif intent.startswith('switch_') and self.side:
+            self.bridge.write_bytes('gArenaP2Voice', [int(intent[7:])], offset=1)
+            self.bridge.write_bytes('gArenaP2Voice', [2])
         elif intent == 'party_menu':
             ex.run(Sequence(self.unpause() + [OpenParty(self.bridge)]))
         elif intent.startswith('switch_'):

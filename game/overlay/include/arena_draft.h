@@ -42,6 +42,18 @@ extern u8 gArenaDraftScreen;
 extern u8 gArenaToastText[2][28];
 extern u8 gArenaToastSeq[2];
 
+// Player 2 (human) switching in a 1P vs 1P battle, from the voice agent:
+// {op, party index}: op 1 opens Player 2's chooser, op 2 switches to the index.
+#define ARENA_P2_OPEN 1
+#define ARENA_P2_SWITCH 2
+extern u8 gArenaP2Voice[2];
+// Player 2's pick for the next Pokémon (index + 1), for the engine.
+extern u8 gArenaP2NextMon;
+// A voluntary switch for Player 2 on the way out of the arena (index + 1).
+extern u8 gArenaP2SwitchTo;
+// Voice setup on the versus screen: 1/2 waiting for Player 1/2, 3 done.
+extern u8 gArenaVoiceEnroll;
+
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);
 const u8 *ArenaDraft_OpponentName(void);

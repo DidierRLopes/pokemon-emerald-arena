@@ -26,6 +26,7 @@ WATCH = [
     ('dscreen', 'gArenaDraftScreen', 1),
     ('dvoice', 'gArenaDraftVoice', 2),
     ('toast', 'gArenaToastSeq', 2),
+    ('eparty', 'gEnemyParty', 600),
 ]
 OPTIONAL = {'gArenaDraftBattle', 'gArenaDraftMode', 'gArenaP2MoveSlot',   # Arena-mode builds only
             'gArenaDraftScreen', 'gArenaDraftVoice', 'gArenaToastSeq'}
@@ -89,6 +90,8 @@ class GameState:
     draft_screen: int = 0     # 1/2: Player 1/2 drafting, 3: the versus screen
     draft_busy: bool = False  # the draft screen hasn't taken the last request yet
     toast_seq: tuple = (0, 0)
+    enemy_party: list = field(default_factory=list)   # Player 2's team in 1P vs 1P
+    enemy_active_slot: int = 0
     side: int = 0             # whose point of view this is
     raw: dict = field(repr=False, default_factory=dict)
 
@@ -151,6 +154,8 @@ def parse(frame, chunks, data, symbols):
                      pvp=bool(chunks.get('draft', b'\0')[0]) and chunks.get('dmode', b'\0')[0] == 2,
                      draft_screen=chunks.get('dscreen', b'\0')[0], draft_busy=bool(chunks.get('dvoice', b'\0\0')[0]),
                      toast_seq=tuple(chunks.get('toast', b'\0\0')[:2]),
+                     enemy_party=decode_party(chunks['eparty'], data) if 'eparty' in chunks else [],
+                     enemy_active_slot=u16(bpi, 2),
                      raw=chunks)
 
 
@@ -159,5 +164,6 @@ def view(state, side):
     if not state or side == 0:
         return state
     import dataclasses
-    return dataclasses.replace(state, me=state.rival, rival=state.me, side=1, party=[],
+    return dataclasses.replace(state, me=state.rival, rival=state.me, side=1, party=state.enemy_party,
+                               active_party_slot=state.enemy_active_slot,
                                selected_slot=state.raw.get('p2slot', b'\0')[0], dodges=0)
