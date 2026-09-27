@@ -1212,6 +1212,10 @@ static void TickPlayer(void)
     if (body->dash) { dx = body->dashX; dy = body->dashY; }
     if (!body->actionLife)
         Move(0, dx, dy, Speed(0) * (body->dash ? 3 : body->shotTimer ? 1 : 2) / (body->dash ? 1 : 2));
+    // Local: standing still, the player's Pokémon keeps facing the opponent
+    // (walking, including walking away, still faces the way it goes).
+    if (!body->moving && !body->dash && !body->shotTimer)
+        body->facing = Facing(sArena.bodies[1].x - body->x, sArena.bodies[1].y - body->y);
     if (body->moving && !(sArena.frame % (body->dash ? 3 : 14)))
         ArenaFeedback_Dust(body->x/Q, body->y/Q, body->dash != 0);
     if (body->dash) body->dash--;
@@ -2350,8 +2354,8 @@ bool8 RealtimeArena_SetupDemo(void)
 {
 #if !ARENA_LAB
     static const struct {u16 species;u8 level;} team[] = {
-        {SPECIES_CHARIZARD,36}, {SPECIES_BLASTOISE,36}, {SPECIES_EEVEE,25},
-        {SPECIES_DRAGONITE,30}, {SPECIES_SCIZOR,15}, {SPECIES_BLAZIKEN,20}
+        {SPECIES_CHARIZARD,36}, {SPECIES_MEWTWO,50}, {SPECIES_GOLEM,36},     // local: Mewtwo and Golem
+        {SPECIES_BLASTOISE,36}, {SPECIES_DRAGONITE,30}, {SPECIES_BLAZIKEN,20}
     };
     static const struct {u16 species;u8 level;} box[] = {
         {SPECIES_TREECKO,11}, {SPECIES_POOCHYENA,12}, {SPECIES_BULBASAUR,12},
@@ -2394,8 +2398,17 @@ bool8 RealtimeArena_SetupDemo(void)
     for (i = 0; i < ARRAY_COUNT(team); i++)
         CreateMon(&gPlayerParty[i], team[i].species, team[i].level,
                   20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
-    // Local: the practice Charizard knows Seismic Toss in place of Rage.
+    // Local: the practice Charizard knows Seismic Toss in place of Rage;
+    // Mewtwo and Golem get movesets the arena plays in real time.
     SetMonMoveSlot(&gPlayerParty[0], MOVE_SEISMIC_TOSS, 0);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_PSYCHIC, 0);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_SHADOW_BALL, 1);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_SWIFT, 2);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_TELEPORT, 3);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROLLOUT, 0);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_DEFENSE_CURL, 1);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROCK_THROW, 2);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROCK_TOMB, 3);
     for (i = 0; i < ARRAY_COUNT(box); i++)
         CreateBoxMonAt(0, i, box[i].species, box[i].level,
                        20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
