@@ -9,6 +9,7 @@
 --                                  K mask                   (keys to hold)
 --                                  B addr value             (write one byte)
 --                                  L text                   (show in this console)
+--                                  R path                   (load a save state: reset the fight)
 -- Bridge to agent:                 F frame hex hex ...      (every frame)
 local PORT = 7355
 local sock, buffer, watch, held, frame, retry = nil, "", {}, 0, 0, 0
@@ -50,6 +51,9 @@ local function handle(line)
     held = mask
   elseif cmd == "L" then
     console:log(rest)
+  elseif cmd == "R" then
+    release()
+    if emu:loadStateFile(rest) then console:log("voice bridge: fight reset") else console:log("voice bridge: could not load " .. rest) end
   elseif cmd == "B" then
     local a, v = rest:match("(%x+)%s+(%d+)")
     if a then emu:write8(tonumber(a, 16), tonumber(v)) end

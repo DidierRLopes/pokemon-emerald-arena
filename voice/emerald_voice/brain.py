@@ -16,8 +16,9 @@ CARDINAL = ['up', 'down', 'left', 'right']
 
 
 class Brain:
-    def __init__(self, bridge, executor, data, jev=None, log=print, verbose=False):
+    def __init__(self, bridge, executor, data, jev=None, log=print, verbose=False, reset_state=None):
         self.bridge, self.executor, self.data, self.jev, self.log, self.verbose = bridge, executor, data, jev, log, verbose
+        self.reset_state = reset_state
         self.goal_id = 0
         self.lock = threading.Lock()
 
@@ -91,6 +92,13 @@ class Brain:
         s = self.bridge.state
         if not s:
             self.log('  The game is not connected yet.')
+            return
+        if re.search(r'\b(reset|restart|start over)\b', text.lower()) and self.reset_state:
+            self.executor.cancel()
+            with self.lock:
+                self.goal_id += 1
+            ok = self.bridge.load_state(self.reset_state)
+            self.log('  → reset the fight' if ok else '  Could not reset: the game is not connected.')
             return
         if s.screen != 'arena' and not (s.screen == 'battle' and s.me.hp == 0):
             self.log('  Not in a real-time battle right now.')

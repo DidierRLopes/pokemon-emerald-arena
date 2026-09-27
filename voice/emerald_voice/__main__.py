@@ -14,6 +14,24 @@ from .jev import Jev, find_key
 REPO = Path(__file__).resolve().parents[2]
 
 
+def control_server(port, command):
+    """Typed commands from another terminal, one per line (localhost only)."""
+    import socket
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        server.bind(('127.0.0.1', port))
+    except OSError:
+        return
+    server.listen(4)
+    while True:
+        conn, _ = server.accept()
+        with conn:
+            for line in conn.makefile('r', encoding='utf-8', errors='replace'):
+                if line.strip():
+                    command(line.strip())
+
+
 def main():
     ap = argparse.ArgumentParser(description='Voice control for Emerald Arena in desktop mGBA.')
     ap.add_argument('--symbols', default=str(REPO / 'Emerald-Arena-voice.sym'),
@@ -25,6 +43,10 @@ def main():
     ap.add_argument('--stt-model', default='mlx-community/whisper-large-v3-turbo',
                     help='Whisper model; mlx-community/whisper-small.en-mlx is about three times faster')
     ap.add_argument('--verbose', action='store_true', help='log every control decision')
+    ap.add_argument('--reset-state', default=str(Path.home() / '.config/mgba/states/voice-charizard.ss1'),
+                    help='save state that "reset the fight" loads')
+    ap.add_argument('--control-port', type=int, default=7357,
+                    help='local port that accepts typed commands, e.g. echo reset | nc localhost 7357')
     args = ap.parse_args()
 
     bridge = None
@@ -44,8 +66,9 @@ def main():
             jev = Jev(key)
         else:
             log('No TypeSafe API key found (TYPESAFE_API_KEY or Keychain item "emerald-voice-typesafe"); using the built-in rules.')
-    brain = Brain(bridge, executor, data, jev=jev, log=log, verbose=args.verbose)
+    brain = Brain(bridge, executor, data, jev=jev, log=log, verbose=args.verbose, reset_state=args.reset_state)
     bridge.start()
+    threading.Thread(target=control_server, args=(args.control_port, brain.command), daemon=True).start()
     log(f'Waiting for the game on port {args.port}: in mGBA, Tools > Scripting > File > Load script > voice/bridge.lua')
 
     def vocabulary():

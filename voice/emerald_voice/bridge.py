@@ -29,6 +29,13 @@ class LuaBridge:
             if self.conn:
                 self.conn.sendall(f'B {self.symbols[symbol]:08x} {value}\n'.encode())
 
+    def load_state(self, path):
+        with self._lock:
+            if self.conn:
+                self.conn.sendall(f'R {path}\n'.encode())
+                return True
+        return False
+
     def show(self, text):
         """A line in mGBA's scripting console, next to the game."""
         with self._lock:
