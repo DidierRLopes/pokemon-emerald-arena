@@ -83,5 +83,11 @@ extern struct ArenaGhostTelemetry gArenaGhostTelemetry;
 // Real-time Rollout: how far the current roll has travelled, as a power stage
 // (0..3) read by the native damage adapter when the hit resolves.
 extern u8 gArenaRolloutStage;
+// Local voice control: an external bridge writes a request here. A switch
+// request opens the native party menu and returns to the arena afterwards,
+// in wild battles as in trainer ones.
+#define ARENA_VOICE_SWITCH 1
+extern u8 gArenaVoiceRequest;
+extern bool8 gArenaVoicePartyMenu;
 
 #endif

@@ -389,6 +389,8 @@ static void PhaseWrap(u8 side, s32 dx, s32 dy)
 #define ROLLOUT_CAM_SIN 147
 #define ROLLOUT_CAM_COS 210
 EWRAM_DATA u8 gArenaRolloutStage = 0;
+EWRAM_DATA u8 gArenaVoiceRequest = 0;
+EWRAM_DATA bool8 gArenaVoicePartyMenu = FALSE;
 
 static bool8 Rolling(u8 side)
 {
@@ -874,6 +876,7 @@ static void CB2_ArenaInit(void)
     memset(&gArenaMoveTelemetry, 0, sizeof(gArenaMoveTelemetry));
     memset(&gArenaFrameTelemetry,0,sizeof(gArenaFrameTelemetry));
     memset(&gArenaGhostTelemetry,0,sizeof(gArenaGhostTelemetry));
+    gArenaVoiceRequest=0;   // a stale request never carries into a new arena
     memset(gArenaRenderTelemetry,0,sizeof(gArenaRenderTelemetry));
     gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;
     sArena.lastBlast=0;
@@ -1942,6 +1945,13 @@ static void CB2_Arena(void)
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
     if (JOY_NEW(SELECT_BUTTON) && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    {
+        gArenaVoiceRequest = 0;
+        gArenaVoicePartyMenu = TRUE;
+        ArenaExit(FALSE);
+        return;
+    }
     if (JOY_NEW(START_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
@@ -2318,7 +2328,7 @@ static void ArenaExit(bool8 fainted)
     sArena.active = FALSE;
     // SELECT opens the original party selector in trainer arenas, then
     // returns here after the switch. It never enables a turn-based attack.
-    sArena.classic = !(gBattleTypeFlags & BATTLE_TYPE_TRAINER);
+    sArena.classic = !(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && !gArenaVoicePartyMenu;
     gRealtimeArenaTelemetry.active = FALSE;
     gRealtimeArenaTelemetry.exits++;
     gRealtimeArenaTelemetry.lastExitFainted = FALSE;
