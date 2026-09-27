@@ -12,6 +12,16 @@
 -- Bridge to agent:                 F frame hex hex ...      (every frame)
 local PORT = 7355
 local sock, buffer, watch, held, frame, retry = nil, "", {}, 0, 0, 0
+-- mGBA 0.10's socket close does not mark the socket closed, and collecting
+-- the object closes the same descriptor again, which by then can belong to
+-- a new connection. Every socket is closed exactly once and kept here, so it
+-- is never collected.
+local closed = {}
+
+local function retire(s)
+  s:close()
+  closed[#closed + 1] = s
+end
 
 local function hex(s)
   return (s:gsub(".", function(c) return string.format("%02x", c:byte()) end))
@@ -23,7 +33,7 @@ local function release()
 end
 
 local function stop()
-  if sock then sock:close() end
+  if sock then retire(sock) end
   sock, buffer, watch = nil, "", {}
   release()
 end
@@ -46,9 +56,11 @@ local function handle(line)
   end
 end
 
-local function received()
-  while sock do
-    local p, err = sock:receive(4096)
+-- Handlers are bound to their own socket: a socket from an earlier session
+-- can keep reporting errors, and must not tear down the current one.
+local function received(s)
+  while sock == s do
+    local p, err = s:receive(4096)
     if p then
       buffer = buffer .. p
       while true do
@@ -69,10 +81,12 @@ end
 
 local function connect()
   local s = socket.tcp()
-  if not s:connect("127.0.0.1", PORT) then return end
+  if not s:connect("127.0.0.1", PORT) then retire(s); return end
   sock = s
-  sock:add("received", received)
-  sock:add("error", function() console:log("voice bridge: connection error"); stop() end)
+  s:add("received", function() received(s) end)
+  -- mGBA's readiness check can report a spurious error on a reconnected
+  -- socket, so only a failed read or send ends the connection.
+  s:add("error", function() end)
   sock:send("H emerald-voice 1\n")
   console:log("voice bridge: connected to the voice agent")
 end
@@ -88,7 +102,11 @@ callbacks:add("frame", function()
   if sock and #watch > 0 then
     local parts = {"F", tostring(frame)}
     for _, w in ipairs(watch) do parts[#parts + 1] = hex(emu:readRange(w[1], w[2])) end
-    sock:send(table.concat(parts, " ") .. "\n")
+    local ok = sock:send(table.concat(parts, " ") .. "\n")
+    if not ok then
+      console:log("voice bridge: agent gone; retrying")
+      stop()
+    end
   end
 end)
 console:log("voice bridge: loaded, waiting for the voice agent on port " .. PORT)

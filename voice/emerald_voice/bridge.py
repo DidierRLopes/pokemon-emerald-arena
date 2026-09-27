@@ -54,6 +54,7 @@ class LuaBridge:
                 pass
             with self._lock:
                 self.conn = None
+            conn.close()
             self.connected.clear()
             self.log('Game disconnected; waiting for it to reconnect.')
 
