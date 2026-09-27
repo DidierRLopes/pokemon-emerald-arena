@@ -63,3 +63,14 @@ The TypeSafe key is read from `TYPESAFE_API_KEY`, or from the macOS Keychain:
 
 The agent reads names and move profiles from `workspace/` and addresses from
 `Emerald-Arena-voice.sym`, so rebuild both together.
+
+## The practice fight
+
+`play-voice-fight.command` loads `~/.config/mgba/states/voice-charizard.ss1`,
+and "reset the fight" returns to it (the agent also takes typed commands on
+port 7357: `echo "reset the fight" | nc localhost 7357`). Save states are not
+kept in Git; rebuild one with `voice/tools/practice_state.py`, with `--dummy`
+for a level 70, 420 HP Eevee that hits softly, good for showing moves off.
+This branch's practice team: Charizard (Seismic Toss, Flamethrower, Wing
+Attack), Mewtwo (Psychic, Shadow Ball, Swift, Teleport), Golem (Rollout,
+Defense Curl, Rock Throw, Rock Tomb), Blastoise, Dragonite, Blaziken.
