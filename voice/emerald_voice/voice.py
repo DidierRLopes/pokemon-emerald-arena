@@ -96,27 +96,64 @@ class SpeakerId:
 
     SAME = 0.72    # cosine similarity above which two clips are taken as one voice
 
-    def learn(self, audio):
-        """No saved voices: the first voice heard in a 1P vs 1P battle is
-        Player 1, the first clearly different one Player 2; after that it is
-        the usual nearest match. Returns (player, note)."""
-        e = self.embed(audio)
-        if not self.learned:
-            self.learned.append(e)
-            return 0, 'first voice heard: Player 1'
-        sims = [float(np.dot(e, p)) for p in self.learned]
-        if len(self.learned) == 1:
-            if sims[0] >= self.SAME:
-                p = 0.9 * self.learned[0] + 0.1 * e
-                self.learned[0] = p / np.linalg.norm(p)
-                return 0, f'voice {sims[0]:.2f}'
-            self.learned.append(e)
-            return 1, f'new voice ({sims[0]:.2f} to Player 1): Player 2'
-        player = 0 if sims[0] >= sims[1] else 1
-        if abs(sims[0] - sims[1]) > 0.08:
-            p = 0.9 * self.learned[player] + 0.1 * e
-            self.learned[player] = p / np.linalg.norm(p)
-        return player, f'voice {sims[0]:.2f} vs {sims[1]:.2f}'
+    def voices(self):
+        """Both players' voice profiles, saved or learned; None until both are known."""
+        if self.profiles is not None:
+            return self.profiles
+        return self.learned if len(self.learned) >= 2 else None
+
+    def split_speakers(self, audio):
+        """Pieces of one clip by voice, when both players spoke in it (one
+        right after the other). Slices of 0.3 s every 0.05 s are matched to
+        each voice (about 30 ms per clip); a voice must hold for 0.25 s to
+        count. Returns [(player, audio piece), ...], a single piece when one
+        person spoke, or None before both voices are known."""
+        import torch
+        from resemblyzer.audio import normalize_volume, wav_to_mel_spectrogram
+        voices = self.voices()
+        if voices is None or len(audio) < RATE * 0.5:
+            return None
+        mel = wav_to_mel_spectrogram(normalize_volume(audio, -30, increase_only=True))
+        win, hop = 30, 5
+        starts = list(range(0, max(1, len(mel) - win + 1), hop))
+        with torch.no_grad():
+            emb = self.encoder(torch.from_numpy(np.stack([mel[i:i + win] for i in starts]))).numpy()
+        lean = emb @ voices[0] - emb @ voices[1]            # + Player 1, - Player 2
+        lean = np.convolve(lean, np.ones(3) / 3, mode='same') if len(lean) >= 3 else lean
+        # Silence says nothing about who is talking.
+        rms = np.array([np.sqrt(np.mean(audio[i * 160:(i + win) * 160] ** 2)) for i in starts])
+        loud = rms > max(0.004, 0.25 * rms.max())
+        centers = np.array([(i + win / 2) / 100 for i in starts])
+        runs = []                                           # [player, first slice, last slice]
+        for k in range(len(starts)):
+            if not loud[k]:
+                continue
+            player = 0 if lean[k] >= 0 else 1
+            if runs and runs[-1][0] == player:
+                runs[-1][2] = k
+            else:
+                runs.append([player, k, k])
+        # Under 0.25 s of one voice is a blip: fold it into its neighbour.
+        merged = []
+        for run in runs:
+            if merged and (run[2] - run[1] + 1) * hop < 25:
+                merged[-1][2] = run[2]
+            elif merged and merged[-1][0] == run[0]:
+                merged[-1][2] = run[2]
+            else:
+                merged.append(run)
+        if len(merged) > 1 and (merged[0][2] - merged[0][1] + 1) * hop < 25:
+            merged[1][1] = merged[0][1]
+            merged.pop(0)
+        if len(merged) < 2:
+            return [(merged[0][0] if merged else 0, audio)]
+        pieces, start = [], 0
+        for this, nxt in zip(merged, merged[1:]):
+            cut = int((centers[this[2]] + centers[nxt[1]]) / 2 * RATE)
+            pieces.append((this[0], audio[start:cut + int(0.05 * RATE)]))
+            start = max(0, cut - int(0.05 * RATE))
+        pieces.append((merged[-1][0], audio[start:]))
+        return pieces
 
 
 class Segmenter:
@@ -188,11 +225,16 @@ class Transcriber:
         self.mlx_whisper, self.model = mlx_whisper, model
         self.transcribe(np.zeros(RATE // 2, np.float32), '')   # load and warm up
 
-    def transcribe(self, audio, vocabulary):
+    def transcribe(self, audio, vocabulary, words=False):
+        """The text; with words=True, also [(word, start s, end s), ...]."""
         prompt = 'Pokémon battle commands: get closer, go away, dodge left, dodge right, go up, stop. ' + vocabulary
         r = self.mlx_whisper.transcribe(audio, path_or_hf_repo=self.model, initial_prompt=prompt, language='en',
-                                        temperature=0.0, condition_on_previous_text=False, no_speech_threshold=0.6)
-        return r['text'].strip()
+                                        temperature=0.0, condition_on_previous_text=False, no_speech_threshold=0.6,
+                                        word_timestamps=words)
+        if not words:
+            return r['text'].strip()
+        timed = [(w['word'], w['start'], w['end']) for seg in r.get('segments', []) for w in seg.get('words', [])]
+        return r['text'].strip(), timed
 
 
 class PushToTalk:
@@ -321,6 +363,23 @@ class PushToTalk:
                 self.on_enrolled(player, text)
             return
         t = time.perf_counter()
+        # Two known voices in a 1P vs 1P battle: a clip holding both players
+        # (one spoke right after the other) is cut where the voice changes,
+        # and each piece is transcribed and sent to its own player.
+        if self.speakers and self.speakers.active() and key == 'voice':
+            pieces = self.speakers.split_speakers(audio)
+            if pieces and len(pieces) > 1:
+                heard = []
+                for player, piece in pieces:
+                    text = self.transcriber.transcribe(piece, self.vocabulary())
+                    clean = ''.join(c for c in text.lower() if c.isalpha() or c == ' ').strip()
+                    if clean and clean not in HALLUCINATIONS:
+                        heard.append((player, text))
+                ms = (time.perf_counter() - t) * 1000
+                self.log(f'🎙 two voices in one clip ({ms:.0f} ms): ' + ' | '.join(f'P{p + 1} "{x}"' for p, x in heard))
+                for player, text in heard:
+                    threading.Thread(target=self.on_text, args=(text, player), daemon=True).start()
+                return
         text = self.transcriber.transcribe(audio, self.vocabulary())
         ms = (time.perf_counter() - t) * 1000
         if not text or not any(c.isalpha() for c in text):

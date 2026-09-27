@@ -116,7 +116,12 @@ to say one sentence and shows what was heard; A (or "fight") is READY, B
 records both again (unless voices were saved with --enroll). In battle, a
 command naming a move or Pokémon only one player has goes to that player
 whatever the voice match says, move names are matched forgivingly ("giga
-dream" is Giga Drain), and Whisper is primed with both players' moves. The ARENA menu's
+dream" is Giga Drain), and Whisper is primed with both players' moves.
+When both players speak back to back (or over each other) and the clip holds
+both voices, it is cut where the voice changes (0.3 s slices matched to
+each voice, about 25 ms) and each piece is transcribed and sent to its own
+player; each part of a chained sentence also goes to the player whose move
+or Pokémon it names. The ARENA menu's
 1P VS COM row toggles COM between EASY (random within its budget) and HARD
 (strength and type coverage) with LEFT / RIGHT.
 

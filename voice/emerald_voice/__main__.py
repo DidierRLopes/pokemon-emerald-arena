@@ -35,6 +35,37 @@ def control_server(port, command):
                     command(line)
 
 
+def route_command(text, player, brain, brain2, state, log):
+    """Sends a heard command to the right player's brain. In 1P vs 1P, a
+    command naming a move or Pokémon only one player has goes to that player
+    whatever the voice match said, and each part of a chained sentence
+    ("flamethrower, giga drain") goes to its own player."""
+    if state is not None and state.pvp:
+        def owner(part):
+            mine, theirs = brain.claims(part), brain2.claims(part)
+            return player if mine == theirs else (1 if theirs else 0)
+        clauses = Brain.split_chain(text)
+        if len(clauses) > 1:
+            owners = [owner(c) for c in clauses]
+            if len(set(owners)) > 1:
+                groups = []
+                for clause, who in zip(clauses, owners):
+                    if groups and groups[-1][0] == who:
+                        groups[-1][1].append(clause)
+                    else:
+                        groups.append((who, [clause]))
+                log('  (split between players: ' + ' | '.join(f'P{w + 1} "{", ".join(c)}"' for w, c in groups) + ')')
+                for who, parts in groups:
+                    threading.Thread(target=(brain2 if who else brain).command,
+                                     args=(' then '.join(parts),), daemon=True).start()
+                return
+        routed = owner(text)
+        if routed != player:
+            log(f'  (routed to Player {routed + 1}: only they have that move or Pokémon)')
+        player = routed
+    (brain2 if player else brain).command(text)
+
+
 def main():
     ap = argparse.ArgumentParser(description='Voice control for Emerald Arena in desktop mGBA.')
     ap.add_argument('--symbols', default=str(REPO / 'Emerald-Arena-voice.sym'),
@@ -98,17 +129,7 @@ def main():
     brain2 = Brain(bridge, executor2, data, jev=jev, log=log, verbose=args.verbose, side=1)
 
     def command(text, player=0):
-        # 1P vs 1P: a command naming a move or Pokémon only one player has
-        # goes to that player, whatever the voice match said (short commands
-        # are hard to tell apart by voice alone).
-        s = bridge.state
-        if args.two_players and s and s.pvp:
-            mine, theirs = brain.claims(text), brain2.claims(text)
-            if mine != theirs:
-                if (1 if theirs else 0) != player:
-                    log(f'  (routed to Player {2 if theirs else 1}: only they have that move or Pokémon)')
-                player = 1 if theirs else 0
-        (brain2 if player else brain).command(text)
+        route_command(text, player, brain, brain2, bridge.state if args.two_players else None, log)
     bridge.start()
     threading.Thread(target=control_server, args=(args.control_port, command), daemon=True).start()
     log(f'Waiting for the game on port {args.port}: in mGBA, Tools > Scripting > File > Load script > voice/bridge.lua')

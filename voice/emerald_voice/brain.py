@@ -469,5 +469,5 @@ class Brain:
         def watch():
             ex.done_event.wait(10)
             if self.goal_id == goal and ex.done_event.is_set() and not ex.last_ok:
-                self.log(f'  Could not {"use " + what if what[0].isupper() else what} in time.')
+                self.log(f'  Could not {"use " + what if what[0].isupper() else what.replace("_", " ")} in time.')
         threading.Thread(target=watch, daemon=True).start()
