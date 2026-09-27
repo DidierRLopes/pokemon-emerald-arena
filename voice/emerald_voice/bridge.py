@@ -5,16 +5,17 @@ import socket
 import threading
 import time
 
-from .state import WATCH, parse
+from .state import OPTIONAL, WATCH, parse
 
 
 class LuaBridge:
     def __init__(self, data, symbols, on_frame, port=7355, log=print):
         self.data, self.symbols, self.on_frame, self.port, self.log = data, symbols, on_frame, port, log
-        missing = [s for _, s, _ in WATCH if s not in symbols]
+        missing = [s for _, s, _ in WATCH if s not in symbols and s not in OPTIONAL]
         if missing:
             raise SystemExit('Symbols missing from the map file: ' + ', '.join(missing))
-        self.watch = 'W ' + ','.join(f'{symbols[s]:08x}:{n}' for _, s, n in WATCH) + '\n'
+        # Symbols only Arena-mode builds have are read from address 0 elsewhere (harmless zeros).
+        self.watch = 'W ' + ','.join(f'{symbols.get(s, 0):08x}:{n}' for _, s, n in WATCH) + '\n'
         self.conn = None
         self.state = None
         self.connected = threading.Event()
@@ -28,6 +29,11 @@ class LuaBridge:
         with self._lock:
             if self.conn:
                 self.conn.sendall(f'B {self.symbols[symbol]:08x} {value}\n'.encode())
+
+    def write_u16(self, symbol, value):
+        with self._lock:
+            if self.conn and symbol in self.symbols:
+                self.conn.sendall(f'H {self.symbols[symbol]:08x} {value}\n'.encode())
 
     def load_state(self, path):
         with self._lock:
@@ -105,12 +111,16 @@ class HeadlessBridge:
     def write_byte(self, symbol, value):
         self.core.memory.u8[self.symbols[symbol]] = value
 
+    def write_u16(self, symbol, value):
+        if symbol in self.symbols:
+            self.core.memory.u16[self.symbols[symbol]] = value
+
     def show(self, text):
         pass
 
     def step(self, extra_keys=0):
         mem = self.core.memory
-        chunks = {n: bytes(mem.u8[self.symbols[s] + i] for i in range(size)) for n, s, size in WATCH}
+        chunks = {n: bytes(mem.u8[self.symbols.get(s, 0) + i] for i in range(size)) for n, s, size in WATCH}
         self.state = parse(self.frame, chunks, self.data, self.symbols)
         self.keys = self.on_frame(self.state)
         keys = self.keys | extra_keys

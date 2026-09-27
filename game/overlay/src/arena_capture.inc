@@ -40,9 +40,16 @@ static void CaptureMessage(u8 message, u16 frames)
     sArena.hudDirty=TRUE;
 }
 
+// Arena mode 1P vs 1P: Player 2's move and PP on the right of the same bar.
+static EWRAM_DATA u16 sHudP2Move=0xFFFF;
+static EWRAM_DATA u8 sHudP2PP=0xFF;
+
 static void CaptureHud(void)
 {
     u8 text[20];
+    bool8 twoPlayers=gArenaDraftBattle && gArenaDraftMode==ARENA_DRAFT_VS_P2;
+    u16 move2=twoPlayers?gBattleMons[1].moves[sArena.bodies[1].moveSlot]:0;
+    u8 pp2=twoPlayers?gBattleMons[1].pp[sArena.bodies[1].moveSlot]:0;
     bool8 visible=!sArena.paused;
     bool8 notice=sCapture.notice!=0;
     u16 stock=CountTotalItemQuantityInBag(ITEM_POKE_BALL);
@@ -50,8 +57,9 @@ static void CaptureHud(void)
     u8 pp=gBattleMons[0].pp[sArena.bodies[0].moveSlot];
     if(sCapture.hudReady && sCapture.hudVisible==visible && sCapture.hudNotice==notice
         && sCapture.hudMessage==sCapture.message && sCapture.hudStock==stock
-        && sCapture.hudMove==move && sCapture.hudPP==pp)return;
+        && sCapture.hudMove==move && sCapture.hudPP==pp && sHudP2Move==move2 && sHudP2PP==pp2)return;
     sCapture.hudMove=move;sCapture.hudPP=pp;sCapture.hudNotice=notice;
+    sHudP2Move=move2;sHudP2PP=pp2;
     sCapture.hudReady=TRUE;sCapture.hudVisible=visible;
     sCapture.hudMessage=sCapture.message;sCapture.hudStock=stock;
     if (!visible) ClearWindowTilemap(2);
@@ -71,6 +79,12 @@ static void CaptureHud(void)
             HudTinyWindow(2,9,10,gMoveNames[gBattleMons[0].moves[sArena.bodies[0].moveSlot]],4,16);
             ConvertIntToDecimalStringN(StringCopy(text,sHudPPLabel),gBattleMons[0].pp[sArena.bodies[0].moveSlot],STR_CONV_MODE_LEFT_ALIGN,2);
             HudTinyWindow(2,81,10,text,4,5);
+            if(twoPlayers)
+            {
+                HudTinyWindow(2,128,10,gMoveNames[move2],4,16);
+                ConvertIntToDecimalStringN(StringCopy(text,sHudPPLabel),pp2,STR_CONV_MODE_LEFT_ALIGN,2);
+                HudTinyWindow(2,200,10,text,4,5);
+            }
         }
         PutWindowTilemap(2);
     }

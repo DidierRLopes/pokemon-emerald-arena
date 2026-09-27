@@ -28,8 +28,11 @@ def control_server(port, command):
         conn, _ = server.accept()
         with conn:
             for line in conn.makefile('r', encoding='utf-8', errors='replace'):
-                if line.strip():
-                    command(line.strip())
+                line = line.strip()
+                if line.lower().startswith('p2 '):
+                    command(line[3:], 1)
+                elif line:
+                    command(line)
 
 
 def main():
@@ -40,8 +43,12 @@ def main():
     ap.add_argument('--port', type=int, default=7355)
     ap.add_argument('--text', action='store_true', help='type commands instead of speaking them')
     ap.add_argument('--no-jev', action='store_true', help='use the built-in rules only')
-    ap.add_argument('--stt-model', default='mlx-community/whisper-large-v3-turbo',
-                    help='Whisper model; mlx-community/whisper-small.en-mlx is about three times faster')
+    ap.add_argument('--stt-model', default='mlx-community/whisper-small.en-mlx',
+                    help='Whisper model (default: the fast small English one, ~80 ms); '
+                         'mlx-community/whisper-large-v3-turbo is more robust, ~250 ms')
+    ap.add_argument('--two-players', action='store_true',
+                    help='Arena mode 1P vs 1P: Player 2 on I J K L / U O / Y P, voices told apart')
+    ap.add_argument('--enroll', action='store_true', help='record both players\' voices again')
     ap.add_argument('--verbose', action='store_true', help='log every control decision')
     ap.add_argument('--reset-state', default=str(Path.home() / '.config/mgba/states/voice-charizard.ss1'),
                     help='save state that "reset the fight" loads')
@@ -57,8 +64,21 @@ def main():
             bridge.show(msg.strip())
     data = GameData(args.source)
     symbols = load_symbols(args.symbols)
-    executor = Executor()
-    bridge = LuaBridge(data, symbols, executor.on_frame, port=args.port, log=log)
+    executor, executor2 = Executor(), Executor()
+    p2_state = {'keys': None}
+
+    def on_frame(state):
+        keys = executor.on_frame(state)
+        if args.two_players and state.pvp:
+            from .state import view
+            from .voice import p2_keys
+            mask = executor2.on_frame(view(state, 1)) | p2_keys()
+            if mask != p2_state['keys']:
+                bridge.write_u16('gArenaP2Keys', mask)
+                p2_state['keys'] = mask
+        return keys
+
+    bridge = LuaBridge(data, symbols, on_frame, port=args.port, log=log)
     jev = None
     if not args.no_jev:
         key = find_key()
@@ -67,8 +87,12 @@ def main():
         else:
             log('No TypeSafe API key found (TYPESAFE_API_KEY or Keychain item "emerald-voice-typesafe"); using the built-in rules.')
     brain = Brain(bridge, executor, data, jev=jev, log=log, verbose=args.verbose, reset_state=args.reset_state)
+    brain2 = Brain(bridge, executor2, data, jev=jev, log=log, verbose=args.verbose, side=1)
+
+    def command(text, player=0):
+        (brain2 if player else brain).command(text)
     bridge.start()
-    threading.Thread(target=control_server, args=(args.control_port, brain.command), daemon=True).start()
+    threading.Thread(target=control_server, args=(args.control_port, command), daemon=True).start()
     log(f'Waiting for the game on port {args.port}: in mGBA, Tools > Scripting > File > Load script > voice/bridge.lua')
 
     def vocabulary():
@@ -81,13 +105,26 @@ def main():
     if args.text:
         log('Type a command and press Enter (Ctrl-C to quit).')
         for line in sys.stdin:
-            if line.strip():
-                brain.command(line.strip())
+            line = line.strip()
+            if line.lower().startswith('p2 '):
+                command(line[3:], 1)
+            elif line:
+                command(line)
         return
-    from .voice import PushToTalk, Transcriber
+    from .voice import PushToTalk, SpeakerId, Transcriber
     log(f'Loading speech recognition ({args.stt_model})…')
-    ptt = PushToTalk(Transcriber(args.stt_model), brain.command, vocabulary, log=log)
-    log('Ready. Hold Right Option, say a command, release.')
+    speakers = None
+    if args.two_players:
+        log('Loading speaker recognition…')
+        speakers = SpeakerId(active=lambda: bool(bridge.state and bridge.state.pvp), want_enroll=args.enroll)
+        if args.enroll:
+            speakers.profiles = None
+        elif speakers.profiles is None:
+            log('No saved voices: in 1P vs 1P, Right Option is Player 1 and Left Option is Player 2 '
+                '(run with --enroll to let voices decide).')
+    ptt = PushToTalk(Transcriber(args.stt_model), command, vocabulary, log=log, speakers=speakers)
+    log('Ready. Hold Right Option, say a command, release.' + (
+        ' Player 2: I J K L move, U attack, O dodge, Y/P change move.' if args.two_players else ''))
     ptt.run()
 
 

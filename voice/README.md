@@ -74,3 +74,23 @@ for a level 70, 420 HP Eevee that hits softly, good for showing moves off.
 This branch's practice team: Charizard (Seismic Toss, Flamethrower, Wing
 Attack), Mewtwo (Psychic, Shadow Ball, Swift, Teleport), Golem (Rollout,
 Defense Curl, Rock Throw, Rock Tomb), Blastoise, Dragonite, Blaziken.
+
+## Arena mode (branch arena-draft)
+
+The title menu becomes **ARENA**: 1P VS COM, 1P VS 1P, or ADVENTURE (the
+original game). Each player drafts up to six level-100 Pokémon with 100
+credits from the arena's 150 animated Pokémon (costs and movesets from
+`tools/arena/draft_data.py`), then the two teams fight a 6v6 real-time
+battle. Launch with `./play-arena.command`.
+
+In 1P VS 1P, Player 2 plays on the same keyboard: I J K L move, U attacks,
+O dodges, Y / P change move (the agent reads these keys and sends them in
+through the bridge; if Player 2 does not move, allow Terminal under System
+Settings > Privacy & Security > Input Monitoring). Voice: Right Option is
+Player 1 and Left Option is Player 2; run once with `--enroll` (each player
+says two sentences) and Right Option works for both, the voice deciding
+whose Pokémon obeys. The HUD shows both players' selected moves.
+
+Build note: `python3 tools/arena/draft_data.py` in the workspace writes the
+draft table and, from the party icons, the grid miniatures
+(`src/data/arena_draft_minis.h`, not committed) before `make`.

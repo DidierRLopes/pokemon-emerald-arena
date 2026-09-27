@@ -20,7 +20,11 @@ WATCH = [
     ('party', 'gPlayerParty', 600),
     ('btf', 'gBattleTypeFlags', 4),
     ('tasks', 'gTasks', 16 * 40),
+    ('draft', 'gArenaDraftBattle', 1),
+    ('dmode', 'gArenaDraftMode', 1),
+    ('p2slot', 'gArenaP2MoveSlot', 1),
 ]
+OPTIONAL = {'gArenaDraftBattle', 'gArenaDraftMode', 'gArenaP2MoveSlot'}   # Arena-mode builds only
 KEYS = {'A': 1, 'B': 2, 'SELECT': 4, 'START': 8, 'RIGHT': 16, 'LEFT': 32, 'UP': 64, 'DOWN': 128, 'R': 256, 'L': 512}
 FACING = ['down', 'down_right', 'right', 'up_right', 'up', 'up_left', 'left', 'down_left']
 PHASES = {0: 'idle', 1: 'winding_up', 2: 'attacking', 3: 'recovering'}
@@ -77,6 +81,8 @@ class GameState:
     solid_mask: int
     trainer_battle: bool
     dodges: int = 0           # the arena's count of the player's dodges
+    pvp: bool = False         # an Arena-mode 1P vs 1P battle
+    side: int = 0             # whose point of view this is
     raw: dict = field(repr=False, default_factory=dict)
 
     def distance(self):
@@ -107,7 +113,7 @@ def blocked(state, direction, reach=18):
 
 
 def parse(frame, chunks, data, symbols):
-    tel, mov, cmb, ai, phy, mons, main, pmenu, bpi, party_raw, btf, tasks = (chunks[n] for n, _, _ in WATCH)
+    tel, mov, cmb, ai, phy, mons, main, pmenu, bpi, party_raw, btf, tasks = (chunks[n] for n, _, _ in WATCH[:12])
     funcs = {u32(tasks, i * 40) & ~1 for i in range(16) if tasks[i * 40 + 4]}
 
     def fighter(side):
@@ -135,4 +141,14 @@ def parse(frame, chunks, data, symbols):
                      party_input=(symbols.get('Task_HandleChooseMonInput', -1) & ~1) in funcs,
                      party_submenu=(symbols.get('Task_HandleSelectionMenuInput', -1) & ~1) in funcs,
                      solid_mask=phy[54], trainer_battle=bool(u32(btf, 0) & 8), dodges=u32(tel, 28),
+                     pvp=bool(chunks.get('draft', b'\0')[0]) and chunks.get('dmode', b'\0')[0] == 2,
                      raw=chunks)
+
+
+def view(state, side):
+    """The same frame from Player 2's side: its Pokémon is `me`."""
+    if not state or side == 0:
+        return state
+    import dataclasses
+    return dataclasses.replace(state, me=state.rival, rival=state.me, side=1, party=[],
+                               selected_slot=state.raw.get('p2slot', b'\0')[0], dodges=0)

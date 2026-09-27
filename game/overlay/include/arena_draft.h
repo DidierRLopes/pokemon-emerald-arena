@@ -25,6 +25,8 @@ extern bool8 gArenaDraftBattle;
 // Player 2's GBA-style keys (A=1, B=2, ..., L=512), written each frame by the
 // voice agent's bridge in a 1P vs 1P battle.
 extern u16 gArenaP2Keys;
+// Player 2's selected move slot in a 1P vs 1P battle, for the voice agent.
+extern u8 gArenaP2MoveSlot;
 
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);

@@ -444,13 +444,16 @@ static bool8 SupportedBattler(u8 side)
         || (gBattleMons[side].status2 & ~(STATUS2_FOCUS_ENERGY|STATUS2_DEFENSE_CURL))
         || gStatuses3[side] || gBattleMons[side].hp == 0 || FirstMove(side, TRUE) == MAX_MON_MOVES)
         return FALSE;
-    // Arena mode drafts: these abilities only act between turns or on held
-    // items, which the real-time arena does not have, so they are harmless.
+    // Arena mode drafts: these abilities only act between turns, on held
+    // items, or as status on contact, none of which the real-time arena
+    // plays; a drafted battle stays real-time and simply leaves them out.
     if (gArenaDraftBattle)
         switch (gBattleMons[side].ability)
         {
         case ABILITY_SHED_SKIN: case ABILITY_SYNCHRONIZE: case ABILITY_TRUANT: case ABILITY_SPEED_BOOST:
         case ABILITY_SOUNDPROOF: case ABILITY_LIQUID_OOZE: case ABILITY_STICKY_HOLD: case ABILITY_ROUGH_SKIN:
+        case ABILITY_STATIC: case ABILITY_POISON_POINT: case ABILITY_EFFECT_SPORE: case ABILITY_CUTE_CHARM:
+        case ABILITY_FLAME_BODY:
             return TRUE;
         }
     switch (gBattleMons[side].ability)
@@ -1434,6 +1437,81 @@ static void AiChooseMove(s32 distance)
     }
 }
 
+
+// Arena mode 1P vs 1P: the second Pokémon is Player 2's, driven by
+// gArenaP2Keys (written each frame by the voice agent's bridge) exactly as
+// the first is driven by the keypad: move, A to attack with the same short
+// buffer, B plus a direction to dodge, L/R to change move.
+EWRAM_DATA u8 gArenaP2MoveSlot = 0;
+static EWRAM_DATA u16 sP2Prev = 0;
+static EWRAM_DATA u8 sP2Attack = 0, sP2Dash = 0;
+static EWRAM_DATA s8 sP2DashX = 0, sP2DashY = 0;
+
+static bool8 P2Human(void)
+{
+    return gArenaDraftBattle && gArenaDraftMode == ARENA_DRAFT_VS_P2;
+}
+
+static void TickP2(void)
+{
+    struct ArenaBody *body = &sArena.bodies[1];
+    u16 held = gArenaP2Keys, pressed = held & ~sP2Prev;
+    s32 dx = ((held & DPAD_RIGHT) != 0) - ((held & DPAD_LEFT) != 0);
+    s32 dy = ((held & DPAD_DOWN) != 0) - ((held & DPAD_UP) != 0);
+    sP2Prev = held;
+    body->moving = FALSE;
+    if (pressed & A_BUTTON) sP2Attack = 6;
+    else if (sP2Attack) sP2Attack--;
+    if ((pressed & B_BUTTON) && (dx || dy))
+    {
+        sP2Dash = 6;
+        sP2DashX = dx; sP2DashY = dy;
+    }
+    else if (sP2Dash) sP2Dash--;
+    if ((pressed & (L_BUTTON | R_BUTTON)) && (held & (L_BUTTON | R_BUTTON)) != (L_BUTTON | R_BUTTON))
+    {
+        u32 i;
+        for (i = 1; i <= MAX_MON_MOVES; i++)
+        {
+            u8 slot = (body->moveSlot + ((pressed & L_BUTTON) ? MAX_MON_MOVES - i : i)) % MAX_MON_MOVES;
+            if (SupportedMove(gBattleMons[1].moves[slot])) { body->moveSlot = slot; break; }
+        }
+    }
+    gArenaP2MoveSlot = body->moveSlot;
+    if (SpecialBusy(1)) return;
+    if (body->dashCooldown) body->dashCooldown--;
+    if (sP2Dash && !body->dashCooldown && !body->actionLife)
+    {
+        body->dash = 10; body->dashCooldown = 75;
+        body->dashX = sP2DashX; body->dashY = sP2DashY;
+        sP2Dash = 0;
+        body->shotTimer = 0;
+        PlaySE(SE_M_DOUBLE_TEAM);
+    }
+    if (body->dash) { dx = body->dashX; dy = body->dashY; }
+    if (!body->actionLife)
+        Move(1, dx, dy, Speed(1) * (body->dash ? 3 : body->shotTimer ? 1 : 2) / (body->dash ? 1 : 2));
+    if (!body->moving && !body->dash && !body->shotTimer)
+        body->facing = Facing(sArena.bodies[0].x - body->x, sArena.bodies[0].y - body->y);
+    if (body->moving && !(sArena.frame % (body->dash ? 3 : 14)))
+        ArenaFeedback_Dust(body->x/Q, body->y/Q, body->dash != 0);
+    if (body->dash) body->dash--;
+    if (body->cooldown && !body->shotTimer && !body->actionLife) body->cooldown--;
+    if (((held & A_BUTTON) || sP2Attack) && !body->cooldown && !body->dash && !body->shotTimer)
+    {
+        body->manualAim = dx || dy;
+        if (!dx && !dy && gBattleMons[1].moves[body->moveSlot] == MOVE_ROLLOUT)
+        {
+            static const s8 facing[8][2]={{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0},{-1,1}};
+            dx = facing[body->facing][0]; dy = facing[body->facing][1];
+            body->manualAim = TRUE;
+        }
+        BeginShot(1, dx || dy ? body->x + dx * 200 * Q : DecoyAim(0, FALSE),
+                     dx || dy ? body->y + dy * 200 * Q : DecoyAim(0, TRUE));
+        sP2Attack = 0;
+    }
+}
+
 static void TickEnemy(void)
 {
     struct ArenaBody *body = &sArena.bodies[1];
@@ -2015,7 +2093,7 @@ static void CB2_Arena(void)
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[0]=now-phaseStamp;phaseStamp=now;
                 if(sCapture.state!=ARENA_CAPTURE_AIM)TickPlayer();
-                TickEnemy();
+                if (P2Human()) TickP2(); else TickEnemy();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[1]=now-phaseStamp;phaseStamp=now;
                 TickPendingShots(); TickActions(); TickShots(); TickPsychic();

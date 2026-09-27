@@ -10,17 +10,25 @@ import time
 
 from .executor import Attack, DIR_KEYS, Dodge, Hold, Sequence, SelectMove, Switch, Tap, Unpause, Wait, Walk
 from .jev import JevError
-from .state import DIRS, KEYS, blocked, direction_name
+from .state import DIRS, KEYS, blocked, direction_name, view
 
 CARDINAL = ['up', 'down', 'left', 'right']
 
 
 class Brain:
-    def __init__(self, bridge, executor, data, jev=None, log=print, verbose=False, reset_state=None):
-        self.bridge, self.executor, self.data, self.jev, self.log, self.verbose = bridge, executor, data, jev, log, verbose
-        self.reset_state = reset_state
+    def __init__(self, bridge, executor, data, jev=None, log=print, verbose=False, reset_state=None, side=0):
+        self.bridge, self.executor, self.data, self.jev, self.verbose = bridge, executor, data, jev, verbose
+        self.reset_state, self.side = reset_state, side
         self.goal_id = 0
         self.lock = threading.Lock()
+        self.log = (lambda m: log(m.replace('  ', '  [P2] ', 1) if m.startswith('  ') else '[P2] ' + m)) if side else log
+
+    def state(self):
+        return view(self.bridge.state, self.side)
+
+    def unpause(self):
+        # The pause is the whole game's and belongs to Player 1.
+        return [] if self.side else [Unpause()]
 
     # ----- intent ---------------------------------------------------------
     def options(self, s):
@@ -89,7 +97,7 @@ class Brain:
 
     # ----- commands -------------------------------------------------------
     def command(self, text):
-        s = self.bridge.state
+        s = self.state()
         if not s:
             self.log('  The game is not connected yet.')
             return
@@ -126,15 +134,15 @@ class Brain:
         if intent == 'stop':
             ex.cancel()
         elif intent == 'resume':
-            ex.run(Unpause())
+            ex.run(Sequence(self.unpause()))
         elif intent.startswith('move_'):
-            ex.run(Sequence([Unpause(), Walk(intent[5:])]))
+            ex.run(Sequence(self.unpause() + [Walk(intent[5:])]))
         elif intent.startswith('dodge_'):
-            ex.run(Sequence([Unpause(), Dodge(intent[6:])]))
+            ex.run(Sequence(self.unpause() + [Dodge(intent[6:])]))
         elif intent.startswith('switch_'):
             slot = int(intent[7:])
             mon = next(m for m in s.party if m.slot == slot)
-            ex.run(Sequence([Unpause(), Switch(self.bridge, mon.personality, mon.name)]))
+            ex.run(Sequence(self.unpause() + [Switch(self.bridge, mon.personality, mon.name)]))
         else:
             slot = int(intent[-1]) if intent.startswith('use_move_') else s.selected_slot
             goal_kind = 'use_move' if intent.startswith('use_move_') or intent == 'attack' else intent
@@ -211,12 +219,12 @@ class Brain:
         started, fired, decisions = time.time(), False, 0
         budget = {'approach': 4.0, 'retreat': 3.0, 'use_move': 6.0}[goal]
         if goal == 'use_move':
-            ex.run(Sequence([Unpause(), SelectMove(slot)]))
+            ex.run(Sequence(self.unpause() + [SelectMove(slot)]))
             ex.done_event.wait(3)
             if self.goal_id != goal_id:
                 return
         while self.goal_id == goal_id and time.time() - started < budget:
-            s = self.bridge.state
+            s = self.state()
             if not s or s.screen != 'arena':
                 return
             f = self.facts(s, goal, slot)
@@ -264,6 +272,6 @@ class Brain:
             time.sleep(0.05 if self.jev else 0.12)
         if self.goal_id == goal_id:
             if goal == 'use_move' and not fired:
-                self.log(f'  Could not land {self.move_name(self.bridge.state, slot)} in time.')
+                self.log(f'  Could not land {self.move_name(self.state(), slot)} in time.')
             elif self.verbose:
                 self.log(f'  [{goal}] finished after {decisions} decisions.')
