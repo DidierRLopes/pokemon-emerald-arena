@@ -8,7 +8,7 @@ import re
 import threading
 import time
 
-from .executor import Attack, DIR_KEYS, Dodge, Hold, Sequence, SelectMove, Switch, Tap, Unpause, Wait
+from .executor import Attack, DIR_KEYS, Dodge, Hold, Sequence, SelectMove, Switch, Tap, Unpause, Wait, Walk
 from .jev import JevError
 from .state import DIRS, KEYS, blocked, direction_name
 
@@ -120,7 +120,7 @@ class Brain:
         elif intent == 'resume':
             ex.run(Unpause())
         elif intent.startswith('move_'):
-            ex.run(Sequence([Unpause(), Hold(DIR_KEYS[intent[5:]], 30, intent)]))
+            ex.run(Sequence([Unpause(), Walk(intent[5:])]))
         elif intent.startswith('dodge_'):
             ex.run(Sequence([Unpause(), Dodge(intent[6:])]))
         elif intent.startswith('switch_'):

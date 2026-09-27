@@ -37,6 +37,27 @@ class Tap(Action):
         return (self.keys if self.t <= self.press else 0), self.t >= self.press + self.gap
 
 
+class Walk(Action):
+    """Walk one way until the Pokémon has covered `distance` pixels, or it
+    stops making progress (a wall or a rock), or two seconds pass."""
+
+    def __init__(self, direction, distance=64):
+        self.keys, self.distance, self.name = DIR_KEYS[direction], distance, f'walk {direction}'
+        self.start, self.t, self.last, self.still = None, 0, None, 0
+
+    def step(self, s):
+        self.t += 1
+        pos = (s.me.x, s.me.y)
+        if self.start is None:
+            self.start = self.last = pos
+        moved = abs(pos[0] - self.start[0]) + abs(pos[1] - self.start[1])
+        self.still = self.still + 1 if pos == self.last else 0
+        self.last = pos
+        if moved >= self.distance or self.t > 120 or (self.t > 10 and self.still > 10):
+            return 0, True
+        return self.keys, False
+
+
 class Wait(Hold):
     def __init__(self, frames, name='wait'):
         super().__init__(0, frames, name)
