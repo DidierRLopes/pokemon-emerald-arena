@@ -206,18 +206,17 @@ static const struct WindowTemplate sArenaWindows[] =
       .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 91 },
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 343 },
-    // The moves panels: Player 1 top right under the HP bars (clear of the
-    // opponent trainer at the right edge), Player 2 bottom right.
-    { .bg = 0, .tilemapLeft = 18, .tilemapTop = 2,
+    // Each side's moves under its HP bar: Player 1 top left, Player 2 top
+    // right (clear of the opponent trainer at the right edge).
+    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 2,
       .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 403 },
-    { .bg = 0, .tilemapLeft = 20, .tilemapTop = 14,
+    { .bg = 0, .tilemapLeft = 18, .tilemapTop = 2,
       .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 443 },
-    // Trainer call-outs: above Player 1's trainer (bottom left), and left of
-    // the opponent's (right edge). Their tiles share the pause picker's VRAM:
-    // the two are never shown together.
-    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 10,
+    // Each player's spoken commands, bottom left and bottom right. Their
+    // tiles share the pause picker's VRAM: the two are never shown together.
+    { .bg = 0, .tilemapLeft = 2, .tilemapTop = 15,
       .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 91 },
-    { .bg = 0, .tilemapLeft = 12, .tilemapTop = 7,
+    { .bg = 0, .tilemapLeft = 12, .tilemapTop = 15,
       .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 139 },
     DUMMY_WIN_TEMPLATE
 };
@@ -795,30 +794,15 @@ static void DrawMovesPanel(u8 side, u8 window, bool8 show)
 }
 
 // ---------------------------------------------------------------- call-outs
-// A speech bubble from a trainer for about 2.5 s: what a player said to their
-// Pokémon (written by the voice agent), or the move COM just ordered.
+// A speech bubble for about 2.5 s with what a player said to their Pokémon
+// (written by the voice agent). Player 2's only when Player 2 is human: COM
+// shows nothing.
 
 EWRAM_DATA u8 gArenaToastText[2][28] = {};
 EWRAM_DATA u8 gArenaToastSeq[2] = {};
 static EWRAM_DATA u8 sToastSeen[2] = {};
 static EWRAM_DATA u8 sToastShown[2] = {};
 static EWRAM_DATA u16 sToastTimer[2] = {};
-static const u8 sTextToastBang[] = _("!");
-
-static void ArenaToast(u8 side, const u8 *text)
-{
-    u8 *end = StringCopyN(gArenaToastText[side], text, 24);
-    *end = EOS;
-    StringAppend(gArenaToastText[side], sTextToastBang);
-    gArenaToastSeq[side]++;
-}
-
-static void ComToast(u8 side, u16 move)
-{
-    if (side == 1 && (gBattleTypeFlags & BATTLE_TYPE_TRAINER) && !P2Human())
-        ArenaToast(1, gMoveNames[move]);
-}
-
 static void DrawToast(u8 side)
 {
     u8 window = 5 + side;
@@ -828,23 +812,20 @@ static void DrawToast(u8 side)
         width += gFontSmallLatinGlyphWidths[text[i]];
     width = min(width + 8, 120);
     CpuFastFill(0, gWindows[window].tileData, 16 * 3 * 32);
-    left = side ? 122 - width : 2;
+    // Player 1's bubble starts at the left (its trainer stands in the bottom
+    // left corner, the tail points at it); Player 2's ends at the right.
+    left = side ? 122 - width : 6;
     right = left + width;
-    WindowRect(window, left, 2, width, 15, 9);                       // outline
-    WindowRect(window, left + 1, 3, width - 2, 13, 10);              // bubble
-    if (side == 0)
+    WindowRect(window, left, 4, width, 15, 9);                       // outline
+    WindowRect(window, left + 1, 5, width - 2, 13, 10);              // bubble
+    for (i = 0; i < 5; i++)
     {
-        // Tail down toward Player 1's trainer.
-        for (i = 0; i < 5; i++)
-            WindowRect(window, 6 + i, 17 + i, 5 - i, 1, i == 4 ? 9 : 10);
+        if (side == 0)
+            WindowRect(window, left - 1 - i, 7 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
+        else
+            WindowRect(window, right + i, 7 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
     }
-    else
-    {
-        // Tail right toward the opponent's trainer.
-        for (i = 0; i < 5; i++)
-            WindowRect(window, right + i, 4 + i, 1, 7 - i, i == 4 ? 9 : 10);
-    }
-    PrintWindow(window, left + 4, 3, text, 9);
+    PrintWindow(window, left + 4, 5, text, 9);
     PutWindowTilemap(window);
     CopyWindowToVram(window, COPYWIN_FULL);
 }
@@ -860,6 +841,11 @@ static void UpdateToasts(bool8 reset)
             sToastSeen[side] = gArenaToastSeq[side];
             sToastTimer[side] = 0;
             sToastShown[side] = FALSE;
+            continue;
+        }
+        if (side == 1 && !P2Human())
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
             continue;
         }
         if (gArenaToastSeq[side] != sToastSeen[side])
@@ -1331,7 +1317,6 @@ static void BeginShot(u8 side, s32 targetX, s32 targetY)
     body->drawnFrame = 255;
     body->rollAngle = 0; body->rollStage = 0; body->rollDistance = 0;
     if (profile->move == MOVE_ROLLOUT) RollBallBegin(side);
-    ComToast(side, profile->move);
 }
 
 static void TickPendingShots(void)
@@ -2581,6 +2566,27 @@ static void ArenaExit(bool8 fainted)
         BuildOamBuffer();ArenaRender_Ready();
         gMain.callback1=sArena.savedCB1;
         RealtimeArena_ResumeBattle(TRUE);
+        SetMainCallback2(BattleMainCB2);
+        return;
+    }
+    if(gArenaDraftBattle)
+    {
+        // Arena-mode drafts: a switch (SELECT or by voice) goes from the arena
+        // image straight to the party list and back, the engine's switch
+        // running silently in between. Only the party list leaves the arena.
+        sArena.active=FALSE;sArena.classic=FALSE;
+        gRealtimeArenaTelemetry.active=FALSE;
+        gRealtimeArenaTelemetry.exits++;
+        gRealtimeArenaTelemetry.lastExitFainted=FALSE;
+        gRealtimeArenaRestoringFaint=FALSE;
+        gRealtimeArenaQuietResult=TRUE;
+        ArenaFeedback_Destroy();
+        for(i=0;i<2;i++)ArenaMoveFx_Action(i,NULL,0,0,0,0,FALSE,TRUE);
+        gSprites[sArena.aimSprite].invisible=TRUE;
+        gSprites[sArena.cueSprite].invisible=TRUE;
+        BuildOamBuffer();ArenaRender_Ready();
+        gMain.callback1=sArena.savedCB1;
+        RealtimeArena_ResumeBattle(FALSE);
         SetMainCallback2(BattleMainCB2);
         return;
     }

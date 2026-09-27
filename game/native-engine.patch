@@ -522,7 +522,7 @@ index a15a4b976..f4049ed9c 100644
                      for (i = 0; i < (s32) ARRAY_COUNT(gBattleResources->secretBase->trainerName); i++)
                          text[i] = gBattleResources->secretBase->trainerName[i];
 diff --git a/src/battle_script_commands.c b/src/battle_script_commands.c
-index 3af09ec7a..7d87df10a 100644
+index 3af09ec7a..4eb20ebbd 100644
 --- a/src/battle_script_commands.c
 +++ b/src/battle_script_commands.c
 @@ -1,5 +1,9 @@
@@ -885,7 +885,20 @@ index 3af09ec7a..7d87df10a 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      argumentPtr = T2_READ_PTR(gBattlescriptCurrInstr + 3);
  
-@@ -4688,6 +4975,13 @@ static void Cmd_switchinanim(void)
+@@ -4594,6 +4881,12 @@ static void Cmd_typecalc2(void)
+ 
+ static void Cmd_returnatktoball(void)
+ {
++    // Arena-mode drafts switch inside the arena: no classic recall animation.
++    if (gRealtimeArenaQuietResult && gArenaDraftBattle)
++    {
++        gBattlescriptCurrInstr++;
++        return;
++    }
+     gActiveBattler = gBattlerAttacker;
+     if (!(gHitMarker & HITMARKER_FAINTED(gActiveBattler)))
+     {
+@@ -4688,6 +4981,13 @@ static void Cmd_switchinanim(void)
  
      gAbsentBattlerFlags &= ~(gBitTable[gActiveBattler]);
  
@@ -899,7 +912,7 @@ index 3af09ec7a..7d87df10a 100644
      BtlController_EmitSwitchInAnim(B_COMM_TO_CONTROLLER, gBattlerPartyIndexes[gActiveBattler], gBattlescriptCurrInstr[2]);
      MarkBattlerForControllerExec(gActiveBattler);
  
-@@ -5318,6 +5612,7 @@ static void Cmd_playse(void)
+@@ -5318,6 +5618,7 @@ static void Cmd_playse(void)
  
  static void Cmd_fanfare(void)
  {
@@ -907,7 +920,7 @@ index 3af09ec7a..7d87df10a 100644
      gActiveBattler = gBattlerAttacker;
      BtlController_EmitPlayFanfareOrBGM(B_COMM_TO_CONTROLLER, T2_READ_16(gBattlescriptCurrInstr + 1), FALSE);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5327,6 +5622,7 @@ static void Cmd_fanfare(void)
+@@ -5327,6 +5628,7 @@ static void Cmd_fanfare(void)
  
  static void Cmd_playfaintcry(void)
  {
@@ -915,7 +928,7 @@ index 3af09ec7a..7d87df10a 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      BtlController_EmitFaintingCry(B_COMM_TO_CONTROLLER);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5700,6 +5996,8 @@ static void Cmd_drawpartystatussummary(void)
+@@ -5700,6 +6002,8 @@ static void Cmd_drawpartystatussummary(void)
      struct Pokemon *party;
      struct HpAndStatus hpStatuses[PARTY_SIZE];
  
@@ -924,7 +937,7 @@ index 3af09ec7a..7d87df10a 100644
      if (gBattleControllerExecFlags)
          return;
  
-@@ -5733,6 +6031,7 @@ static void Cmd_drawpartystatussummary(void)
+@@ -5733,6 +6037,7 @@ static void Cmd_drawpartystatussummary(void)
  
  static void Cmd_hidepartystatussummary(void)
  {
@@ -932,7 +945,7 @@ index 3af09ec7a..7d87df10a 100644
      gActiveBattler = GetBattlerForBattleScript(gBattlescriptCurrInstr[1]);
      BtlController_EmitHidePartyStatusSummary(B_COMM_TO_CONTROLLER);
      MarkBattlerForControllerExec(gActiveBattler);
-@@ -5923,6 +6222,7 @@ static void Cmd_atknameinbuff1(void)
+@@ -5923,6 +6228,7 @@ static void Cmd_atknameinbuff1(void)
  
  static void Cmd_drawlvlupbox(void)
  {
@@ -940,7 +953,7 @@ index 3af09ec7a..7d87df10a 100644
      if (gBattleScripting.drawlvlupboxState == 0)
      {
          // If the Pokémon getting exp is not in-battle then
-@@ -9902,10 +10202,59 @@ static void Cmd_removelightscreenreflect(void)
+@@ -9902,10 +10208,59 @@ static void Cmd_removelightscreenreflect(void)
      gBattlescriptCurrInstr++;
  }
  
@@ -948,7 +961,8 @@ index 3af09ec7a..7d87df10a 100644
 +// One formula for classic and arena captures. Do not change integer rounding:
 +// this is the original Emerald calculation, including status and ball bonuses.
 +u32 CalculateBallCatchOdds(u8 target, u16 item)
-+{
+ {
+-    u8 ballMultiplier = 0;
 +    u32 odds;
 +    u8 catchRate, multiplier = 10;
 +    if (item == ITEM_SAFARI_BALL)
@@ -985,8 +999,7 @@ index 3af09ec7a..7d87df10a 100644
 +}
 +
 +u8 CalculateBallCatchShakes(u32 odds, u16 item)
- {
--    u8 ballMultiplier = 0;
++{
 +    u8 shakes;
 +    if (odds > 254) return BALL_3_SHAKES_SUCCESS;
 +    // A zero catch rate must not divide by zero. Normal species never use it.
@@ -1002,7 +1015,7 @@ index 3af09ec7a..7d87df10a 100644
      if (gBattleControllerExecFlags)
          return;
  
-@@ -9926,72 +10275,7 @@ static void Cmd_handleballthrow(void)
+@@ -9926,72 +10281,7 @@ static void Cmd_handleballthrow(void)
      }
      else
      {
@@ -1076,7 +1089,7 @@ index 3af09ec7a..7d87df10a 100644
  
          if (gLastUsedItem != ITEM_SAFARI_BALL)
          {
-@@ -10020,15 +10304,7 @@ static void Cmd_handleballthrow(void)
+@@ -10020,15 +10310,7 @@ static void Cmd_handleballthrow(void)
          }
          else // mon may be caught, calculate shakes
          {
@@ -1196,16 +1209,35 @@ index 1d6b81c1f..4bce103d3 100644
      DoMapLoadLoop(&gMain.state);
      SetFieldVBlankCallback();
 diff --git a/src/reshow_battle_screen.c b/src/reshow_battle_screen.c
-index 17a5d3b26..17533367e 100644
+index 17a5d3b26..b64f2314d 100644
 --- a/src/reshow_battle_screen.c
 +++ b/src/reshow_battle_screen.c
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,7 @@
  #include "global.h"
++#include "arena_draft.h"
++#include "battle_main.h"
 +#include "realtime_arena.h"
  #include "reshow_battle_screen.h"
  #include "battle.h"
  #include "palette.h"
-@@ -218,7 +219,7 @@ static void CreateBattlerSprite(u8 battler)
+@@ -30,6 +33,16 @@ void ReshowBattleScreenDummy(void)
+ 
+ void ReshowBattleScreenAfterMenu(void)
+ {
++    // Arena-mode drafts: back from the party list, the switch runs silently
++    // on a dark screen and the arena opens again; no classic battle scene.
++    if (gArenaDraftBattle && gRealtimeArenaQuietResult)
++    {
++        SetHBlankCallback(NULL);
++        SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_MODE_0);
++        SetVBlankCallback(VBlankCB_Battle);
++        SetMainCallback2(BattleMainCB2);
++        return;
++    }
+     gPaletteFade.bufferTransferDisabled = 1;
+     SetHBlankCallback(NULL);
+     SetVBlankCallback(NULL);
+@@ -218,7 +231,7 @@ static void CreateBattlerSprite(u8 battler)
  
          if (GetBattlerSide(battler) != B_SIDE_PLAYER)
          {
@@ -1214,7 +1246,7 @@ index 17a5d3b26..17533367e 100644
                  return;
  
              SetMultiuseSpriteTemplateToPokemon(GetMonData(&gEnemyParty[gBattlerPartyIndexes[battler]], MON_DATA_SPECIES), GetBattlerPosition(battler));
-@@ -254,7 +255,7 @@ static void CreateBattlerSprite(u8 battler)
+@@ -254,7 +267,7 @@ static void CreateBattlerSprite(u8 battler)
          }
          else
          {

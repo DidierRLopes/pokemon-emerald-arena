@@ -94,9 +94,11 @@ says two sentences) and Right Option works for both, the voice deciding
 whose Pokémon obeys. Hands-free (the launcher's default), no enrollment is
 needed: the first voice heard in the battle is Player 1 and the first clearly
 different one Player 2 (Resemblyzer speaker embeddings, adapted as you play).
-Player 1's moves and PP sit top right under the HP bars, Player 2's bottom
-right. Every command understood appears as a speech bubble from that
-player's trainer; COM's trainer calls out each move it orders.
+Player 1's moves and PP sit top left under its HP bar, and every command
+understood appears as a speech bubble bottom left. Player 2's are top right
+and bottom right, only when Player 2 is human (nothing is shown for COM).
+Switching Pokémon (by voice or SELECT) shows only the party list; the
+recall and send-out happen in the arena.
 
 Chains: "retreat and then shadow ball", "get closer, then dragon claw" queue
 up to two commands; the second starts when the first is done (a new order
