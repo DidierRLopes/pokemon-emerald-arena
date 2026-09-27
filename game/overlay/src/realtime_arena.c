@@ -285,7 +285,7 @@ static const u8 sDemoName[] = _("ARENA");
 // Curated levels retain genuine compatible moves from each native learnset.
 static const struct {u16 species;u8 level;} sPracticeRivals[] =
 {
-    {SPECIES_EEVEE,36}, {SPECIES_BLASTOISE,36}, {SPECIES_SCIZOR,15},
+    {SPECIES_EEVEE,30}, {SPECIES_BLASTOISE,36}, {SPECIES_SCIZOR,15},   // local: Eevee 36 -> 30
     {SPECIES_BLAZIKEN,20}, {SPECIES_DRAGONITE,30}, {SPECIES_CHARIZARD,36},
     {SPECIES_SCEPTILE,43}, {SPECIES_RAYQUAZA,60}, {SPECIES_MEWTWO,66}
 };
@@ -2394,6 +2394,8 @@ bool8 RealtimeArena_SetupDemo(void)
     for (i = 0; i < ARRAY_COUNT(team); i++)
         CreateMon(&gPlayerParty[i], team[i].species, team[i].level,
                   20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
+    // Local: the practice Charizard knows Seismic Toss in place of Rage.
+    SetMonMoveSlot(&gPlayerParty[0], MOVE_SEISMIC_TOSS, 0);
     for (i = 0; i < ARRAY_COUNT(box); i++)
         CreateBoxMonAt(0, i, box[i].species, box[i].level,
                        20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
