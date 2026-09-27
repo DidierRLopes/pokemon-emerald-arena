@@ -98,6 +98,10 @@ Player 1's moves and PP sit top right under the HP bars, Player 2's bottom
 right. Every command understood appears as a speech bubble from that
 player's trainer; COM's trainer calls out each move it orders.
 
+Chains: "retreat and then shadow ball", "get closer, then dragon claw" queue
+up to two commands; the second starts when the first is done (a new order
+replaces the queue).
+
 The draft works by voice too: "pick Charizard and Gengar", "remove Pikachu",
 "show me Dragonite", "done"; on the versus screen, "fight". Draft battles go
 straight into the arena: no classic intro, messages or party menu (after a

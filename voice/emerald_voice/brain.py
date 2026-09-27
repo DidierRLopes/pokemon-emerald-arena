@@ -137,6 +137,23 @@ class Brain:
         if s.screen != 'arena' and not (s.screen == 'battle' and s.me.hp == 0):
             self.log('  Not in a real-time battle right now.')
             return
+        clauses = self.split_chain(text)
+        if len(clauses) > 1:
+            # Understand every part at once (Jev calls run in parallel).
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(len(clauses)) as pool:
+                parts = list(pool.map(lambda c: self.interpret(c, s), clauses))
+            chain = [(c, p) for c, p in zip(clauses, parts) if p[0] != 'none' and p[1] >= 0.35]
+            if len(chain) >= 2:
+                chain = chain[:self.QUEUE]
+                self.log('  → ' + ', then '.join(self.describe(p[0], s) for _, p in chain)
+                         + ' (' + ', '.join(p[2] for _, p in chain) + ')')
+                self.toast(', '.join(c.strip().rstrip('.,') for c, _ in chain))
+                with self.lock:
+                    self.goal_id += 1
+                    goal = self.goal_id
+                threading.Thread(target=self.run_chain, args=(chain, goal), daemon=True).start()
+                return
         intent, conf, how = self.interpret(text, s)
         if intent == 'none' or conf < 0.35:
             self.log(f'  ? "{text}" was not understood as a command ({how}).')
@@ -147,6 +164,43 @@ class Brain:
             self.goal_id += 1
             goal = self.goal_id
         self.start(intent, s, goal)
+
+    # ----- chains: "retreat and then shadow ball" ------------------------------
+    QUEUE = 2       # at most two commands queued from one sentence
+
+    @staticmethod
+    def split_chain(text):
+        """The parts of a chained order. "then" (and "after that", "followed
+        by") always separates; a plain "and" or comma only if nothing else
+        does, and each part must then read as a command of its own."""
+        t = text.strip().rstrip('.!?')
+        parts = [p for p in re.split(r'\s*(?:,?\s*\band then\b|,?\s*\bthen\b|\bafter that\b|\bfollowed by\b|\band after\b)\s*',
+                                     t, flags=re.I) if p and p.strip(' ,')]
+        if len(parts) < 2 and not re.search(r'\b(come back|return)\b', t, flags=re.I):
+            parts = [p for p in re.split(r'\s*(?:,\s*and\b|\band\b|,)\s*', t, flags=re.I) if p and p.strip(' ,')]
+        return [p.strip(' ,') for p in parts]
+
+    def run_chain(self, chain, goal):
+        """Each command once the one before it has finished (or given up)."""
+        for n, (clause, (intent, conf, how)) in enumerate(chain):
+            if self.goal_id != goal:
+                return
+            s = self.state()
+            if not s or s.screen != 'arena':
+                return
+            if n and chain[n - 1][1][0].startswith('switch_'):
+                # A new Pokémon has other moves: read the next part again.
+                intent, conf, how = self.interpret(clause, s)
+                if intent == 'none' or conf < 0.35:
+                    return
+            if n:
+                self.log(f'  → next: {self.describe(intent, s)}')
+            self.start(intent, s, goal)
+            time.sleep(0.1)
+            deadline = time.time() + 12
+            while self.goal_id == goal and time.time() < deadline:
+                if self.executor.done_event.wait(0.05):
+                    break
 
     # ----- trainer call-outs ------------------------------------------------
     def toast(self, text):
