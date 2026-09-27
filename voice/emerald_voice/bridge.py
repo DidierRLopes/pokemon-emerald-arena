@@ -88,7 +88,8 @@ class LuaBridge:
         t0, f0 = self._fps_mark
         if now - t0 >= 5:
             fps = (frame - f0) / (now - t0)
-            if fps < 55 and not self._fps_warned:
+            arena = bool(self.state and self.state.screen == 'arena')
+            if fps < 55 and not self._fps_warned and arena:
                 self.log(f'mGBA is running at {fps:.0f} frames a second (60 is full speed).')
             self._fps_warned = fps < 55
             self._fps_mark = (now, frame)

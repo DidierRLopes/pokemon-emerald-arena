@@ -1033,11 +1033,34 @@ static void Task_Draft(u8 taskId)
 static void Task_Versus(u8 taskId);
 static void StartBattle(void);
 
-static void CB2_ShowVersus(void)
+// The versus screen. In 1P VS 1P with the voice agent running, a modal first
+// asks each player to say one sentence (the agent tells the voices apart from
+// these), shows what it heard, and offers READY or GO BACK (record again).
+static EWRAM_DATA u8 sVsIcons[2 * TEAM_MAX] = {};
+static EWRAM_DATA u8 sVsIconCount = 0;
+EWRAM_DATA u8 gArenaVoiceHeard[2][24] = {};
+EWRAM_DATA u8 gArenaVoiceHeardSeq = 0;
+
+static const u8 sText_VoiceTitle[] = _("SET EACH PLAYER'S VOICE");
+static const u8 sText_VoiceHelp[] = _("Each player says one sentence, in turn.");
+static const u8 sText_VoiceP1[] = _("PLAYER 1");
+static const u8 sText_VoiceP2[] = _("PLAYER 2");
+static const u8 sText_SpeakNow[] = _("SPEAK NOW…");
+static const u8 sText_Waiting[] = _("NEXT");
+static const u8 sText_VoiceSet[] = _("SET");
+static const u8 sText_Restarting[] = _("STARTING OVER…");
+static const u8 sText_OpenQuote[] = _("“");
+static const u8 sText_CloseQuote[] = _("”");
+static const u8 sText_VoiceKeys[] = _("{A_BUTTON} READY   {B_BUTTON} GO BACK (SAY IT AGAIN)");
+
+static bool8 VoiceModalActive(void)
 {
-    u32 i, p;
-    SetupScreen(sFullWindows);
-    FillPanel(0, 0, 30, 20, TILE_PANEL);
+    return gArenaDraftMode == ARENA_DRAFT_VS_P2 && gArenaVoiceEnroll && gArenaVoiceEnroll != 4;
+}
+
+static void DrawVersus(void)
+{
+    u32 i;
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
     Print(WIN_MAIN, FONT_NORMAL, 8, 4, sColorYellow, sText_P1);
     Print(WIN_MAIN, FONT_NORMAL, 112, 68, sColorWhite, sText_Vs);
@@ -1045,40 +1068,90 @@ static void CB2_ShowVersus(void)
     Print(WIN_MAIN, FONT_SMALL, 56, 146, sColorGray, sText_VsHint);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
+    for (i = 0; i < sVsIconCount; i++)
+        gSprites[sVsIcons[i]].invisible = FALSE;
+}
+
+static void DrawVoiceRow(u8 player, u8 y)
+{
+    u8 buf[32], *p;
+    u8 state = gArenaVoiceEnroll;
+    bool8 done = state == 3 || (player == 0 && state == 2);
+    Print(WIN_MAIN, FONT_NORMAL, 20, y, sColorYellow, player ? sText_VoiceP2 : sText_VoiceP1);
+    if (state == 5)
+        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorGray, sText_Restarting);
+    else if (done)
+        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorBlue, sText_VoiceSet);
+    else if (state == player + 1)
+        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorWhite, sText_SpeakNow);
+    else
+        Print(WIN_MAIN, FONT_SMALL, 100, y + 2, sColorGray, sText_Waiting);
+    if (done && gArenaVoiceHeard[player][0] != EOS)
+    {
+        p = StringCopy(buf, sText_OpenQuote);
+        p = StringCopy(p, gArenaVoiceHeard[player]);
+        StringCopy(p, sText_CloseQuote);
+        Print(WIN_MAIN, FONT_SMALL, 20, y + 14, sColorWhite, buf);
+    }
+}
+
+static void DrawVoiceModal(void)
+{
+    u32 i;
+    for (i = 0; i < sVsIconCount; i++)
+        gSprites[sVsIcons[i]].invisible = TRUE;
+    FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(4), 8, 12, 224, 136);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(1), 9, 13, 222, 134);
+    Print(WIN_MAIN, FONT_NORMAL, 20, 18, sColorYellow, sText_VoiceTitle);
+    Print(WIN_MAIN, FONT_SMALL, 20, 34, sColorGray, sText_VoiceHelp);
+    DrawVoiceRow(0, 52);
+    DrawVoiceRow(1, 86);
+    Print(WIN_MAIN, FONT_SMALL, 20, 128, gArenaVoiceEnroll == 3 ? sColorYellow : sColorGray, sText_VoiceKeys);
+    PutWindowTilemap(WIN_MAIN);
+    CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
+}
+
+static void CB2_ShowVersus(void)
+{
+    u32 i, p;
+    SetupScreen(sFullWindows);
+    FillPanel(0, 0, 30, 20, TILE_PANEL);
     LoadMonIconPalettes();
+    sVsIconCount = 0;
     for (p = 0; p < 2; p++)
         for (i = 0; i < sTeamCount[p]; i++)
-            CreateMonIcon(sArenaDraftRoster[sTeams[p][i]].species, SpriteCB_MonIcon,
-                          24 + i * 36, p ? 124 : 44, 1, 0, TRUE);
+            sVsIcons[sVsIconCount++] = CreateMonIcon(sArenaDraftRoster[sTeams[p][i]].species, SpriteCB_MonIcon,
+                                                     24 + i * 36, p ? 124 : 44, 1, 0, TRUE);
+    DrawVersus();
     CreateTask(Task_Versus, 0);
     StartScreen();
 }
 
-static const u8 sText_Enroll1[] = _("PLAYER 1: SAY ANYTHING");
-static const u8 sText_Enroll2[] = _("PLAYER 2: SAY ANYTHING");
-static const u8 sText_Enrolled[] = _("VOICES READY");
-
 static void Task_Versus(u8 taskId)
 {
     s16 *leaving = &gTasks[taskId].data[0];
-    s16 *shown = &gTasks[taskId].data[1];
+    s16 *shownState = &gTasks[taskId].data[1];
+    s16 *shownSeq = &gTasks[taskId].data[2];
+    bool8 modal;
     if (gPaletteFade.active)
         return;
-    // The voice agent learns who is who from one line each (1P VS 1P).
-    if (*shown != gArenaVoiceEnroll && !*leaving)
+    modal = VoiceModalActive();
+    if (!*leaving && (*shownState != gArenaVoiceEnroll || *shownSeq != gArenaVoiceHeardSeq))
     {
-        static const u8 *const lines[] = {NULL, sText_Enroll1, sText_Enroll2, sText_Enrolled};
-        *shown = gArenaVoiceEnroll;
-        FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(0), 96, 86, 144, 12);
-        if (gArenaVoiceEnroll && gArenaVoiceEnroll < ARRAY_COUNT(lines))
-            Print(WIN_MAIN, FONT_SMALL, 96, 86, gArenaVoiceEnroll == 3 ? sColorGray : sColorYellow, lines[gArenaVoiceEnroll]);
-        CopyWindowToVram(WIN_MAIN, COPYWIN_GFX);
+        *shownState = gArenaVoiceEnroll;
+        *shownSeq = gArenaVoiceHeardSeq;
+        if (modal)
+            DrawVoiceModal();
+        else
+            DrawVersus();
     }
     if (*leaving)
     {
         DestroyTask(taskId);
         TeardownScreen();
         gArenaDraftScreen = 0;
+        gArenaVoiceEnroll = 0;
         gArenaP2Voice[0] = gArenaP2NextMon = gArenaP2SwitchTo = 0;
         if (*leaving == 1)
             StartBattle();
@@ -1093,11 +1166,19 @@ static void Task_Versus(u8 taskId)
     gArenaDraftScreen = 3;
     if (JOY_NEW(A_BUTTON | START_BUTTON) || gArenaDraftVoice[0] == ARENA_VOICE_DONE)
     {
+        // READY (or "fight"): to the battle, voices set or not.
         gArenaDraftVoice[0] = ARENA_VOICE_NONE;
         PlaySE(SE_SELECT);
         *leaving = 1;
         FadeOutBGM(4);
         BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
+    }
+    else if (JOY_NEW(B_BUTTON) && modal)
+    {
+        // GO BACK: both players say their sentence again.
+        PlaySE(SE_SELECT);
+        gArenaVoiceHeard[0][0] = gArenaVoiceHeard[1][0] = EOS;
+        gArenaVoiceEnroll = 5;
     }
     else if (JOY_NEW(B_BUTTON))
     {

@@ -111,8 +111,12 @@ Player 2 switches too: H (or "switch pokemon") opens Player 2's list inside
 the arena (I / K move, U picks, O backs out), "switch to Gengar" switches
 directly, and after Player 2's KO the list opens for Player 2 to choose.
 
-On the versus screen of a 1P vs 1P match, each player says one line to set
-their voice (unless voices were saved with --enroll). The ARENA menu's
+On the versus screen of a 1P vs 1P match, a window asks each player in turn
+to say one sentence and shows what was heard; A (or "fight") is READY, B
+records both again (unless voices were saved with --enroll). In battle, a
+command naming a move or Pokémon only one player has goes to that player
+whatever the voice match says, move names are matched forgivingly ("giga
+dream" is Giga Drain), and Whisper is primed with both players' moves. The ARENA menu's
 1P VS COM row toggles COM between EASY (random within its budget) and HARD
 (strength and type coverage) with LEFT / RIGHT.
 

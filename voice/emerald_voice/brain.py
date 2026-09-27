@@ -103,10 +103,47 @@ class Brain:
             known.update(self.data.moves.get(move, '').lower().split())
         for mon in s.party:
             known.update(mon.name.lower().split())
+        matched = self.match_move(text, s)
+        if matched:
+            known |= matched[1]           # a misheard move name counts as known
         if any(w not in known for w in words):
             return None
         intent = self.rules_intent(text, s, opts)
         return None if intent == 'none' else intent
+
+    def match_move(self, text, s):
+        """(slot, words used) of the move named in `text`, forgiving of
+        Whisper's spellings ("giga dream", "jigadrain" for Giga Drain)."""
+        words = re.sub(r'[^a-z ]', ' ', text.lower()).split()
+        names = {}
+        for i, move in enumerate(s.me.moves):
+            name = re.sub(r'[^a-z]', '', self.data.moves.get(move, '').lower())
+            if move and name and self.data.profiles.get(move):
+                names[name] = i
+        best = None
+        for n in (3, 2, 1):
+            for i in range(len(words) - n + 1):
+                joined = ''.join(words[i:i + n])
+                if len(joined) < 3:
+                    continue
+                for name, slot in names.items():
+                    if len(joined) < len(name) - 3:
+                        continue          # "attack" alone is not "Wing Attack"
+                    score = 1.0 if joined == name else difflib.SequenceMatcher(None, joined, name).ratio()
+                    # Long names forgive more (Whisper garbles the ends of them).
+                    if score >= (0.75 if len(name) >= 6 else 0.86) and (not best or score > best[0]):
+                        best = (score, slot, set(words[i:i + n]))
+        return (best[1], best[2]) if best else None
+
+    def claims(self, text):
+        """Whether `text` names one of this player's moves or Pokémon."""
+        s = self.state()
+        if not s:
+            return False
+        if self.match_move(text, s):
+            return True
+        t = ' ' + re.sub(r'[^a-z ]', ' ', text.lower()) + ' '
+        return any(f' {m.name.lower()} ' in t for m in s.party if m.name)
 
     def sounds_like_command(self, text, s):
         words = set(re.sub(r'[^a-z ]', ' ', text.lower()).split())
@@ -140,10 +177,9 @@ class Brain:
         for mon in s.party:
             if f'switch_{mon.slot}' in opts and mon.name.lower() in t:
                 return f'switch_{mon.slot}'
-        for i, move in enumerate(s.me.moves):
-            name = self.data.moves.get(move, '').lower()
-            if f'use_move_{i}' in opts and name and name in t:
-                return f'use_move_{i}'
+        matched = self.match_move(text, s)
+        if matched and f'use_move_{matched[0]}' in opts:
+            return f'use_move_{matched[0]}'
         if 'party_menu' in opts and re.search(r'\b(switch|change|swap)\b|come back|my team|party', t):
             return 'party_menu'
         for key, words in (('stop', ['stop', 'stay', 'wait', 'hold']), ('retreat', ['away', 'back off', 'retreat', 'run', 'get back']),

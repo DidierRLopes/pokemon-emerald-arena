@@ -98,6 +98,16 @@ def main():
     brain2 = Brain(bridge, executor2, data, jev=jev, log=log, verbose=args.verbose, side=1)
 
     def command(text, player=0):
+        # 1P vs 1P: a command naming a move or Pokémon only one player has
+        # goes to that player, whatever the voice match said (short commands
+        # are hard to tell apart by voice alone).
+        s = bridge.state
+        if args.two_players and s and s.pvp:
+            mine, theirs = brain.claims(text), brain2.claims(text)
+            if mine != theirs:
+                if (1 if theirs else 0) != player:
+                    log(f'  (routed to Player {2 if theirs else 1}: only they have that move or Pokémon)')
+                player = 1 if theirs else 0
         (brain2 if player else brain).command(text)
     bridge.start()
     threading.Thread(target=control_server, args=(args.control_port, command), daemon=True).start()
@@ -110,7 +120,9 @@ def main():
         if s.draft_screen:
             return 'Pokémon draft: pick Charizard and Gengar, remove Pikachu, show Dragonite, done, fight.'
         names = [data.moves.get(m, '') for m in s.me.moves if m] + [m.name for m in s.party]
-        return 'Moves and Pokémon: ' + ', '.join(n for n in names if n) + '.'
+        if s.pvp:
+            names += [data.moves.get(m, '') for m in s.rival.moves if m] + [m.name for m in s.enemy_party]
+        return 'Moves and Pokémon: ' + ', '.join(dict.fromkeys(n for n in names if n)) + '.'
 
     if args.text:
         log('Type a command and press Enter (Ctrl-C to quit).')
@@ -140,8 +152,19 @@ def main():
     if speakers and args.hands_free and speakers.profiles is None:
         # 1P vs 1P: the versus screen asks each player for one line, so each
         # voice is known before the fight ("first voice heard" otherwise).
-        def on_enrolled(player):
+        heard_seq = [0]
+
+        def on_enrolled(player, text):
+            bridge.write_bytes('gArenaVoiceHeard', data.encode(text.strip(), limit=22), offset=24 * player)
+            heard_seq[0] = (heard_seq[0] + 1) & 255
+            bridge.write_byte('gArenaVoiceHeardSeq', heard_seq[0])
             bridge.write_byte('gArenaVoiceEnroll', 2 if player == 0 else 3)
+
+        def start_over():
+            speakers.learned, speakers.expect = [], [0, 1]
+            bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=0)
+            bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=24)
+            bridge.write_byte('gArenaVoiceEnroll', 1)
 
         def versus_watch():
             on_versus = False
@@ -150,9 +173,11 @@ def main():
                 s = bridge.state
                 now = bool(s and s.draft_screen == 3 and s.raw.get('dmode', b'\0')[0] == 2)
                 if now and not on_versus:
-                    speakers.learned, speakers.expect = [], [0, 1]
-                    bridge.write_byte('gArenaVoiceEnroll', 1)
-                    log('Versus screen: Player 1, then Player 2, say anything to set your voice.')
+                    start_over()
+                    log('Versus screen: Player 1, then Player 2, say one sentence to set your voice.')
+                elif now and s.raw.get('venroll', b'\0')[0] == 5:
+                    start_over()                       # GO BACK: say it again
+                    log('Voices: starting over.')
                 elif not now and on_versus:
                     speakers.expect = []
                 on_versus = now

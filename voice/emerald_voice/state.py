@@ -27,9 +27,10 @@ WATCH = [
     ('dvoice', 'gArenaDraftVoice', 2),
     ('toast', 'gArenaToastSeq', 2),
     ('eparty', 'gEnemyParty', 600),
+    ('venroll', 'gArenaVoiceEnroll', 1),
 ]
 OPTIONAL = {'gArenaDraftBattle', 'gArenaDraftMode', 'gArenaP2MoveSlot',   # Arena-mode builds only
-            'gArenaDraftScreen', 'gArenaDraftVoice', 'gArenaToastSeq'}
+            'gArenaDraftScreen', 'gArenaDraftVoice', 'gArenaToastSeq', 'gArenaVoiceEnroll'}
 KEYS = {'A': 1, 'B': 2, 'SELECT': 4, 'START': 8, 'RIGHT': 16, 'LEFT': 32, 'UP': 64, 'DOWN': 128, 'R': 256, 'L': 512}
 FACING = ['down', 'down_right', 'right', 'up_right', 'up', 'up_left', 'left', 'down_left']
 PHASES = {0: 'idle', 1: 'winding_up', 2: 'attacking', 3: 'recovering'}

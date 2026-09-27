@@ -51,8 +51,12 @@ extern u8 gArenaP2Voice[2];
 extern u8 gArenaP2NextMon;
 // A voluntary switch for Player 2 on the way out of the arena (index + 1).
 extern u8 gArenaP2SwitchTo;
-// Voice setup on the versus screen: 1/2 waiting for Player 1/2, 3 done.
+// Voice setup on the versus screen (a modal): 1/2 waiting for Player 1/2,
+// 3 both set, 5 GO BACK pressed (the agent starts over), 0 closed. What the
+// agent heard from each player, in the game's charset; bump the sequence.
 extern u8 gArenaVoiceEnroll;
+extern u8 gArenaVoiceHeard[2][24];
+extern u8 gArenaVoiceHeardSeq;
 
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);

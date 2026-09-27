@@ -304,17 +304,21 @@ class PushToTalk:
             self._finish(audio, 'voice')
 
     def _finish(self, audio, key):
-        if self.speakers and self.speakers.expect and key == 'voice' and len(audio) > RATE * 0.4:
-            # Versus screen, 1P vs 1P: this utterance sets a player's voice.
+        if self.speakers and self.speakers.expect and key == 'voice':
+            # Versus screen, 1P vs 1P: this sentence sets a player's voice.
+            text = self.transcriber.transcribe(audio, '')
+            clean = ''.join(c for c in text.lower() if c.isalpha() or c == ' ').strip()
+            if len(audio) < RATE * 0.6 or not clean or clean in HALLUCINATIONS or not self.speakers.expect:
+                return
             player = self.speakers.expect.pop(0)
             e = self.speakers.embed(audio)
             while len(self.speakers.learned) <= player:
                 self.speakers.learned.append(e)
             self.speakers.learned[player] = e
-            self.log(f'Voice set for Player {player + 1}.')
+            self.log(f'Voice set for Player {player + 1}: "{text}"')
             chime('Pop')
             if self.on_enrolled:
-                self.on_enrolled(player)
+                self.on_enrolled(player, text)
             return
         t = time.perf_counter()
         text = self.transcriber.transcribe(audio, self.vocabulary())
