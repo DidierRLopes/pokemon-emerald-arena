@@ -1,0 +1,6 @@
+node_modules/
+out/
+public/gen/
+public/clips/
+public/soundtrack.wav
+audio/raw.wav

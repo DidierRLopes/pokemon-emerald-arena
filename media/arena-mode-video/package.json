@@ -1,0 +1,25 @@
+{
+  "name": "emerald-arena-mode-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "python3 scripts/assets.py",
+    "capture": "~/.config/mgba/headless/venv/bin/python scripts/capture.py",
+    "audio": "node audio/synth.ts && node audio/master.ts",
+    "studio": "remotion studio src/index.ts",
+    "still": "remotion still src/index.ts",
+    "draft": "remotion render src/index.ts ArenaMode out/draft.mp4 --scale=0.5 --crf=24",
+    "render": "remotion render src/index.ts ArenaMode out/emerald-arena-mode.mp4 --codec=h264 --crf=16 --audio-bitrate=320k --pixel-format=yuv420p"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.529",
+    "@remotion/google-fonts": "4.0.529",
+    "remotion": "4.0.529",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "typescript": "5.9.2"
+  }
+}
