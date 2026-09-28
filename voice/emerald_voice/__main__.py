@@ -176,7 +176,7 @@ def main():
         heard_seq = [0]
 
         def show_heard(player, text, retry):
-            bridge.write_bytes('gArenaVoiceHeard', data.encode(text.strip(), limit=22), offset=24 * player)
+            bridge.write_bytes('gArenaVoiceHeard', data.encode(text.strip(), limit=38), offset=40 * player)
             bridge.write_byte('gArenaVoiceRetry', retry)
             heard_seq[0] = (heard_seq[0] + 1) & 255
             bridge.write_byte('gArenaVoiceHeardSeq', heard_seq[0])
@@ -191,7 +191,7 @@ def main():
         def start_over():
             speakers.learned, speakers.expect = [], [0, 1]
             bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=0)
-            bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=24)
+            bridge.write_bytes('gArenaVoiceHeard', [0xFF], offset=40)
             bridge.write_byte('gArenaVoiceRetry', 0)
             bridge.write_byte('gArenaVoiceEnroll', 1)
 

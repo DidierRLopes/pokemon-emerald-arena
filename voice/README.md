@@ -112,7 +112,7 @@ the arena (I / K move, U picks, O backs out), "switch to Gengar" switches
 directly, and after Player 2's KO the list opens for Player 2 to choose.
 
 On the versus screen of a 1P vs 1P match, a window shows a sentence for each
-player to read aloud in turn ("Quick Pikachu, jump left and fire a
+player to read aloud in turn ("Quick Pikachu, fire a
 Thunderbolt!": varied sounds and battle words, which make the two voices
 much easier to tell apart; a pause mid-sentence doesn't end a turn, the
 pieces of one reading are joined), refuses a

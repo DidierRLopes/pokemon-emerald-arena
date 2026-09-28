@@ -235,7 +235,7 @@ class Segmenter:
 # What each player reads on the versus screen to set their voice (kept in sync
 # with the ROM's modal): 3-4 s of speech with a wide spread of sounds, and the
 # words players say in battle, so the voice match is made on real play speech.
-ENROLL_SENTENCE = 'Quick Pikachu, jump left and fire a Thunderbolt!'
+ENROLL_SENTENCE = 'Quick Pikachu, fire a Thunderbolt!'
 
 
 def sentence_match(text):
@@ -427,7 +427,7 @@ class PushToTalk:
             if self.reading:
                 audio = np.concatenate([self.reading[1], audio])
                 text = self.reading[2] + ' ' + text
-            if not reads_sentence(text) or len(audio) < RATE * 1.2:
+            if not reads_sentence(text) or len(audio) < RATE * 1.0:
                 if starts_sentence(text) and len(text) < len(ENROLL_SENTENCE) * 0.9:
                     self.reading = (player, audio, text, now)   # the start of it: wait for the rest
                     return
@@ -480,6 +480,9 @@ class PushToTalk:
             return
         if key == 'voice' and ''.join(c for c in text.lower() if c.isalpha() or c == ' ').strip() in HALLUCINATIONS:
             return
+        words = text.lower().split()
+        if len(words) > 12 and len(set(words)) < len(words) * 0.3:
+            return                  # Whisper stuck repeating itself on noise
         player, who = 0, ''
         if self.speakers:
             if not self.speakers.active():

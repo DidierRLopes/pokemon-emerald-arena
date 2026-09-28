@@ -1038,7 +1038,7 @@ static void StartBattle(void);
 // these), shows what it heard, and offers READY or GO BACK (record again).
 static EWRAM_DATA u8 sVsIcons[2 * TEAM_MAX] = {};
 static EWRAM_DATA u8 sVsIconCount = 0;
-EWRAM_DATA u8 gArenaVoiceHeard[2][24] = {};
+EWRAM_DATA u8 gArenaVoiceHeard[2][40] = {};
 EWRAM_DATA u8 gArenaVoiceHeardSeq = 0;
 
 EWRAM_DATA u8 gArenaVoiceRetry = 0;
@@ -1047,9 +1047,9 @@ static const u8 sText_VoiceTitle[] = _("SET EACH PLAYER'S VOICE");
 static const u8 sText_VoiceHelp[] = _("Read this aloud, PLAYER 1 then PLAYER 2:");
 // Kept in sync with ENROLL_SENTENCE in voice/emerald_voice/voice.py. Long
 // (about 2.5 s), with many different sounds and words said in battle.
-static const u8 sText_Sentence1[] = _("“Quick Pikachu, jump left");
-static const u8 sText_Sentence2[] = _("and fire a Thunderbolt!”");
-static const u8 sText_RetrySentence[] = _("Not the sentence, read it again. Heard:");
+static const u8 sText_Sentence1[] = _("“Quick Pikachu,");
+static const u8 sText_Sentence2[] = _("fire a Thunderbolt!”");
+static const u8 sText_RetrySentence[] = _("Not the whole sentence: read it again.");
 static const u8 sText_RetrySame[] = _("Sounded like PLAYER 1. PLAYER 2, read it:");
 static const u8 sText_VoiceP1[] = _("PLAYER 1");
 static const u8 sText_VoiceP2[] = _("PLAYER 2");
@@ -1082,7 +1082,7 @@ static void DrawVersus(void)
 
 static void DrawVoiceRow(u8 player, u8 y)
 {
-    u8 buf[32], *p;
+    u8 buf[48], *p;
     u8 state = gArenaVoiceEnroll;
     bool8 done = state == 3 || (player == 0 && state == 2);
     bool8 current = state == player + 1;
@@ -1095,13 +1095,14 @@ static void DrawVoiceRow(u8 player, u8 y)
         Print(WIN_MAIN, FONT_SMALL, 70, y, sColorWhite, sText_SpeakNow);
     else
         Print(WIN_MAIN, FONT_SMALL, 70, y, sColorGray, sText_Waiting);
-    // What was heard, once accepted (a refused reading shows below).
-    if (done && gArenaVoiceHeard[player][0] != EOS)
+    // What was heard, in full, on its own line: white once accepted, red
+    // when this player is asked to read it again.
+    if ((done || (current && gArenaVoiceRetry)) && gArenaVoiceHeard[player][0] != EOS)
     {
         p = StringCopy(buf, sText_OpenQuote);
         p = StringCopy(p, gArenaVoiceHeard[player]);
         StringCopy(p, sText_CloseQuote);
-        Print(WIN_MAIN, FONT_SMALL, 96, y, sColorWhite, buf);
+        Print(WIN_MAIN, FONT_SMALL, 26, y + 11, done ? sColorWhite : sColorRed, buf);
     }
 }
 
@@ -1116,24 +1117,13 @@ static void DrawVoiceModal(void)
     Print(WIN_MAIN, FONT_NORMAL, 20, 16, sColorYellow, sText_VoiceTitle);
     Print(WIN_MAIN, FONT_SMALL, 20, 31, sColorWhite, sText_VoiceHelp);
     FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 16, 44, 208, 26);
-    Print(WIN_MAIN, FONT_NORMAL, 56, 45, sColorWhite, sText_Sentence1);
-    Print(WIN_MAIN, FONT_NORMAL, 62, 57, sColorWhite, sText_Sentence2);
-    DrawVoiceRow(0, 78);
-    DrawVoiceRow(1, 94);
+    Print(WIN_MAIN, FONT_NORMAL, 80, 45, sColorWhite, sText_Sentence1);
+    Print(WIN_MAIN, FONT_NORMAL, 72, 57, sColorWhite, sText_Sentence2);
+    DrawVoiceRow(0, 75);
+    DrawVoiceRow(1, 98);
     if (gArenaVoiceRetry && (gArenaVoiceEnroll == 1 || gArenaVoiceEnroll == 2))
-    {
-        u8 heard[32], *q;
-        u8 who = gArenaVoiceEnroll - 1;
-        Print(WIN_MAIN, FONT_SMALL, 20, 108, sColorRed, gArenaVoiceRetry == 2 ? sText_RetrySame : sText_RetrySentence);
-        if (gArenaVoiceRetry == 1 && gArenaVoiceHeard[who][0] != EOS)
-        {
-            q = StringCopy(heard, sText_OpenQuote);
-            q = StringCopy(q, gArenaVoiceHeard[who]);
-            StringCopy(q, sText_CloseQuote);
-            Print(WIN_MAIN, FONT_SMALL, 26, 118, sColorRed, heard);
-        }
-    }
-    Print(WIN_MAIN, FONT_SMALL, 20, 132, gArenaVoiceEnroll == 3 ? sColorYellow : sColorGray, sText_VoiceKeys);
+        Print(WIN_MAIN, FONT_SMALL, 20, 121, sColorRed, gArenaVoiceRetry == 2 ? sText_RetrySame : sText_RetrySentence);
+    Print(WIN_MAIN, FONT_SMALL, 20, 134, gArenaVoiceEnroll == 3 ? sColorYellow : sColorGray, sText_VoiceKeys);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
 }

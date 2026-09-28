@@ -55,7 +55,7 @@ extern u8 gArenaP2SwitchTo;
 // 3 both set, 5 GO BACK pressed (the agent starts over), 0 closed. What the
 // agent heard from each player, in the game's charset; bump the sequence.
 extern u8 gArenaVoiceEnroll;
-extern u8 gArenaVoiceHeard[2][24];
+extern u8 gArenaVoiceHeard[2][40];
 extern u8 gArenaVoiceHeardSeq;
 // Why the current player is asked again: 1 not the sentence, 2 sounded like
 // Player 1 (Player 2's turn).
