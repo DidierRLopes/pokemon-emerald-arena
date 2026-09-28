@@ -800,34 +800,78 @@ static void DrawMovesPanel(u8 side, u8 window, bool8 show)
 // (written by the voice agent). Player 2's only when Player 2 is human: COM
 // shows nothing.
 
-EWRAM_DATA u8 gArenaToastText[2][28] = {};
+EWRAM_DATA u8 gArenaToastText[2][48] = {};
 EWRAM_DATA u8 gArenaToastSeq[2] = {};
 static EWRAM_DATA u8 sToastSeen[2] = {};
 static EWRAM_DATA u8 sToastShown[2] = {};
 static EWRAM_DATA u16 sToastTimer[2] = {};
+// Words of `text` that fit in `maxWidth` pixels from `start`: returns the
+// index after the last one that fits (at least one word), and its width.
+static u32 ToastLine(const u8 *text, u32 start, u32 maxWidth, u32 *width)
+{
+    u32 i = start, end = start, w = 0, wordEnd;
+    while (text[i] != EOS)
+    {
+        u32 ww = 0;
+        wordEnd = i;
+        while (text[wordEnd] != EOS && (wordEnd == i || text[wordEnd] != CHAR_SPACE))
+            ww += gFontSmallLatinGlyphWidths[text[wordEnd++]];
+        if (end != start && w + ww > maxWidth)
+            break;
+        w += ww;
+        end = i = wordEnd;
+    }
+    *width = min(w, maxWidth);
+    return end;
+}
+
+// The player's words in a bubble that always holds them: one line, or two
+// (wrapped at a word), the rest cut with "...".
 static void DrawToast(u8 side)
 {
+    static const u8 sEllipsis[] = _("...");
     u8 window = 5 + side;
+    u8 line[2][48];
     const u8 *text = gArenaToastText[side];
-    u32 width = 0, i, left, right;
-    for (i = 0; text[i] != EOS && i < 27; i++)
-        width += gFontSmallLatinGlyphWidths[text[i]];
-    width = min(width + 8, 120);
+    u32 w0, w1 = 0, cut, cut2, i, left, right, width, top, height, lines;
+    cut = ToastLine(text, 0, 108, &w0);
+    for (i = 0; i < cut; i++) line[0][i] = text[i];
+    line[0][cut] = EOS;
+    lines = 1;
+    line[1][0] = EOS;
+    if (text[cut] != EOS)
+    {
+        u32 start = text[cut] == CHAR_SPACE ? cut + 1 : cut;
+        cut2 = ToastLine(text, start, 96, &w1);
+        for (i = start; i < cut2; i++) line[1][i - start] = text[i];
+        line[1][cut2 - start] = EOS;
+        if (text[cut2] != EOS)
+        {
+            StringAppend(line[1], sEllipsis);
+            w1 += 3 * gFontSmallLatinGlyphWidths[sEllipsis[0]];
+        }
+        lines = 2;
+    }
+    width = max(w0, w1) + 11;
+    height = lines == 1 ? 15 : 24;
+    top = lines == 1 ? 4 : 0;
     CpuFastFill(0, gWindows[window].tileData, 16 * 3 * 32);
     // Player 1's bubble starts at the left (its trainer stands in the bottom
     // left corner, the tail points at it); Player 2's ends at the right.
     left = side ? 122 - width : 6;
     right = left + width;
-    WindowRect(window, left, 4, width, 15, 9);                       // outline
-    WindowRect(window, left + 1, 5, width - 2, 13, 10);              // bubble
+    WindowRect(window, left, top, width, height, 9);                         // outline
+    WindowRect(window, left + 1, top + 1, width - 2, height - 2, 10);        // bubble
     for (i = 0; i < 5; i++)
     {
         if (side == 0)
-            WindowRect(window, left - 1 - i, 7 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
+            WindowRect(window, left - 1 - i, top + height / 2 - 4 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
         else
-            WindowRect(window, right + i, 7 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
+            WindowRect(window, right + i, top + height / 2 - 4 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
     }
-    PrintWindow(window, left + 4, 5, text, 9);
+    PrintWindow(window, left + 4, top + 1, line[0], 9);
+    if (lines == 2)
+        PrintWindow(window, left + 4, top + 11, line[1], 9);
     PutWindowTilemap(window);
     CopyWindowToVram(window, COPYWIN_FULL);
 }
@@ -1011,8 +1055,9 @@ static bool8 TickP2Pick(void)
 
 static const u8 sTextEscPaused[] = _("PAUSED");
 static const u8 sTextEscResume[] = _("RESUME");
-static const u8 sTextEscStartOver[] = _("START OVER  (back to the ARENA menu)");
-static const u8 sTextEscKeys[] = _("UP/DOWN  A: OK  B or ESC: RESUME");
+static const u8 sTextEscStartOver[] = _("START OVER");
+static const u8 sTextEscNote[] = _("Ends the battle, to ARENA menu.");
+static const u8 sTextEscKeys[] = _("A: OK    B or ESC: RESUME");
 
 static void DrawEscMenu(void)
 {
@@ -1022,7 +1067,9 @@ static void DrawEscMenu(void)
     PrintWindow(1, 12, 20, sTextEscResume, sEscMenu == 1 ? 7 : 4);
     if (sEscMenu == 2) WindowRect(1, 4, 37, 3, 6, 5);
     PrintWindow(1, 12, 34, sTextEscStartOver, sEscMenu == 2 ? 7 : 4);
-    PrintWindow(1, 8, 56, sTextEscKeys, 8);
+    if (sEscMenu == 2)
+        PrintWindow(1, 12, 46, sTextEscNote, 8);
+    PrintWindow(1, 8, 59, sTextEscKeys, 8);
     PutWindowTilemap(1);
     CopyWindowToVram(1, COPYWIN_FULL);
 }

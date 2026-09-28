@@ -105,10 +105,7 @@ static const u8 sText_SpA[] = _("SPA");
 static const u8 sText_SpD[] = _("SPD");
 static const u8 sText_Spe[] = _("SPE");
 static const u8 sText_Slash[] = _("/");
-static const u8 sText_Vs[] = _("VS");
 static const u8 sText_VsHint[] = _("{A_BUTTON} BATTLE   {B_BUTTON} REDRAFT");
-static const u8 sText_Wins[] = _(" WINS!");
-static const u8 sText_Draw[] = _("NO WINNER");
 static const u8 sText_ResultHint[] = _("{A_BUTTON} ARENA MENU");
 static const u8 sText_DraftHint[] = _("{A_BUTTON}PICK {B_BUTTON}UNDO");
 static const u8 sText_Lose[] = _("GOOD GAME!");
@@ -1111,6 +1108,62 @@ static void Task_Draft(u8 taskId)
 static void Task_Versus(u8 taskId);
 static void StartBattle(void);
 
+// ---------------------------------------------------------------- big letters
+// A 5x7 block font drawn at 2-4x for the versus and result screens (ASCII).
+static const char sBigChars[] = "ACDEILMNOPRSVWY12!";
+static const u8 sBigGlyphs[][7] =
+{
+    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11},
+    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E},
+    {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E},
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F},
+    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E},
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F},
+    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11},
+    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11},
+    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E},
+    {0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10},
+    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11},
+    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E},
+    {0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04},
+    {0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A},
+    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04},
+    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E},
+    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F},
+    {0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04}
+};
+
+static u32 BigTextWidth(const char *s, u8 scale)
+{
+    u32 n = 0;
+    while (s[n]) n++;
+    return n ? n * 6 * scale - scale : 0;
+}
+
+// Text at (x, y) in WIN_MAIN, `scale` pixels per dot, with a drop shadow.
+static void BigText(u32 x, u32 y, const char *s, u8 scale, u8 color, u8 shadow)
+{
+    u32 i, r, c, k;
+    for (; *s; s++, x += 6 * scale)
+    {
+        for (k = 0; sBigChars[k] && sBigChars[k] != *s; k++)
+            ;
+        if (!sBigChars[k])
+            continue;                               // a space
+        for (i = 0; i < 2; i++)
+            for (r = 0; r < 7; r++)
+                for (c = 0; c < 5; c++)
+                    if (sBigGlyphs[k][r] & (0x10 >> c))
+                        FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(i ? color : shadow),
+                                            x + c * scale + (i ? 0 : scale / 2 + 1), y + r * scale + (i ? 0 : scale / 2 + 1), scale, scale);
+    }
+}
+
+static void BigTextCentered(u32 y, const char *s, u8 scale, u8 color, u8 shadow)
+{
+    BigText((240 - BigTextWidth(s, scale)) / 2, y, s, scale, color, shadow);
+}
+
 // The versus screen. In 1P VS 1P with the voice agent running, a modal first
 // asks each player to say one sentence (the agent tells the voices apart from
 // these), shows what it heard, and offers READY or GO BACK (record again).
@@ -1144,14 +1197,23 @@ static bool8 VoiceModalActive(void)
     return gArenaDraftMode == ARENA_DRAFT_VS_P2 && gArenaVoiceEnroll && gArenaVoiceEnroll != 4;
 }
 
+// Player 1 in blue across the top, Player 2 (or COM) in red across the
+// bottom, a big VS between them; each team's icons under its name.
 static void DrawVersus(void)
 {
     u32 i;
+    const char *rival = gArenaDraftMode == ARENA_DRAFT_VS_COM ? "COM" : "PLAYER 2";
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
-    Print(WIN_MAIN, FONT_NORMAL, 8, 4, sColorYellow, sText_P1);
-    Print(WIN_MAIN, FONT_NORMAL, 112, 68, sColorWhite, sText_Vs);
-    Print(WIN_MAIN, FONT_NORMAL, 8, 84, sColorYellow, gArenaDraftMode == ARENA_DRAFT_VS_COM ? sText_Com : sText_P2);
-    Print(WIN_MAIN, FONT_SMALL, 56, 146, sColorGray, sText_VsHint);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 0, 2, 240, 24);        // Player 1's band
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(6), 0, 2, 5, 24);
+    BigText(14, 7, "PLAYER 1", 2, 6, 8);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(4), 8, 75, 80, 2);         // VS divider
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(4), 152, 75, 80, 2);
+    BigTextCentered(62, "VS", 4, 4, 5);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 0, 94, 240, 22);       // Player 2's band
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(5), 235, 94, 5, 22);
+    BigText(226 - BigTextWidth(rival, 2), 98, rival, 2, 5, 8);
+    Print(WIN_MAIN, FONT_SMALL, 56, 147, sColorGray, sText_VsHint);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
     for (i = 0; i < sVsIconCount; i++)
@@ -1216,7 +1278,7 @@ static void CB2_ShowVersus(void)
     for (p = 0; p < 2; p++)
         for (i = 0; i < sTeamCount[p]; i++)
             sVsIcons[sVsIconCount++] = CreateMonIcon(sArenaDraftRoster[sTeams[p][i]].species, SpriteCB_MonIcon,
-                                                     24 + i * 36, p ? 124 : 44, 1, 0, TRUE);
+                                                     24 + i * 36, p ? 129 : 44, 1, 0, TRUE);
     gArenaEscRequest = sEscMenu = 0;
     DrawVersus();
     CreateTask(Task_Versus, 0);
@@ -1383,7 +1445,6 @@ static void Task_Result(u8 taskId);
 
 static void CB2_ArenaResult(void)
 {
-    u8 buf[24], *p;
     u8 outcome = gBattleOutcome;
     gArenaDraftBattle = FALSE;
     gArenaP2Keys = 0;
@@ -1401,21 +1462,36 @@ static void CB2_ArenaResult(void)
     SetupScreen(sFullWindows);
     FillPanel(0, 0, 30, 20, TILE_PANEL);
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
-    if (outcome == B_OUTCOME_WON)
-        p = StringCopy(buf, sText_P1);
-    else if (outcome == B_OUTCOME_LOST)
-        p = StringCopy(buf, gArenaDraftMode == ARENA_DRAFT_VS_P2 ? sText_P2 : sText_Com);
-    else
-        p = NULL;
-    if (p)
     {
-        StringCopy(p, sText_Wins);
-        Print(WIN_MAIN, FONT_NORMAL, 60, 56, sColorYellow, buf);
+        // The winner's name in their colour, a big pulsing WINS!, confetti,
+        // and the winning team, its lead crying out.
+        static const u8 confetti[] = {4, 5, 6, 7};
+        u8 winner = outcome == B_OUTCOME_WON ? 0 : outcome == B_OUTCOME_LOST ? 1 : 2;
+        const char *name = winner == 0 ? "PLAYER 1" : gArenaDraftMode == ARENA_DRAFT_VS_P2 ? "PLAYER 2" : "COM";
+        u32 i, n;
+        for (i = 0; i < 70; i++)
+        {
+            u32 x = Random() % 236, y = Random() % 104;
+            FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(confetti[i % 4]), x, y, 2 + (i & 1), 2 + (i % 3 == 0));
+        }
+        if (winner < 2)
+        {
+            FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 0, 12, 240, 30);
+            BigTextCentered(15, name, 3, winner ? 5 : 6, 8);
+            BigTextCentered(52, "WINS!", 5, 4, 5);
+            n = sTeamCount[winner];
+            for (i = 0; i < n; i++)
+                CreateMonIcon(sArenaDraftRoster[sTeams[winner][i]].species, SpriteCB_MonIcon,
+                              120 - (n - 1) * 18 + i * 36, 112, 1, 0, TRUE);
+            if (n)
+                PlayCry_Normal(sArenaDraftRoster[sTeams[winner][0]].species, 0);
+        }
+        else
+            BigTextCentered(52, "DRAW", 5, 2, 8);
+        LoadMonIconPalettes();
     }
-    else
-        Print(WIN_MAIN, FONT_NORMAL, 76, 56, sColorWhite, sText_Draw);
-    Print(WIN_MAIN, FONT_SMALL, 88, 84, sColorGray, sText_Lose);
-    Print(WIN_MAIN, FONT_SMALL, 80, 140, sColorGray, sText_ResultHint);
+    Print(WIN_MAIN, FONT_SMALL, 96, 128, sColorGray, sText_Lose);
+    Print(WIN_MAIN, FONT_SMALL, 80, 146, sColorGray, sText_ResultHint);
     PutWindowTilemap(WIN_MAIN);
     CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
     CreateTask(Task_Result, 0);
@@ -1426,8 +1502,17 @@ static void CB2_ArenaResult(void)
 static void Task_Result(u8 taskId)
 {
     s16 *leaving = &gTasks[taskId].data[0];
+    s16 *t = &gTasks[taskId].data[1];
     if (gPaletteFade.active)
         return;
+    {
+        // WINS! pulses between gold and white.
+        s32 k = ++*t % 48;
+        u16 color;
+        k = k < 24 ? k : 47 - k;
+        color = RGB(31, 27 + k * 4 / 23, 8 + k * 23 / 23);
+        gPlttBufferUnfaded[BG_PLTT_ID(15) + 4] = gPlttBufferFaded[BG_PLTT_ID(15) + 4] = color;
+    }
     if (*leaving)
     {
         DestroyTask(taskId);

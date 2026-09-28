@@ -306,8 +306,8 @@ class Brain:
         line = line[0].upper() + line[1:]
         if line[-1] not in '!?':
             line += '!'
-        data = self.data.encode(line, limit=26)
-        self.bridge.write_bytes('gArenaToastText', data, offset=28 * self.side)
+        data = self.data.encode(line, limit=46)
+        self.bridge.write_bytes('gArenaToastText', data, offset=48 * self.side)
         self.bridge.write_bytes('gArenaToastSeq', [(live.toast_seq[self.side] + 1) & 255], offset=self.side)
 
     # ----- the draft screens ----------------------------------------------------

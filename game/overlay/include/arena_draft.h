@@ -39,7 +39,7 @@ extern u8 gArenaDraftVoice[2];
 extern u8 gArenaDraftScreen;
 // A line a trainer calls out in the arena, in the game's charset: set the
 // text, then bump the sequence number to show it.
-extern u8 gArenaToastText[2][28];
+extern u8 gArenaToastText[2][48];
 extern u8 gArenaToastSeq[2];
 
 // Player 2 (human) switching in a 1P vs 1P battle, from the voice agent:
