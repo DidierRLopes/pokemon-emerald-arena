@@ -1,5 +1,6 @@
 #include "global.h"
 #include "realtime_arena.h"
+#include "arena_draft.h"
 #include "arena_capture.h"
 #include "item.h"
 #include "trig.h"
@@ -205,6 +206,18 @@ static const struct WindowTemplate sArenaWindows[] =
       .width = 28, .height = 9, .paletteNum = 0, .baseBlock = 91 },
     { .bg = 0, .tilemapLeft = 0, .tilemapTop = 18,
       .width = 30, .height = 2, .paletteNum = 0, .baseBlock = 343 },
+    // Each side's moves under its HP bar: Player 1 top left, Player 2 top
+    // right (clear of the opponent trainer at the right edge).
+    { .bg = 0, .tilemapLeft = 0, .tilemapTop = 2,
+      .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 403 },
+    { .bg = 0, .tilemapLeft = 18, .tilemapTop = 2,
+      .width = 10, .height = 4, .paletteNum = 0, .baseBlock = 443 },
+    // Each player's spoken commands, bottom left and bottom right. Their
+    // tiles share the pause picker's VRAM: the two are never shown together.
+    { .bg = 0, .tilemapLeft = 2, .tilemapTop = 15,
+      .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 91 },
+    { .bg = 0, .tilemapLeft = 12, .tilemapTop = 15,
+      .width = 16, .height = 3, .paletteNum = 0, .baseBlock = 139 },
     DUMMY_WIN_TEMPLATE
 };
 static const u16 sArenaPalette[16] =
@@ -285,7 +298,7 @@ static const u8 sDemoName[] = _("ARENA");
 // Curated levels retain genuine compatible moves from each native learnset.
 static const struct {u16 species;u8 level;} sPracticeRivals[] =
 {
-    {SPECIES_EEVEE,36}, {SPECIES_BLASTOISE,36}, {SPECIES_SCIZOR,15},
+    {SPECIES_EEVEE,30}, {SPECIES_BLASTOISE,36}, {SPECIES_SCIZOR,15},   // local: Eevee 36 -> 30
     {SPECIES_BLAZIKEN,20}, {SPECIES_DRAGONITE,30}, {SPECIES_CHARIZARD,36},
     {SPECIES_SCEPTILE,43}, {SPECIES_RAYQUAZA,60}, {SPECIES_MEWTWO,66}
 };
@@ -389,6 +402,8 @@ static void PhaseWrap(u8 side, s32 dx, s32 dy)
 #define ROLLOUT_CAM_SIN 147
 #define ROLLOUT_CAM_COS 210
 EWRAM_DATA u8 gArenaRolloutStage = 0;
+EWRAM_DATA u8 gArenaVoiceRequest = 0;
+EWRAM_DATA bool8 gArenaVoicePartyMenu = FALSE;
 
 static bool8 Rolling(u8 side)
 {
@@ -441,6 +456,18 @@ static bool8 SupportedBattler(u8 side)
         || (gBattleMons[side].status2 & ~(STATUS2_FOCUS_ENERGY|STATUS2_DEFENSE_CURL))
         || gStatuses3[side] || gBattleMons[side].hp == 0 || FirstMove(side, TRUE) == MAX_MON_MOVES)
         return FALSE;
+    // Arena mode drafts: these abilities only act between turns, on held
+    // items, or as status on contact, none of which the real-time arena
+    // plays; a drafted battle stays real-time and simply leaves them out.
+    if (gArenaDraftBattle)
+        switch (gBattleMons[side].ability)
+        {
+        case ABILITY_SHED_SKIN: case ABILITY_SYNCHRONIZE: case ABILITY_TRUANT: case ABILITY_SPEED_BOOST:
+        case ABILITY_SOUNDPROOF: case ABILITY_LIQUID_OOZE: case ABILITY_STICKY_HOLD: case ABILITY_ROUGH_SKIN:
+        case ABILITY_STATIC: case ABILITY_POISON_POINT: case ABILITY_EFFECT_SPORE: case ABILITY_CUTE_CHARM:
+        case ABILITY_FLAME_BODY:
+            return TRUE;
+        }
     switch (gBattleMons[side].ability)
     {
     case ABILITY_NONE:
@@ -542,6 +569,13 @@ static bool8 Eligible(void)
 bool8 RealtimeArena_CanSkipIntro(void)
 {
     u8 weather=GetCurrentWeather();
+    // Arena-mode drafts always skip it: switch-in abilities (Intimidate,
+    // weather) still take effect, silently, before the arena opens.
+    if(gArenaDraftBattle&&Eligible())
+    {
+        gRealtimeArenaQuietResult=TRUE;
+        return TRUE;
+    }
     // Active switch-in abilities/weather may execute native animation scripts.
     // Keep their complete intro until that specific path is supported and tested.
     return Eligible()&&gBattleMons[0].ability!=ABILITY_INTIMIDATE
@@ -666,6 +700,8 @@ static u8 RecoveryPips(void)
     return 8-min(8,body->cooldown*8/max(1,p?p->recovery:30));
 }
 
+static EWRAM_DATA u8 sP2Pick = 0;         // Player 2 choosing: 0 closed, 1 after a KO, 2 voluntary
+static EWRAM_DATA u8 sEscMenu = 0;        // Esc menu: 0 closed, 1 RESUME, 2 START OVER selected
 #include "arena_hud.inc"
 
 static void DrawHud(void)
@@ -674,7 +710,7 @@ static void DrawHud(void)
     u8 text[64];
     u8 *end;
     DrawStatusHud();
-    if (sArena.paused)
+    if (sArena.paused && !sP2Pick && !sEscMenu)
     {
         if(!sMoveMenuReady)
         {
@@ -704,6 +740,411 @@ static void DrawHud(void)
     CopyWindowToVram(0, COPYWIN_GFX);
     CaptureHud();
     sArena.hudDirty = FALSE;
+}
+
+// ---------------------------------------------------------------- moves panel
+// The four moves of a player's Pokémon in a corner, the selected one marked,
+// with PP, on a translucent box that stays put even when a Pokémon walks
+// over it; hidden while paused (the pause picker lists them).
+
+static bool8 P2Human(void);
+static EWRAM_DATA u8 sPanelKey[2][8] = {};
+static EWRAM_DATA bool8 sPanelShown[2] = {};
+
+static void DrawMovesPanel(u8 side, u8 window, bool8 show)
+{
+    u8 key[8], text[8];
+    u32 i;
+    bool8 same = sPanelShown[side];
+    key[0] = show; key[1] = 0; key[2] = sArena.bodies[side].moveSlot; key[3] = gBattleMons[side].species;
+    for (i = 0; i < MAX_MON_MOVES; i++)
+        key[4 + i] = gBattleMons[side].pp[i];
+    for (i = 0; i < sizeof(key); i++)
+    {
+        if (key[i] != sPanelKey[side][i])
+            same = FALSE;
+        sPanelKey[side][i] = key[i];
+    }
+    if (same)
+        return;
+    sPanelShown[side] = TRUE;
+    if (!show)
+    {
+        ClearWindowTilemap(window);
+        CopyWindowToVram(window, COPYWIN_MAP);
+        return;
+    }
+    CpuFastFill(0, gWindows[window].tileData, 10 * 4 * 32);
+    WindowRect(window, 1, 1, 78, 30, 11);
+    WindowRect(window, 1, 1, 78, 1, 1);
+    for (i = 0; i < MAX_MON_MOVES; i++)
+    {
+        u16 move = gBattleMons[side].moves[i];
+        bool8 selected = i == sArena.bodies[side].moveSlot;
+        u8 color, y = 4 + i * 7;
+        if (move == MOVE_NONE)
+            continue;
+        color = !ArenaMoves_Get(move) ? 8 : !gBattleMons[side].pp[i] ? 6 : selected ? 7 : 4;
+        if (selected)
+            WindowRect(window, 3, y, 2, 5, color);
+        HudTinyWindow(window, 7, y, gMoveNames[move], color, 13);
+        ConvertIntToDecimalStringN(text, gBattleMons[side].pp[i], STR_CONV_MODE_RIGHT_ALIGN, 2);
+        HudTinyWindow(window, 68, y, text, color, 2);
+    }
+    PutWindowTilemap(window);
+    CopyWindowToVram(window, COPYWIN_FULL);
+}
+
+// ---------------------------------------------------------------- call-outs
+// A speech bubble for about 2.5 s with what a player said to their Pokémon
+// (written by the voice agent). Player 2's only when Player 2 is human: COM
+// shows nothing.
+
+EWRAM_DATA u8 gArenaToastText[2][48] = {};
+EWRAM_DATA u8 gArenaToastSeq[2] = {};
+static EWRAM_DATA u8 sToastSeen[2] = {};
+static EWRAM_DATA u8 sToastShown[2] = {};
+static EWRAM_DATA u16 sToastTimer[2] = {};
+// Words of `text` that fit in `maxWidth` pixels from `start`: returns the
+// index after the last one that fits (at least one word), and its width.
+static u32 ToastLine(const u8 *text, u32 start, u32 maxWidth, u32 *width)
+{
+    u32 i = start, end = start, w = 0, wordEnd;
+    while (text[i] != EOS)
+    {
+        u32 ww = 0;
+        wordEnd = i;
+        while (text[wordEnd] != EOS && (wordEnd == i || text[wordEnd] != CHAR_SPACE))
+            ww += gFontSmallLatinGlyphWidths[text[wordEnd++]];
+        if (end != start && w + ww > maxWidth)
+            break;
+        w += ww;
+        end = i = wordEnd;
+    }
+    *width = min(w, maxWidth);
+    return end;
+}
+
+// The player's words in a bubble that always holds them: one line, or two
+// (wrapped at a word), the rest cut with "...".
+static void DrawToast(u8 side)
+{
+    static const u8 sEllipsis[] = _("...");
+    u8 window = 5 + side;
+    u8 line[2][48];
+    const u8 *text = gArenaToastText[side];
+    u32 w0, w1 = 0, cut, cut2, i, left, right, width, top, height, lines;
+    cut = ToastLine(text, 0, 108, &w0);
+    for (i = 0; i < cut; i++) line[0][i] = text[i];
+    line[0][cut] = EOS;
+    lines = 1;
+    line[1][0] = EOS;
+    if (text[cut] != EOS)
+    {
+        u32 start = text[cut] == CHAR_SPACE ? cut + 1 : cut;
+        cut2 = ToastLine(text, start, 96, &w1);
+        for (i = start; i < cut2; i++) line[1][i - start] = text[i];
+        line[1][cut2 - start] = EOS;
+        if (text[cut2] != EOS)
+        {
+            StringAppend(line[1], sEllipsis);
+            w1 += 3 * gFontSmallLatinGlyphWidths[sEllipsis[0]];
+        }
+        lines = 2;
+    }
+    width = max(w0, w1) + 11;
+    height = lines == 1 ? 15 : 24;
+    top = lines == 1 ? 4 : 0;
+    CpuFastFill(0, gWindows[window].tileData, 16 * 3 * 32);
+    // Player 1's bubble starts at the left (its trainer stands in the bottom
+    // left corner, the tail points at it); Player 2's ends at the right.
+    left = side ? 122 - width : 6;
+    right = left + width;
+    WindowRect(window, left, top, width, height, 9);                         // outline
+    WindowRect(window, left + 1, top + 1, width - 2, height - 2, 10);        // bubble
+    for (i = 0; i < 5; i++)
+    {
+        if (side == 0)
+            WindowRect(window, left - 1 - i, top + height / 2 - 4 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
+        else
+            WindowRect(window, right + i, top + height / 2 - 4 + i, 1, 9 - 2 * i, i == 4 ? 9 : 10);
+    }
+    PrintWindow(window, left + 4, top + 1, line[0], 9);
+    if (lines == 2)
+        PrintWindow(window, left + 4, top + 11, line[1], 9);
+    PutWindowTilemap(window);
+    CopyWindowToVram(window, COPYWIN_FULL);
+}
+
+static void UpdateToasts(bool8 reset)
+{
+    u32 side;
+    for (side = 0; side < 2; side++)
+    {
+        bool8 visible, fresh = FALSE;
+        if (reset)
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
+            sToastTimer[side] = 0;
+            sToastShown[side] = FALSE;
+            continue;
+        }
+        if (side == 1 && !P2Human())
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
+            continue;
+        }
+        if (gArenaToastSeq[side] != sToastSeen[side])
+        {
+            sToastSeen[side] = gArenaToastSeq[side];
+            sToastTimer[side] = 150;
+            fresh = TRUE;
+        }
+        visible = sToastTimer[side] && !sArena.paused && !sArena.resultTimer;
+        if (sToastTimer[side] && !sArena.paused)
+            sToastTimer[side]--;
+        if (visible && (fresh || !sToastShown[side]))
+            DrawToast(side);
+        else if (!visible && sToastShown[side])
+        {
+            ClearWindowTilemap(5 + side);
+            CopyWindowToVram(5 + side, COPYWIN_MAP);
+        }
+        sToastShown[side] = visible;
+    }
+}
+
+// ---------------------------------------------------------------- Player 2's team
+// In 1P vs 1P Player 2 chooses their own Pokémon: after a KO, or on request
+// (their switch key, or by voice). The arena freezes and lists Player 2's
+// party in the pause picker's window; I / K move, U picks, O cancels a
+// voluntary switch. The engine then runs the switch silently.
+
+EWRAM_DATA u8 gArenaP2Voice[2] = {};
+EWRAM_DATA u8 gArenaP2NextMon = 0;
+EWRAM_DATA u8 gArenaP2SwitchTo = 0;
+static EWRAM_DATA u8 sP2PickCursor = 0;
+static EWRAM_DATA u16 sP2PickPrev = 0;
+static const u8 sTextP2Pick[] = _("PLAYER 2: CHOOSE A POKéMON");
+static const u8 sTextP2Fainted[] = _("FAINTED");
+static const u8 sTextP2Out[] = _("IN BATTLE");
+static const u8 sTextP2Keys[] = _("U PICK  O BACK");
+
+static bool8 P2CanSend(u8 index)
+{
+    return index < PARTY_SIZE && GetMonData(&gEnemyParty[index], MON_DATA_SPECIES) != SPECIES_NONE
+        && GetMonData(&gEnemyParty[index], MON_DATA_HP) != 0 && index != gBattlerPartyIndexes[1];
+}
+
+static bool8 P2HasBench(void)
+{
+    u32 i;
+    for (i = 0; i < PARTY_SIZE; i++)
+        if (P2CanSend(i))
+            return TRUE;
+    return FALSE;
+}
+
+static void DrawP2Pick(void)
+{
+    u32 i, y;
+    u8 text[16];
+    FillWindowPixelBuffer(1, PIXEL_FILL(9));
+    PrintWindow(1, 5, 1, sTextP2Pick, 7);
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        struct Pokemon *mon = &gEnemyParty[i];
+        u16 species = GetMonData(mon, MON_DATA_SPECIES);
+        u8 color;
+        if (species == SPECIES_NONE)
+            continue;
+        y = 12 + i * 9;
+        color = P2CanSend(i) ? (i == sP2PickCursor ? 7 : 4) : 8;
+        if (i == sP2PickCursor)
+            WindowRect(1, 0, y + 3, 3, 6, 5);
+        PrintWindow(1, 8, y, gSpeciesNames[species], color);
+        if (i == gBattlerPartyIndexes[1])
+            PrintWindow(1, 120, y, sTextP2Out, 8);
+        else if (!GetMonData(mon, MON_DATA_HP))
+            PrintWindow(1, 120, y, sTextP2Fainted, 6);
+        else
+        {
+            ConvertIntToDecimalStringN(text, GetMonData(mon, MON_DATA_HP), STR_CONV_MODE_RIGHT_ALIGN, 3);
+            PrintWindow(1, 120, y, text, color);
+        }
+    }
+    if (sP2Pick == 2)
+        PrintWindow(1, 150, 1, sTextP2Keys, 8);
+    PutWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_FULL);
+}
+
+static void OpenP2Pick(u8 why)
+{
+    u32 i;
+    sP2Pick = why;
+    sP2PickCursor = 0;
+    for (i = 0; i < PARTY_SIZE; i++)
+        if (P2CanSend(i)) { sP2PickCursor = i; break; }
+    sP2PickPrev = gArenaP2Keys;
+    sArena.paused = TRUE;
+    DrawStage();
+    DrawP2Pick();
+}
+
+static void ArenaExit(bool8 fainted);
+
+// Returns TRUE when the arena has been left (the caller must stop).
+static bool8 TickP2Pick(void)
+{
+    u16 keys = gArenaP2Keys, pressed = keys & ~sP2PickPrev;
+    s32 step = 0, i;
+    s32 choice = -1;
+    sP2PickPrev = keys;
+    if (gArenaP2Voice[0] == ARENA_P2_SWITCH)
+    {
+        if (P2CanSend(gArenaP2Voice[1])) choice = gArenaP2Voice[1];
+        gArenaP2Voice[0] = 0;
+    }
+    else if (gArenaP2Voice[0]) gArenaP2Voice[0] = 0;
+    if (pressed & DPAD_UP) step = -1;
+    else if (pressed & DPAD_DOWN) step = 1;
+    if (step)
+    {
+        for (i = 1; i < PARTY_SIZE; i++)
+        {
+            u8 next = (sP2PickCursor + PARTY_SIZE + step * i) % PARTY_SIZE;
+            if (P2CanSend(next)) { sP2PickCursor = next; PlaySE(SE_SELECT); DrawP2Pick(); break; }
+        }
+    }
+    if (choice < 0 && (pressed & A_BUTTON) && P2CanSend(sP2PickCursor))
+        choice = sP2PickCursor;
+    if (choice < 0 && (pressed & B_BUTTON) && sP2Pick == 2)
+    {
+        sP2Pick = 0;
+        sArena.paused = FALSE;
+        DrawStage();
+        sArena.hudDirty = TRUE;
+        return FALSE;
+    }
+    if (choice < 0)
+        return FALSE;
+    PlaySE(SE_SELECT);
+    ClearWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_MAP);
+    sArena.paused = FALSE;
+    if (sP2Pick == 1)
+    {
+        sP2Pick = 0;
+        gArenaP2NextMon = choice + 1;
+        ArenaExit(TRUE);
+    }
+    else
+    {
+        sP2Pick = 0;
+        gArenaP2SwitchTo = choice + 1;
+        ArenaExit(FALSE);
+    }
+    return TRUE;
+}
+
+// ---------------------------------------------------------------- Esc menu
+// In a draft battle Esc (read by the voice agent) pauses with RESUME and
+// START OVER, in the pause picker's window. START OVER ends the battle and
+// returns to the ARENA menu.
+
+static const u8 sTextEscPaused[] = _("PAUSED");
+static const u8 sTextEscResume[] = _("RESUME");
+static const u8 sTextEscStartOver[] = _("START OVER");
+static const u8 sTextEscNote[] = _("Ends the battle, to ARENA menu.");
+static const u8 sTextEscKeys[] = _("A: OK    B or ESC: RESUME");
+
+static void DrawEscMenu(void)
+{
+    FillWindowPixelBuffer(1, PIXEL_FILL(9));
+    PrintWindow(1, 8, 2, sTextEscPaused, 7);
+    if (sEscMenu == 1) WindowRect(1, 4, 23, 3, 6, 5);
+    PrintWindow(1, 12, 20, sTextEscResume, sEscMenu == 1 ? 7 : 4);
+    if (sEscMenu == 2) WindowRect(1, 4, 37, 3, 6, 5);
+    PrintWindow(1, 12, 34, sTextEscStartOver, sEscMenu == 2 ? 7 : 4);
+    if (sEscMenu == 2)
+        PrintWindow(1, 12, 46, sTextEscNote, 8);
+    PrintWindow(1, 8, 59, sTextEscKeys, 8);
+    PutWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_FULL);
+}
+
+static void CloseEscMenu(void)
+{
+    sEscMenu = 0;
+    sArena.paused = FALSE;
+    DrawStage();
+    sArena.hudDirty = TRUE;
+}
+
+static void StartOverFromBattle(void)
+{
+    // As after a catch: leave the arena and let the engine end the battle.
+    sEscMenu = 0;
+    sArena.paused = FALSE;
+    ClearWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_MAP);
+    sArena.active = FALSE;
+    gRealtimeArenaTelemetry.active = FALSE;
+    gRealtimeArenaTelemetry.exits++;
+    gRealtimeArenaQuietResult = TRUE;
+    gArenaStartOver = TRUE;
+    gMain.callback1 = sArena.savedCB1;
+    FadeOutBGM(4);
+    RealtimeArena_Forfeit();
+    SetMainCallback2(BattleMainCB2);
+}
+
+// Returns TRUE when the arena has been left (the caller must stop).
+static bool8 TickEscMenu(void)
+{
+    if (!sEscMenu)
+    {
+        gArenaEscRequest = 0;
+        sEscMenu = 1;
+        sArena.paused = TRUE;
+        PlaySE(SE_SELECT);
+        DrawStage();
+        DrawEscMenu();
+        return FALSE;
+    }
+    if (gArenaEscRequest || JOY_NEW(B_BUTTON | START_BUTTON))
+    {
+        gArenaEscRequest = 0;
+        PlaySE(SE_SELECT);
+        CloseEscMenu();
+    }
+    else if (JOY_NEW(DPAD_UP | DPAD_DOWN))
+    {
+        sEscMenu = sEscMenu == 1 ? 2 : 1;
+        PlaySE(SE_SELECT);
+        DrawEscMenu();
+    }
+    else if (JOY_NEW(A_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        if (sEscMenu == 1)
+            CloseEscMenu();
+        else
+        {
+            StartOverFromBattle();
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static void UpdateMovesPanels(void)
+{
+    bool8 show = !sArena.paused && !sArena.resultTimer;
+    DrawMovesPanel(0, 3, show);
+    if (P2Human())
+        DrawMovesPanel(1, 4, show);
 }
 
 static void LoadAimMarker(void)
@@ -813,7 +1254,9 @@ static void CB2_ArenaInit(void)
     SetVBlankCallback(NULL);
     SetHBlankCallback(NULL);
     ScanlineEffect_Stop();
-    SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_FORCED_BLANK);
+    // Forced blank shows white for the frames the arena takes to load; in a
+    // draft battle (re-entered after every KO) show the dark backdrop instead.
+    SetGpuReg(REG_OFFSET_DISPCNT, gArenaDraftBattle ? DISPCNT_MODE_0 : DISPCNT_FORCED_BLANK);
     FreeAllWindowBuffers();
     ResetTasks();
     ResetSpriteData();
@@ -874,6 +1317,7 @@ static void CB2_ArenaInit(void)
     memset(&gArenaMoveTelemetry, 0, sizeof(gArenaMoveTelemetry));
     memset(&gArenaFrameTelemetry,0,sizeof(gArenaFrameTelemetry));
     memset(&gArenaGhostTelemetry,0,sizeof(gArenaGhostTelemetry));
+    gArenaVoiceRequest=0;   // a stale request never carries into a new arena
     memset(gArenaRenderTelemetry,0,sizeof(gArenaRenderTelemetry));
     gArenaFrameTelemetry.lastVBlank=gMain.vblankCounter1;
     sArena.lastBlast=0;
@@ -961,6 +1405,12 @@ static void CB2_ArenaInit(void)
     gRealtimeArenaTelemetry.hpBefore = gBattleMons[0].hp;
     gRealtimeArenaTelemetry.expBefore = GetMonData(&gPlayerParty[gBattlerPartyIndexes[0]], MON_DATA_EXP);
     DrawHud();
+    sPanelShown[0] = sPanelShown[1] = FALSE;
+    sP2Pick = 0;
+    sEscMenu = 0;
+    gArenaEscRequest = 0;
+    UpdateMovesPanels();
+    UpdateToasts(TRUE);
     PutWindowTilemap(0);
     CopyWindowToVram(0, COPYWIN_FULL);
     SendoutInit();
@@ -1209,6 +1659,10 @@ static void TickPlayer(void)
     if (body->dash) { dx = body->dashX; dy = body->dashY; }
     if (!body->actionLife)
         Move(0, dx, dy, Speed(0) * (body->dash ? 3 : body->shotTimer ? 1 : 2) / (body->dash ? 1 : 2));
+    // Local: standing still, the player's Pokémon keeps facing the opponent
+    // (walking, including walking away, still faces the way it goes).
+    if (!body->moving && !body->dash && !body->shotTimer)
+        body->facing = Facing(sArena.bodies[1].x - body->x, sArena.bodies[1].y - body->y);
     if (body->moving && !(sArena.frame % (body->dash ? 3 : 14)))
         ArenaFeedback_Dust(body->x/Q, body->y/Q, body->dash != 0);
     if (body->dash) body->dash--;
@@ -1414,6 +1868,81 @@ static void AiChooseMove(s32 distance)
         if(p->kind!=ARENA_MOVE_SELF && distance>p->range)score-=(distance-p->range)*2;
         if(gBattleMons[1].pp[i]<=2)score-=12;
         if(score>best){best=score;sArena.bodies[1].moveSlot=i;}
+    }
+}
+
+
+// Arena mode 1P vs 1P: the second Pokémon is Player 2's, driven by
+// gArenaP2Keys (written each frame by the voice agent's bridge) exactly as
+// the first is driven by the keypad: move, A to attack with the same short
+// buffer, B plus a direction to dodge, L/R to change move.
+EWRAM_DATA u8 gArenaP2MoveSlot = 0;
+static EWRAM_DATA u16 sP2Prev = 0;
+static EWRAM_DATA u8 sP2Attack = 0, sP2Dash = 0;
+static EWRAM_DATA s8 sP2DashX = 0, sP2DashY = 0;
+
+static bool8 P2Human(void)
+{
+    return gArenaDraftBattle && gArenaDraftMode == ARENA_DRAFT_VS_P2;
+}
+
+static void TickP2(void)
+{
+    struct ArenaBody *body = &sArena.bodies[1];
+    u16 held = gArenaP2Keys, pressed = held & ~sP2Prev;
+    s32 dx = ((held & DPAD_RIGHT) != 0) - ((held & DPAD_LEFT) != 0);
+    s32 dy = ((held & DPAD_DOWN) != 0) - ((held & DPAD_UP) != 0);
+    sP2Prev = held;
+    body->moving = FALSE;
+    if (pressed & A_BUTTON) sP2Attack = 6;
+    else if (sP2Attack) sP2Attack--;
+    if ((pressed & B_BUTTON) && (dx || dy))
+    {
+        sP2Dash = 6;
+        sP2DashX = dx; sP2DashY = dy;
+    }
+    else if (sP2Dash) sP2Dash--;
+    if ((pressed & (L_BUTTON | R_BUTTON)) && (held & (L_BUTTON | R_BUTTON)) != (L_BUTTON | R_BUTTON))
+    {
+        u32 i;
+        for (i = 1; i <= MAX_MON_MOVES; i++)
+        {
+            u8 slot = (body->moveSlot + ((pressed & L_BUTTON) ? MAX_MON_MOVES - i : i)) % MAX_MON_MOVES;
+            if (SupportedMove(gBattleMons[1].moves[slot])) { body->moveSlot = slot; break; }
+        }
+    }
+    gArenaP2MoveSlot = body->moveSlot;
+    if (SpecialBusy(1)) return;
+    if (body->dashCooldown) body->dashCooldown--;
+    if (sP2Dash && !body->dashCooldown && !body->actionLife)
+    {
+        body->dash = 10; body->dashCooldown = 75;
+        body->dashX = sP2DashX; body->dashY = sP2DashY;
+        sP2Dash = 0;
+        body->shotTimer = 0;
+        PlaySE(SE_M_DOUBLE_TEAM);
+    }
+    if (body->dash) { dx = body->dashX; dy = body->dashY; }
+    if (!body->actionLife)
+        Move(1, dx, dy, Speed(1) * (body->dash ? 3 : body->shotTimer ? 1 : 2) / (body->dash ? 1 : 2));
+    if (!body->moving && !body->dash && !body->shotTimer)
+        body->facing = Facing(sArena.bodies[0].x - body->x, sArena.bodies[0].y - body->y);
+    if (body->moving && !(sArena.frame % (body->dash ? 3 : 14)))
+        ArenaFeedback_Dust(body->x/Q, body->y/Q, body->dash != 0);
+    if (body->dash) body->dash--;
+    if (body->cooldown && !body->shotTimer && !body->actionLife) body->cooldown--;
+    if (((held & A_BUTTON) || sP2Attack) && !body->cooldown && !body->dash && !body->shotTimer)
+    {
+        body->manualAim = dx || dy;
+        if (!dx && !dy && gBattleMons[1].moves[body->moveSlot] == MOVE_ROLLOUT)
+        {
+            static const s8 facing[8][2]={{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1},{-1,0},{-1,1}};
+            dx = facing[body->facing][0]; dy = facing[body->facing][1];
+            body->manualAim = TRUE;
+        }
+        BeginShot(1, dx || dy ? body->x + dx * 200 * Q : DecoyAim(0, FALSE),
+                     dx || dy ? body->y + dy * 200 * Q : DecoyAim(0, TRUE));
+        sP2Attack = 0;
     }
 }
 
@@ -1941,15 +2470,45 @@ static void CB2_Arena(void)
     gArenaFrameTelemetry.updates++;
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
-    if (JOY_NEW(SELECT_BUTTON) && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
-    if (JOY_NEW(START_BUTTON) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    if (!sP2Pick && gArenaDraftBattle && !sArena.resultTimer && (sEscMenu || gArenaEscRequest))
+    {
+        if (TickEscMenu()) return;
+    }
+    if (sP2Pick)
+    {
+        if (TickP2Pick()) return;
+    }
+    // Cheap tests first: reading the party (encrypted) only when asked.
+    else if ((gArenaP2Voice[0] || (gArenaP2Keys & SELECT_BUTTON)) && P2Human() && !sArena.paused
+             && !sArena.resultTimer && !SpecialBusy(1) && P2HasBench())
+    {
+        if (gArenaP2Voice[0] == ARENA_P2_SWITCH && P2CanSend(gArenaP2Voice[1]))
+        {
+            // A named switch ("P2: switch to Gengar") needs no list.
+            gArenaP2SwitchTo = gArenaP2Voice[1] + 1;
+            gArenaP2Voice[0] = 0;
+            ArenaExit(FALSE);
+            return;
+        }
+        gArenaP2Voice[0] = 0;
+        OpenP2Pick(2);
+    }
+    if (JOY_NEW(SELECT_BUTTON) && !sP2Pick && !sEscMenu && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !sP2Pick && !sEscMenu && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    {
+        gArenaVoiceRequest = 0;
+        gArenaVoicePartyMenu = TRUE;
+        ArenaExit(FALSE);
+        return;
+    }
+    if (JOY_NEW(START_BUTTON) && !sP2Pick && !sEscMenu && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
         DrawStage();
         sArena.hudDirty = TRUE;
     }
     if(!SpecialBusy(0)&&!SpecialBusy(1))CaptureInput();
-    if(sArena.paused)
+    if(sArena.paused && !sP2Pick && !sEscMenu)
     {
         u16 keys=gMain.newKeys&DPAD_ANY;
         u8 slot=keys==DPAD_UP?0:keys==DPAD_RIGHT?1:keys==DPAD_DOWN?2:keys==DPAD_LEFT?3:MAX_MON_MOVES;
@@ -1973,7 +2532,18 @@ static void CB2_Arena(void)
                 sArena.bodies[i].actionAge++;sArena.bodies[i].actionLife--;
                 sFlameReach[i]=min(sFlameReach[i],sArena.bodies[i].actionLife*11);
             }
-            if (--sArena.resultTimer == 0) { ArenaExit(TRUE); return; }
+            if (--sArena.resultTimer == 0)
+            {
+                // Player 2's Pokémon fainted: Player 2 picks the next one first.
+                if (P2Human() && !gBattleMons[1].hp && gBattleMons[0].hp && P2HasBench())
+                {
+                    sArena.resultTimer = 1;
+                    OpenP2Pick(1);
+                    return;
+                }
+                ArenaExit(TRUE);
+                return;
+            }
         }
         else
         {
@@ -1991,7 +2561,7 @@ static void CB2_Arena(void)
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[0]=now-phaseStamp;phaseStamp=now;
                 if(sCapture.state!=ARENA_CAPTURE_AIM)TickPlayer();
-                TickEnemy();
+                if (P2Human()) TickP2(); else TickEnemy();
                 now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
                 gArenaFrameTelemetry.scanlines[1]=now-phaseStamp;phaseStamp=now;
                 TickPendingShots(); TickActions(); TickShots(); TickPsychic();
@@ -2249,6 +2819,9 @@ static void CB2_Arena(void)
     gArenaFeedbackTelemetry.hitstop = sArena.hitstop;
     gArenaFeedbackTelemetry.attackBuffer = sArena.attackBuffer;
     gArenaFeedbackTelemetry.dashBuffer = sArena.dashBuffer;
+    // Before the HUD: the pause picker shares these rows and must win them.
+    UpdateMovesPanels();
+    UpdateToasts(FALSE);
     if (sArena.hudDirty || sHudRecovery!=RecoveryPips() || JOY_NEW(START_BUTTON | L_BUTTON | R_BUTTON)) DrawHud();
     gArenaRenderTelemetry[1]=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228-now;
     now=gMain.vblankCounter1*228+(REG_VCOUNT+68)%228;
@@ -2304,6 +2877,27 @@ static void ArenaExit(bool8 fainted)
         SetMainCallback2(BattleMainCB2);
         return;
     }
+    if(gArenaDraftBattle)
+    {
+        // Arena-mode drafts: a switch (SELECT or by voice) goes from the arena
+        // image straight to the party list and back, the engine's switch
+        // running silently in between. Only the party list leaves the arena.
+        sArena.active=FALSE;sArena.classic=FALSE;
+        gRealtimeArenaTelemetry.active=FALSE;
+        gRealtimeArenaTelemetry.exits++;
+        gRealtimeArenaTelemetry.lastExitFainted=FALSE;
+        gRealtimeArenaRestoringFaint=FALSE;
+        gRealtimeArenaQuietResult=TRUE;
+        ArenaFeedback_Destroy();
+        for(i=0;i<2;i++)ArenaMoveFx_Action(i,NULL,0,0,0,0,FALSE,TRUE);
+        gSprites[sArena.aimSprite].invisible=TRUE;
+        gSprites[sArena.cueSprite].invisible=TRUE;
+        BuildOamBuffer();ArenaRender_Ready();
+        gMain.callback1=sArena.savedCB1;
+        RealtimeArena_ResumeBattle(FALSE);
+        SetMainCallback2(BattleMainCB2);
+        return;
+    }
     SetVBlankCallback(NULL);
     ArenaFeedback_Destroy();
     for (i = 0; i < 2; i++)
@@ -2318,7 +2912,7 @@ static void ArenaExit(bool8 fainted)
     sArena.active = FALSE;
     // SELECT opens the original party selector in trainer arenas, then
     // returns here after the switch. It never enables a turn-based attack.
-    sArena.classic = !(gBattleTypeFlags & BATTLE_TYPE_TRAINER);
+    sArena.classic = !(gBattleTypeFlags & BATTLE_TYPE_TRAINER) && !gArenaVoicePartyMenu;
     gRealtimeArenaTelemetry.active = FALSE;
     gRealtimeArenaTelemetry.exits++;
     gRealtimeArenaTelemetry.lastExitFainted = FALSE;
@@ -2340,8 +2934,8 @@ bool8 RealtimeArena_SetupDemo(void)
 {
 #if !ARENA_LAB
     static const struct {u16 species;u8 level;} team[] = {
-        {SPECIES_CHARIZARD,36}, {SPECIES_BLASTOISE,36}, {SPECIES_EEVEE,25},
-        {SPECIES_DRAGONITE,30}, {SPECIES_SCIZOR,15}, {SPECIES_BLAZIKEN,20}
+        {SPECIES_CHARIZARD,36}, {SPECIES_MEWTWO,50}, {SPECIES_GOLEM,36},     // local: Mewtwo and Golem
+        {SPECIES_BLASTOISE,36}, {SPECIES_DRAGONITE,30}, {SPECIES_BLAZIKEN,20}
     };
     static const struct {u16 species;u8 level;} box[] = {
         {SPECIES_TREECKO,11}, {SPECIES_POOCHYENA,12}, {SPECIES_BULBASAUR,12},
@@ -2384,6 +2978,17 @@ bool8 RealtimeArena_SetupDemo(void)
     for (i = 0; i < ARRAY_COUNT(team); i++)
         CreateMon(&gPlayerParty[i], team[i].species, team[i].level,
                   20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);
+    // Local: the practice Charizard knows Seismic Toss in place of Rage;
+    // Mewtwo and Golem get movesets the arena plays in real time.
+    SetMonMoveSlot(&gPlayerParty[0], MOVE_SEISMIC_TOSS, 0);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_PSYCHIC, 0);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_SHADOW_BALL, 1);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_SWIFT, 2);
+    SetMonMoveSlot(&gPlayerParty[1], MOVE_TELEPORT, 3);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROLLOUT, 0);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_DEFENSE_CURL, 1);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROCK_THROW, 2);
+    SetMonMoveSlot(&gPlayerParty[2], MOVE_ROCK_TOMB, 3);
     for (i = 0; i < ARRAY_COUNT(box); i++)
         CreateBoxMonAt(0, i, box[i].species, box[i].level,
                        20, TRUE, i * 2, OT_ID_PLAYER_ID, 0);

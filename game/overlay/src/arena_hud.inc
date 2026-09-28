@@ -23,6 +23,7 @@ static void HudTinyWindow(u8 window,u32 x,u32 y,const u8 *text,u8 color,u32 maxC
         else if(c==CHAR_PLUS)bits=0x05D0;
         else if(c==CHAR_EXCL_MARK)bits=0x2490|2;
         else if(c==CHAR_PERIOD)bits=2;
+        else if(c==CHAR_HYPHEN)bits=0x01C0;
         for(row=0;row<5;row++)for(col=0;col<3;col++)
             if(bits&(1<<(14-row*3-col)))WindowRect(window,x+col,y+row,1,1,color);
         x+=4;
