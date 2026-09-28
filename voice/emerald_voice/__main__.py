@@ -106,7 +106,22 @@ def main():
     executor, executor2 = Executor(), Executor()
     p2_state = {'keys': None}
 
+    esc = {'down': False}
+
+    def check_esc(state):
+        """Esc opens RESUME / START OVER on the arena's draft, versus and
+        battle screens (read here: mGBA has no GBA button for it)."""
+        from .voice import esc_down, mgba_in_front
+        down = esc_down()
+        if down and not esc['down']:
+            arena_mode = state.draft_screen or (state.screen == 'arena' and state.raw.get('draft', b'\0')[0])
+            if arena_mode and mgba_in_front():
+                bridge.write_byte('gArenaEscRequest', 1)
+        esc['down'] = down
+
     def on_frame(state):
+        if not args.text:
+            check_esc(state)
         keys = executor.on_frame(state)
         if args.two_players and state.pvp:
             from .state import view

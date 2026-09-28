@@ -701,6 +701,7 @@ static u8 RecoveryPips(void)
 }
 
 static EWRAM_DATA u8 sP2Pick = 0;         // Player 2 choosing: 0 closed, 1 after a KO, 2 voluntary
+static EWRAM_DATA u8 sEscMenu = 0;        // Esc menu: 0 closed, 1 RESUME, 2 START OVER selected
 #include "arena_hud.inc"
 
 static void DrawHud(void)
@@ -709,7 +710,7 @@ static void DrawHud(void)
     u8 text[64];
     u8 *end;
     DrawStatusHud();
-    if (sArena.paused && !sP2Pick)
+    if (sArena.paused && !sP2Pick && !sEscMenu)
     {
         if(!sMoveMenuReady)
         {
@@ -1003,6 +1004,94 @@ static bool8 TickP2Pick(void)
     return TRUE;
 }
 
+// ---------------------------------------------------------------- Esc menu
+// In a draft battle Esc (read by the voice agent) pauses with RESUME and
+// START OVER, in the pause picker's window. START OVER ends the battle and
+// returns to the ARENA menu.
+
+static const u8 sTextEscPaused[] = _("PAUSED");
+static const u8 sTextEscResume[] = _("RESUME");
+static const u8 sTextEscStartOver[] = _("START OVER  (back to the ARENA menu)");
+static const u8 sTextEscKeys[] = _("UP/DOWN  A: OK  B or ESC: RESUME");
+
+static void DrawEscMenu(void)
+{
+    FillWindowPixelBuffer(1, PIXEL_FILL(9));
+    PrintWindow(1, 8, 2, sTextEscPaused, 7);
+    if (sEscMenu == 1) WindowRect(1, 4, 23, 3, 6, 5);
+    PrintWindow(1, 12, 20, sTextEscResume, sEscMenu == 1 ? 7 : 4);
+    if (sEscMenu == 2) WindowRect(1, 4, 37, 3, 6, 5);
+    PrintWindow(1, 12, 34, sTextEscStartOver, sEscMenu == 2 ? 7 : 4);
+    PrintWindow(1, 8, 56, sTextEscKeys, 8);
+    PutWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_FULL);
+}
+
+static void CloseEscMenu(void)
+{
+    sEscMenu = 0;
+    sArena.paused = FALSE;
+    DrawStage();
+    sArena.hudDirty = TRUE;
+}
+
+static void StartOverFromBattle(void)
+{
+    // As after a catch: leave the arena and let the engine end the battle.
+    sEscMenu = 0;
+    sArena.paused = FALSE;
+    ClearWindowTilemap(1);
+    CopyWindowToVram(1, COPYWIN_MAP);
+    sArena.active = FALSE;
+    gRealtimeArenaTelemetry.active = FALSE;
+    gRealtimeArenaTelemetry.exits++;
+    gRealtimeArenaQuietResult = TRUE;
+    gArenaStartOver = TRUE;
+    gMain.callback1 = sArena.savedCB1;
+    FadeOutBGM(4);
+    RealtimeArena_Forfeit();
+    SetMainCallback2(BattleMainCB2);
+}
+
+// Returns TRUE when the arena has been left (the caller must stop).
+static bool8 TickEscMenu(void)
+{
+    if (!sEscMenu)
+    {
+        gArenaEscRequest = 0;
+        sEscMenu = 1;
+        sArena.paused = TRUE;
+        PlaySE(SE_SELECT);
+        DrawStage();
+        DrawEscMenu();
+        return FALSE;
+    }
+    if (gArenaEscRequest || JOY_NEW(B_BUTTON | START_BUTTON))
+    {
+        gArenaEscRequest = 0;
+        PlaySE(SE_SELECT);
+        CloseEscMenu();
+    }
+    else if (JOY_NEW(DPAD_UP | DPAD_DOWN))
+    {
+        sEscMenu = sEscMenu == 1 ? 2 : 1;
+        PlaySE(SE_SELECT);
+        DrawEscMenu();
+    }
+    else if (JOY_NEW(A_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        if (sEscMenu == 1)
+            CloseEscMenu();
+        else
+        {
+            StartOverFromBattle();
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
 static void UpdateMovesPanels(void)
 {
     bool8 show = !sArena.paused && !sArena.resultTimer;
@@ -1271,6 +1360,8 @@ static void CB2_ArenaInit(void)
     DrawHud();
     sPanelShown[0] = sPanelShown[1] = FALSE;
     sP2Pick = 0;
+    sEscMenu = 0;
+    gArenaEscRequest = 0;
     UpdateMovesPanels();
     UpdateToasts(TRUE);
     PutWindowTilemap(0);
@@ -2332,6 +2423,10 @@ static void CB2_Arena(void)
     gArenaFrameTelemetry.updates++;
     if(gap>gArenaFrameTelemetry.maxGap)gArenaFrameTelemetry.maxGap=gap;
     if(gap>1)gArenaFrameTelemetry.missedVBlanks+=gap-1;
+    if (!sP2Pick && gArenaDraftBattle && !sArena.resultTimer && (sEscMenu || gArenaEscRequest))
+    {
+        if (TickEscMenu()) return;
+    }
     if (sP2Pick)
     {
         if (TickP2Pick()) return;
@@ -2351,22 +2446,22 @@ static void CB2_Arena(void)
         gArenaP2Voice[0] = 0;
         OpenP2Pick(2);
     }
-    if (JOY_NEW(SELECT_BUTTON) && !sP2Pick && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
-    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !sP2Pick && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    if (JOY_NEW(SELECT_BUTTON) && !sP2Pick && !sEscMenu && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE) { ArenaExit(FALSE); return; }
+    if (gArenaVoiceRequest == ARENA_VOICE_SWITCH && !sP2Pick && !sEscMenu && !SpecialBusy(0) && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         gArenaVoiceRequest = 0;
         gArenaVoicePartyMenu = TRUE;
         ArenaExit(FALSE);
         return;
     }
-    if (JOY_NEW(START_BUTTON) && !sP2Pick && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
+    if (JOY_NEW(START_BUTTON) && !sP2Pick && !sEscMenu && !sArena.resultTimer && sCapture.state==ARENA_CAPTURE_IDLE)
     {
         sArena.paused ^= TRUE;
         DrawStage();
         sArena.hudDirty = TRUE;
     }
     if(!SpecialBusy(0)&&!SpecialBusy(1))CaptureInput();
-    if(sArena.paused && !sP2Pick)
+    if(sArena.paused && !sP2Pick && !sEscMenu)
     {
         u16 keys=gMain.newKeys&DPAD_ANY;
         u8 slot=keys==DPAD_UP?0:keys==DPAD_RIGHT?1:keys==DPAD_DOWN?2:keys==DPAD_LEFT?3:MAX_MON_MOVES;

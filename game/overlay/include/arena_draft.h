@@ -61,6 +61,14 @@ extern u8 gArenaVoiceHeardSeq;
 // Player 1 (Player 2's turn).
 extern u8 gArenaVoiceRetry;
 
+// Esc (read by the voice agent): opens RESUME / START OVER on the draft,
+// versus and battle screens. START OVER in a battle ends it and returns to
+// the ARENA menu without a result screen.
+extern u8 gArenaEscRequest;
+extern u8 gArenaStartOver;
+// In battle_main.c: ends the battle at once (START OVER).
+void RealtimeArena_Forfeit(void);
+
 void CB2_ArenaTitleMenu(void);
 bool8 ArenaDraft_TakeOverMainMenu(void);
 const u8 *ArenaDraft_OpponentName(void);

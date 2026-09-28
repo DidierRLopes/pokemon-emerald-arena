@@ -42,6 +42,24 @@ def left_option_down():
 P2_KEYS = {34: 64, 40: 128, 38: 32, 37: 16, 32: 1, 31: 2, 16: 512, 35: 256, 4: 4}
 
 
+ESCAPE = 53
+
+
+def esc_down():
+    return bool(_quartz.CGEventSourceKeyState(0, ESCAPE))
+
+
+def mgba_in_front():
+    """Whether mGBA is the app in front (Esc elsewhere is not for the game)."""
+    try:
+        out = subprocess.run(['lsappinfo', 'info', '-only', 'name', subprocess.run(
+            ['lsappinfo', 'front'], capture_output=True, text=True, timeout=1).stdout.strip()],
+            capture_output=True, text=True, timeout=1).stdout
+        return 'mGBA' in out
+    except Exception:
+        return True
+
+
 def p2_keys():
     mask = 0
     for code, bit in P2_KEYS.items():

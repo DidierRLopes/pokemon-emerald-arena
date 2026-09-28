@@ -60,6 +60,9 @@ EWRAM_DATA bool8 gArenaDraftBattle = FALSE;
 EWRAM_DATA u16 gArenaP2Keys = 0;
 EWRAM_DATA u8 gArenaDraftVoice[2] = {};
 EWRAM_DATA u8 gArenaVoiceEnroll = 0;
+EWRAM_DATA u8 gArenaEscRequest = 0;
+EWRAM_DATA u8 gArenaStartOver = 0;
+static EWRAM_DATA u8 sEscMenu = 0;          // 0 closed, 1 + selected item
 static EWRAM_DATA bool8 sComHard = FALSE;
 EWRAM_DATA u8 gArenaDraftScreen = 0;
 static EWRAM_DATA bool8 sAdventureOnce = FALSE;
@@ -184,6 +187,9 @@ static void SetupScreen(const struct WindowTemplate *windows)
     u32 i;
     SetVBlankCallback(NULL);
     SetGpuReg(REG_OFFSET_DISPCNT, 0);
+    // Empty cells use tile 0 of each background: after a battle, VRAM still
+    // holds its graphics, so start every screen from blank VRAM.
+    DmaClearLarge16(3, (void *)VRAM, VRAM_SIZE, 0x1000);
     ResetBgsAndClearDma3BusyFlags(0);
     InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
     for (i = 0; i < 4; i++)
@@ -782,6 +788,7 @@ static void CB2_StartDraftFor(u8 player)
     if (!sDraft)
         sDraft = AllocZeroed(sizeof(*sDraft));
     sDraft->player = player;
+    gArenaEscRequest = sEscMenu = 0;
     sDraft->cursor = 0;
     sDraft->top = 0;
     sDraft->focus = 0;
@@ -834,6 +841,53 @@ static void MoveGrid(s32 dx, s32 dy)
         sDraft->top = row;
     else if (row >= sDraft->top + GRID_VISIBLE)
         sDraft->top = row - GRID_VISIBLE + 1;
+}
+
+// ---------------------------------------------------------------- Esc menu
+static const u8 sText_EscPaused[] = _("PAUSED");
+static const u8 sText_EscResume[] = _("RESUME");
+static const u8 sText_EscStartOver[] = _("START OVER");
+static const u8 sText_EscKeys[] = _("{A_BUTTON} OK  {B_BUTTON} RESUME");
+
+// A small box at (x, y) in WIN_MAIN with RESUME and START OVER.
+static void DrawEscMenu(u8 x, u8 y)
+{
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(4), x, y, 104, 64);
+    FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(1), x + 1, y + 1, 102, 62);
+    Print(WIN_MAIN, FONT_NORMAL, x + 8, y + 3, sColorYellow, sText_EscPaused);
+    if (sEscMenu == 1) Print(WIN_MAIN, FONT_NORMAL, x + 6, y + 18, sColorYellow, sText_Cursor);
+    Print(WIN_MAIN, FONT_NORMAL, x + 18, y + 18, sEscMenu == 1 ? sColorWhite : sColorGray, sText_EscResume);
+    if (sEscMenu == 2) Print(WIN_MAIN, FONT_NORMAL, x + 6, y + 32, sColorYellow, sText_Cursor);
+    Print(WIN_MAIN, FONT_NORMAL, x + 18, y + 32, sEscMenu == 2 ? sColorWhite : sColorGray, sText_EscStartOver);
+    Print(WIN_MAIN, FONT_SMALL, x + 8, y + 50, sColorGray, sText_EscKeys);
+    PutWindowTilemap(WIN_MAIN);
+    CopyWindowToVram(WIN_MAIN, COPYWIN_FULL);
+}
+
+// Input for an open Esc menu: 0 still open, 1 resume, 2 start over.
+static u8 TickEscMenu(void)
+{
+    if (gArenaEscRequest || JOY_NEW(B_BUTTON))
+    {
+        gArenaEscRequest = 0;
+        sEscMenu = 0;
+        PlaySE(SE_SELECT);
+        return 1;
+    }
+    if (JOY_NEW(DPAD_UP | DPAD_DOWN))
+    {
+        sEscMenu = sEscMenu == 1 ? 2 : 1;
+        PlaySE(SE_SELECT);
+        return 3;                                   // redraw
+    }
+    if (JOY_NEW(A_BUTTON))
+    {
+        u8 choice = sEscMenu;
+        sEscMenu = 0;
+        PlaySE(SE_SELECT);
+        return choice;
+    }
+    return 0;
 }
 
 static void TryPick(u8 player, u8 mon)
@@ -944,6 +998,30 @@ static void Task_Draft(u8 taskId)
         return;
     }
     gArenaDraftScreen = 1 + player;
+    if (sEscMenu || gArenaEscRequest)
+    {
+        u8 r;
+        if (!sEscMenu)
+        {
+            gArenaEscRequest = 0;
+            sEscMenu = 1;
+            PlaySE(SE_SELECT);
+            DrawEscMenu(8, 32);
+            return;
+        }
+        r = TickEscMenu();
+        if (r == 3)
+            DrawEscMenu(8, 32);
+        else if (r == 1)
+            RefreshDraft();
+        else if (r == 2)
+        {
+            sTeamCount[0] = sTeamCount[1] = 0;
+            *leaving = 2;                            // to the ARENA menu
+            BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
+        }
+        return;
+    }
     if (gArenaDraftVoice[0] && DraftVoice(player, leaving))
         changed = TRUE;
     else if (*leaving)
@@ -1139,6 +1217,7 @@ static void CB2_ShowVersus(void)
         for (i = 0; i < sTeamCount[p]; i++)
             sVsIcons[sVsIconCount++] = CreateMonIcon(sArenaDraftRoster[sTeams[p][i]].species, SpriteCB_MonIcon,
                                                      24 + i * 36, p ? 124 : 44, 1, 0, TRUE);
+    gArenaEscRequest = sEscMenu = 0;
     DrawVersus();
     CreateTask(Task_Versus, 0);
     StartScreen();
@@ -1171,6 +1250,8 @@ static void Task_Versus(u8 taskId)
         gArenaP2Voice[0] = gArenaP2NextMon = gArenaP2SwitchTo = 0;
         if (*leaving == 1)
             StartBattle();
+        else if (*leaving == 3)
+            SetMainCallback2(CB2_ArenaTitleMenu);
         else
         {
             // REDRAFT goes back to the last draft screen with its picks kept
@@ -1180,6 +1261,35 @@ static void Task_Versus(u8 taskId)
         return;
     }
     gArenaDraftScreen = 3;
+    if (sEscMenu || gArenaEscRequest)
+    {
+        u8 r;
+        if (!sEscMenu)
+        {
+            gArenaEscRequest = 0;
+            sEscMenu = 1;
+            PlaySE(SE_SELECT);
+            for (r = 0; r < sVsIconCount; r++)
+                gSprites[sVsIcons[r]].invisible = TRUE;
+            FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
+            DrawEscMenu(68, 48);
+            return;
+        }
+        r = TickEscMenu();
+        if (r == 3)
+            DrawEscMenu(68, 48);
+        else if (r == 1)
+        {
+            *shownState = -1;                        // redraw the screen below
+        }
+        else if (r == 2)
+        {
+            sTeamCount[0] = sTeamCount[1] = 0;
+            *leaving = 3;                            // to the ARENA menu
+            BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 16, RGB_BLACK);
+        }
+        return;
+    }
     if (JOY_NEW(A_BUTTON | START_BUTTON) || gArenaDraftVoice[0] == ARENA_VOICE_DONE)
     {
         // READY (or "fight"): to the battle, voices set or not.
@@ -1280,6 +1390,14 @@ static void CB2_ArenaResult(void)
     // Battles write to the save blocks in RAM (names, money, dex flags);
     // reload them so the adventure save is exactly as it was.
     LoadGameSave(SAVE_NORMAL);
+    if (gArenaStartOver)
+    {
+        // START OVER from the Esc menu: straight back to the ARENA menu.
+        gArenaStartOver = 0;
+        sTeamCount[0] = sTeamCount[1] = 0;
+        SetMainCallback2(CB2_ArenaTitleMenu);
+        return;
+    }
     SetupScreen(sFullWindows);
     FillPanel(0, 0, 30, 20, TILE_PANEL);
     FillWindowPixelBuffer(WIN_MAIN, PIXEL_FILL(0));
