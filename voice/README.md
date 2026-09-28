@@ -79,8 +79,8 @@ Defense Curl, Rock Throw, Rock Tomb), Blastoise, Dragonite, Blaziken.
 
 ## Arena mode (branch arena-draft)
 
-The title menu becomes **ARENA**: 1P VS COM, 1P VS 1P, or ADVENTURE (the
-original game). Each player drafts up to six level-100 Pokémon with 100
+The original main menu gets one more item, **ARENA** (after NEW GAME /
+CONTINUE and OPTION), which opens 1P VS COM, 1P VS 1P, or BACK. Each player drafts up to six level-100 Pokémon with 100
 credits from the arena's 150 animated Pokémon (costs and movesets from
 `tools/arena/draft_data.py`), then the two teams fight a 6v6 real-time
 battle. Launch with `./play-arena.command`.

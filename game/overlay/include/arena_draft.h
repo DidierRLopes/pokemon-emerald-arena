@@ -70,7 +70,6 @@ extern u8 gArenaStartOver;
 void RealtimeArena_Forfeit(void);
 
 void CB2_ArenaTitleMenu(void);
-bool8 ArenaDraft_TakeOverMainMenu(void);
 const u8 *ArenaDraft_OpponentName(void);
 const u8 *ArenaDraft_OpponentClass(void);
 // In battle_setup.c: the opponent's line when it loses a drafted battle.

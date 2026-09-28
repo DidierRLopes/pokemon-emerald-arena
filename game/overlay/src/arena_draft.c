@@ -65,7 +65,6 @@ EWRAM_DATA u8 gArenaStartOver = 0;
 static EWRAM_DATA u8 sEscMenu = 0;          // 0 closed, 1 + selected item
 static EWRAM_DATA bool8 sComHard = FALSE;
 EWRAM_DATA u8 gArenaDraftScreen = 0;
-static EWRAM_DATA bool8 sAdventureOnce = FALSE;
 static EWRAM_DATA u8 sTeams[2][TEAM_MAX] = {};
 static EWRAM_DATA u8 sTeamCount[2] = {};
 
@@ -86,7 +85,7 @@ enum { MSG_NONE, MSG_FULL, MSG_COST, MSG_TWICE };
 static const u8 sText_Arena[] = _("ARENA");
 static const u8 sText_VsCom[] = _("1P VS COM");
 static const u8 sText_VsP2[] = _("1P VS 1P");
-static const u8 sText_Adventure[] = _("ADVENTURE");
+static const u8 sText_Adventure[] = _("BACK");
 static const u8 sText_MenuHint[] = _("{A_BUTTON} SELECT   {B_BUTTON} BACK");
 static const u8 sText_Cursor[] = _("▶");
 static const u8 sText_P1[] = _("PLAYER 1");
@@ -304,17 +303,6 @@ void CB2_ArenaTitleMenu(void)
     StartScreen();
 }
 
-bool8 ArenaDraft_TakeOverMainMenu(void)
-{
-    if (sAdventureOnce)
-    {
-        sAdventureOnce = FALSE;
-        return FALSE;
-    }
-    SetMainCallback2(CB2_ArenaTitleMenu);
-    return TRUE;
-}
-
 static void CB2_StartDraft(void);
 
 static void Task_ArenaMenu(u8 taskId)
@@ -331,12 +319,10 @@ static void Task_ArenaMenu(u8 taskId)
             SetMainCallback2(CB2_StartDraft);
         else if (*leaving == 2)
         {
-            sAdventureOnce = TRUE;
-            FadeOutBGM(4);
             SetMainCallback2(CB2_InitMainMenu);
         }
         else
-            SetMainCallback2(CB2_InitTitleScreen);
+            SetMainCallback2(CB2_InitMainMenu);
         return;
     }
     if (JOY_NEW(DPAD_UP) && *sel > 0)
