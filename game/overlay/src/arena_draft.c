@@ -1046,9 +1046,9 @@ EWRAM_DATA u8 gArenaVoiceRetry = 0;
 static const u8 sText_VoiceTitle[] = _("SET EACH PLAYER'S VOICE");
 static const u8 sText_VoiceHelp[] = _("Read this aloud, PLAYER 1 then PLAYER 2:");
 // Kept in sync with ENROLL_SENTENCE in voice/emerald_voice/voice.py. Long
-// (3-4 s) and full of different sounds, with words said in battle.
-static const u8 sText_Sentence1[] = _("“Quick, Pikachu! Dodge left, jump up, then");
-static const u8 sText_Sentence2[] = _("fire a Thunderbolt at the huge Gyarados!”");
+// (about 2.5 s), with many different sounds and words said in battle.
+static const u8 sText_Sentence1[] = _("“Quick Pikachu, jump left");
+static const u8 sText_Sentence2[] = _("and fire a Thunderbolt!”");
 static const u8 sText_RetrySentence[] = _("Not the sentence, read it again. Heard:");
 static const u8 sText_RetrySame[] = _("Sounded like PLAYER 1. PLAYER 2, read it:");
 static const u8 sText_VoiceP1[] = _("PLAYER 1");
@@ -1116,8 +1116,8 @@ static void DrawVoiceModal(void)
     Print(WIN_MAIN, FONT_NORMAL, 20, 16, sColorYellow, sText_VoiceTitle);
     Print(WIN_MAIN, FONT_SMALL, 20, 31, sColorWhite, sText_VoiceHelp);
     FillWindowPixelRect(WIN_MAIN, PIXEL_FILL(3), 16, 44, 208, 26);
-    Print(WIN_MAIN, FONT_SMALL, 20, 45, sColorWhite, sText_Sentence1);
-    Print(WIN_MAIN, FONT_SMALL, 26, 57, sColorWhite, sText_Sentence2);
+    Print(WIN_MAIN, FONT_NORMAL, 56, 45, sColorWhite, sText_Sentence1);
+    Print(WIN_MAIN, FONT_NORMAL, 62, 57, sColorWhite, sText_Sentence2);
     DrawVoiceRow(0, 78);
     DrawVoiceRow(1, 94);
     if (gArenaVoiceRetry && (gArenaVoiceEnroll == 1 || gArenaVoiceEnroll == 2))

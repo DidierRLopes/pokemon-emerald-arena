@@ -235,15 +235,28 @@ class Segmenter:
 # What each player reads on the versus screen to set their voice (kept in sync
 # with the ROM's modal): 3-4 s of speech with a wide spread of sounds, and the
 # words players say in battle, so the voice match is made on real play speech.
-ENROLL_SENTENCE = 'Quick, Pikachu! Dodge left, jump up, then fire a Thunderbolt at the huge Gyarados!'
+ENROLL_SENTENCE = 'Quick Pikachu, jump left and fire a Thunderbolt!'
+
+
+def sentence_match(text):
+    """How closely a transcript reads ENROLL_SENTENCE, 0 to 1 (Whisper may
+    garble a word or two)."""
+    import difflib
+    norm = lambda s: ' '.join(''.join(c for c in s.lower() if c.isalpha() or c == ' ').split())
+    return difflib.SequenceMatcher(None, norm(text), norm(ENROLL_SENTENCE)).ratio()
 
 
 def reads_sentence(text):
-    """Whether a transcript is a reading of ENROLL_SENTENCE (Whisper may
-    garble a name or two)."""
+    return sentence_match(text) >= 0.7
+
+
+def starts_sentence(text):
+    """Whether a transcript reads like the first part of ENROLL_SENTENCE
+    (a reading cut at a pause), not other speech."""
     import difflib
     norm = lambda s: ' '.join(''.join(c for c in s.lower() if c.isalpha() or c == ' ').split())
-    return difflib.SequenceMatcher(None, norm(text), norm(ENROLL_SENTENCE)).ratio() >= 0.6
+    t, full = norm(text), norm(ENROLL_SENTENCE)
+    return len(t) >= 5 and difflib.SequenceMatcher(None, t, full[:len(t) + 3]).ratio() >= 0.65
 
 
 # Whisper's usual inventions for noise, breathing or music.
@@ -289,6 +302,7 @@ class PushToTalk:
         self.enrolling = False
         self.on_enrolled = None
         self.on_enroll_retry = None
+        self.reading = None         # a voice-setup reading heard so far, in pieces
         self.lead = deque(maxlen=int(RATE * 0.3 / 512) + 1)   # about 0.3 s before the key press
         self.chunks, self.recording = [], False
         self.stream = sounddevice.InputStream(samplerate=RATE, channels=1, dtype='float32', blocksize=512,
@@ -310,6 +324,9 @@ class PushToTalk:
             if self.recording:
                 self.segmenter = Segmenter()  # push-to-talk has the floor
                 continue
+            # While players read the setup sentence, a pause at a comma must
+            # not end their turn: wait for a longer silence.
+            self.segmenter.hang = 27 if (self.speakers and self.speakers.expect) else 11
             for audio in self.segmenter.feed(block):
                 self.utterances.put(audio)
 
@@ -379,7 +396,9 @@ class PushToTalk:
         # latest command (an old order is worse than none in a fight).
         while True:
             audio = self.utterances.get()
-            while not self.utterances.empty():
+            # Mid-fight, an old order is worse than none: keep the newest.
+            # During the voice setup every piece of a reading counts.
+            while not self.utterances.empty() and not (self.speakers and self.speakers.expect):
                 audio = self.utterances.get()
             self._safe_finish(audio, 'voice')
 
@@ -394,17 +413,30 @@ class PushToTalk:
 
     def _finish(self, audio, key):
         if self.speakers and self.speakers.expect and key == 'voice':
-            # Versus screen, 1P vs 1P: reading the sentence sets a voice.
+            # Versus screen, 1P vs 1P: reading the sentence sets a voice. A
+            # reading paused at a comma arrives in pieces: they are joined
+            # (for this same player) until the whole sentence has been read.
             text = self.transcriber.transcribe(audio, ENROLL_SENTENCE)
             clean = ''.join(c for c in text.lower() if c.isalpha() or c == ' ').strip()
-            if len(audio) < RATE * 0.6 or not clean or clean in HALLUCINATIONS or not self.speakers.expect:
+            if not clean or clean in HALLUCINATIONS or not self.speakers.expect:
                 return
             player = self.speakers.expect[0]
-            if not reads_sentence(text) or len(audio) < RATE * 1.5:
+            now = time.monotonic()
+            if self.reading and (self.reading[0] != player or now - self.reading[3] > 4.0):
+                self.reading = None                    # a stale start: begin again
+            if self.reading:
+                audio = np.concatenate([self.reading[1], audio])
+                text = self.reading[2] + ' ' + text
+            if not reads_sentence(text) or len(audio) < RATE * 1.2:
+                if starts_sentence(text) and len(text) < len(ENROLL_SENTENCE) * 0.9:
+                    self.reading = (player, audio, text, now)   # the start of it: wait for the rest
+                    return
+                self.reading = None
                 self.log(f'Player {player + 1}: "{text}" is not the sentence; asking again.')
                 if self.on_enroll_retry:
                     self.on_enroll_retry(player, 1, text)
                 return
+            self.reading = None
             e = self.speakers.embed(audio)
             if player == 1 and self.speakers.learned and float(np.dot(e, self.speakers.learned[0])) > 0.85:
                 self.log(f'Player 2\'s reading sounded like Player 1 ({float(np.dot(e, self.speakers.learned[0])):.2f}); asking again.')
